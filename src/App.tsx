@@ -8,7 +8,7 @@ export default function QueryApp() {
   const [response, setResponse] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const API_BASE_URL = import.meta.env.API_BASE_URL || "/api";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
   const sendQuery = async () => {
     setLoading(true);
