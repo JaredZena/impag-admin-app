@@ -8,12 +8,14 @@ export default function QueryApp() {
   const [response, setResponse] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const API_BASE_URL = import.meta.env.API_BASE_URL || "/api";
+
   const sendQuery = async () => {
     setLoading(true);
     setResponse(null);
     try {
-      console.log('Sending query')
-      const res = await fetch("/api/query", { method: "POST",           headers: {
+      console.log("Sending query to:", API_BASE_URL);
+      const res = await fetch(`${API_BASE_URL}/query`, { method: "POST",           headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ query }), });
