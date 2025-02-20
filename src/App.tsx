@@ -46,7 +46,7 @@ export default function QueryApp() {
         type="text"
         placeholder="Ingresa el o los productos a cotizar"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
       />
       <Button onClick={sendQuery} disabled={loading}>
         {loading ? "Generando..." : "Generar Cotización"}
@@ -56,7 +56,7 @@ export default function QueryApp() {
       {response && (() => {
   try {
     const parsedResponse = JSON.parse(response); // Convert JSON string to object
-    return parsedResponse.response.split("\\n").map((line, index) => (
+    return parsedResponse.response.split("\\n").map((line: string, index: number) =>(
       <span key={index}>
         {line}
         <br />

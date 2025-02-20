@@ -1,14 +1,18 @@
 {
   "compilerOptions": {
-    "module": "Node16",
-    "target": "ESNext",
-    "moduleResolution": "Node16",
-    "lib": ["es2015", "dom"], // Include necessary libraries
-    "baseUrl": "./",
-    "jsx": "react-jsx",
+    "baseUrl": "./src",
     "paths": {
-      "@/*": ["src/*"]
-    }
+      "@/*": ["*"]
+    },
+    "module": "NodeNext",
+    "target": "ESNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["DOM", "ESNext"],
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   }
 }
-
