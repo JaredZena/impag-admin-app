@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "node16",
-    "target": "es2015", // or "es6"
+    "module": "Node16",
+    "target": "ESNext",
+    "moduleResolution": "Node16",
     "lib": ["es2015", "dom"], // Include necessary libraries
     "baseUrl": ".",
     "jsx": "react-jsx",
