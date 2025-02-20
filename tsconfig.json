@@ -4,10 +4,10 @@
     "target": "ESNext",
     "moduleResolution": "Node16",
     "lib": ["es2015", "dom"], // Include necessary libraries
-    "baseUrl": ".",
+    "baseUrl": "./",
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["src/*"]
     }
   }
 }
