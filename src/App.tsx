@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from 'remark-gfm'
+import './App.css'; 
 
 export default function QueryApp() {
   const [query, setQuery] = useState("");
@@ -59,7 +61,7 @@ export default function QueryApp() {
   });
 
   return (
-    <div className="flex flex-col w-screen min-h-screen items-center justify-center bg-gradient-to-br from-blue-500 to-green-700 p-4">
+    <div className="flex flex-col w-screen min-h-screen items-center justify-center bg-gradient-to-br from-green-500 to-blue-700 p-4">
       <Card className="w-full max-w-3xl shadow-xl bg-white rounded-xl overflow-hidden">
         <CardHeader className="bg-gray-50 border-b pb-4">
           <CardTitle className="text-center">
@@ -133,19 +135,32 @@ export default function QueryApp() {
                   Copiar
                 </Button>
               </div>
-              <div className="p-4 max-h-[60vh] overflow-auto bg-white">
-                <div className="prose prose-sm max-w-none">
-                  <ReactMarkdown>{response}</ReactMarkdown>
+              <div className="p-4 max-h-[60vh] overflow-auto bg-white prose prose-sm max-w-none">
+                <ReactMarkdown 
+  remarkPlugins={[remarkGfm]}
+  components={{
+    table: ({...props}) => (
+      <table className="min-w-full border-collapse border border-gray-300" {...props} />
+    ),
+    th: ({...props}) => (
+      <th className="border border-gray-300 bg-gray-100 px-4 py-2 text-left" {...props} />
+    ),
+    td: ({...props}) => (
+      <td className="border border-gray-300 px-4 py-2" {...props} />
+    )
+  }}
+>
+  {response}
+</ReactMarkdown>
                 </div>
               </div>
-            </div>
           )}
         </CardContent>
         
         <CardFooter className="bg-gray-50 border-t px-6 py-4 text-center text-xs text-gray-500">
-          IMPAG TECH • Calle Morelos 16, San Luis Huexotla, Texcoco, México C.P 56220
+          IMPAG • Calle José Ramón Valdéz 404, Nuevo Ideal, Durango, México C.P 34410
           <br />
-          Tel: 553 578 0901 • Email: impagtodoparaelcampo@gmail.com
+          Tel: 677 119 77 37 • Email: impagtodoparaelcampo@gmail.com
         </CardFooter>
       </Card>
     </div>
