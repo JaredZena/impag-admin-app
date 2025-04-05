@@ -6,6 +6,8 @@ import { Loader2, Copy } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from 'remark-gfm';
 import './App.css'; 
+import impagLogo from './assets/impag.png';
+import todoParaElCampoLogo from './assets/todoparaelcampo.jpg';
 
 export default function QueryApp() {
   const [query, setQuery] = useState("");
@@ -77,7 +79,7 @@ export default function QueryApp() {
             <div className="flex items-center justify-between">
               <div className="flex-shrink-0">
                 <img 
-                  src="/impag.png" 
+                  src={impagLogo} 
                   alt="IMPAG Logo Left" 
                   className="h-10 sm:h-16 w-auto"
                   onError={(e) => {e.currentTarget.style.display = 'none'}}
@@ -89,9 +91,9 @@ export default function QueryApp() {
               </div>
               <div className="flex-shrink-0">
                 <img 
-                  src="/todoparaelcampo.jpg" 
+                  src={todoParaElCampoLogo}
                   alt="IMPAG Logo Right" 
-                  className="h-14 sm:h-24 w-auto"
+                  className="h-12 sm:h-20 w-auto"
                   onError={(e) => {e.currentTarget.style.display = 'none'}}
                 />
               </div>
