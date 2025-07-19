@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, Copy } from "lucide-react";
+import { Loader2, Copy, CheckCircle, Droplets, Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from 'remark-gfm';
 import './App.css'; 
@@ -15,6 +15,7 @@ export default function QueryApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
@@ -27,6 +28,24 @@ export default function QueryApp() {
     setLoading(true);
     setResponse(null);
     setError(null);
+    setLoadingStep(0);
+    
+    // Simulate progress steps
+    const progressSteps = [
+      "Analizando requerimientos...",
+      "Calculando precios...",
+      "Generando cotización..."
+    ];
+    
+    const stepInterval = setInterval(() => {
+      setLoadingStep((prev) => {
+        if (prev < progressSteps.length - 1) {
+          return prev + 1;
+        }
+        clearInterval(stepInterval);
+        return prev;
+      });
+    }, 800);
 
     try {
       const res = await fetch(`${API_BASE_URL}/query`, { 
@@ -48,6 +67,7 @@ export default function QueryApp() {
       setError("Error al generar la cotización. Por favor intenta de nuevo.");
     } finally {
       setLoading(false);
+      setLoadingStep(0);
     }
   };
 
@@ -57,11 +77,15 @@ export default function QueryApp() {
     }
   };
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (response) {
-      navigator.clipboard.writeText(response);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(response);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 3000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
     }
   };
 
@@ -72,9 +96,9 @@ export default function QueryApp() {
   });
 
   return (
-    <div className="flex flex-col w-screen min-h-screen items-center justify-center bg-gradient-to-br from-green-500 to-blue-700 p-2 sm:p-4 overflow-x-hidden">
-      <Card className="w-full mx-auto max-w-3xl md:max-w-2xl lg:max-w-3xl shadow-xl bg-white rounded-xl overflow-hidden">
-        <CardHeader className="bg-gray-50 border-b pb-3 sm:pb-4 px-4 sm:px-6">
+    <div className="flex flex-col w-screen min-h-screen items-center justify-center bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 p-2 sm:p-4 overflow-x-hidden">
+      <Card className="w-full mx-auto max-w-3xl md:max-w-2xl lg:max-w-3xl shadow-2xl bg-white rounded-2xl overflow-hidden border-0 backdrop-blur-sm">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-green-50 border-b border-green-100 pb-4 sm:pb-6 px-4 sm:px-6">
           <CardTitle className="text-center">
             <div className="flex items-center justify-between">
               <div className="flex-shrink-0">
@@ -86,8 +110,8 @@ export default function QueryApp() {
                 />
               </div>
               <div className="flex flex-col items-center">
-                <h1 className="text-xl sm:text-3xl font-bold text-gray-800">Cotizador IMPAG</h1>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">Fecha: {currentDate}</p>
+                <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent">Cotizador IMPAG</h1>
+                <p className="text-sm sm:text-base text-green-600 mt-2 font-medium">Fecha: {currentDate}</p>
               </div>
               <div className="flex-shrink-0">
                 <img 
@@ -103,13 +127,14 @@ export default function QueryApp() {
         
         <CardContent className="space-y-4 sm:space-y-6 p-3 sm:p-6">
           <div className="space-y-2">
-            <label htmlFor="product-query" className="text-sm font-medium text-gray-700">
+            <label htmlFor="product-query" className="text-base font-semibold text-gray-800 flex items-center gap-2">
+              <Droplets className="h-5 w-5 text-green-600" />
               ¿Qué producto deseas cotizar?
             </label>
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
               <Input
                 id="product-query"
-                className="border-gray-300 text-gray-900 placeholder-gray-500 flex-grow"
+                className="border-2 border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-200 text-gray-900 placeholder-gray-400 flex-grow rounded-lg transition-all duration-200 shadow-sm"
                 type="text"
                 placeholder="Ej: kit de bombeo solar de 3500 lph a 10 mca"
                 value={query}
@@ -120,14 +145,19 @@ export default function QueryApp() {
               <Button 
                 onClick={sendQuery} 
                 disabled={loading} 
-                className="bg-green-600 hover:bg-green-700 w-full sm:w-auto whitespace-nowrap"
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold w-full sm:w-auto whitespace-nowrap shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 rounded-lg"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Zap className="mr-2 h-5 w-5 animate-pulse" />
                     <span>Generando...</span>
                   </>
-                ) : "Generar Cotización"}
+                ) : (
+                  <>
+                    <Zap className="mr-2 h-5 w-5" />
+                    <span>Generar Cotización</span>
+                  </>
+                )}
               </Button>
             </div>
             {error && (
@@ -136,24 +166,57 @@ export default function QueryApp() {
           </div>
           
           {loading && (
-            <div className="flex flex-col items-center justify-center py-4 sm:py-6">
-              <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-              <p className="mt-2 text-sm text-gray-600 text-center">Generando tu cotización personalizada...</p>
+            <div className="flex flex-col items-center justify-center py-6 sm:py-8 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+              <div className="relative">
+                <div className="absolute inset-0 bg-green-200 rounded-full animate-ping opacity-30"></div>
+                <Loader2 className="h-12 w-12 animate-spin text-green-600 relative z-10" />
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-lg font-semibold text-green-700">
+                  {["Analizando requerimientos...", "Calculando precios...", "Generando cotización..."][loadingStep]}
+                </p>
+                <div className="flex justify-center mt-3 space-x-1">
+                  {[0, 1, 2].map((step) => (
+                    <div
+                      key={step}
+                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                        step <= loadingStep ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
           
           {response && (
-            <div className="mt-4 sm:mt-6 bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gray-50 px-3 sm:px-4 py-2 border-b flex justify-between items-center">
-                <h3 className="text-sm font-medium text-gray-700">Cotización Generada</h3>
+            <div className="mt-4 sm:mt-6 bg-white rounded-xl border-2 border-green-100 overflow-hidden shadow-lg">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 sm:px-6 py-3 border-b border-green-100 flex justify-between items-center">
+                <h3 className="text-base font-bold text-green-800 flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Cotización Generada
+                </h3>
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={copyToClipboard}
-                  className="text-xs sm:text-sm px-2 py-1 h-8"
+                  className={`text-sm px-3 py-2 h-9 transition-all duration-200 ${
+                    copied 
+                      ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200' 
+                      : 'hover:bg-green-50 hover:border-green-300 hover:text-green-700'
+                  }`}
                 >
-                  <Copy className="h-4 w-4 mr-1" />
-                  {copied ? "¡Copiado!" : "Copiar"}
+                  {copied ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      ¡Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copiar
+                    </>
+                  )}
                 </Button>
               </div>
               <div className="p-3 sm:p-4 max-h-[50vh] sm:max-h-[60vh] overflow-auto bg-white prose prose-sm max-w-none">
