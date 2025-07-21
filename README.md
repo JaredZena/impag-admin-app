@@ -48,4 +48,4 @@ export default tseslint.config({
   },
 })
 ```
-# impag-quot-web
+# impag-admin-app
