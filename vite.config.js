@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => ({
     server: mode === "development" ? {
         proxy: {
             "/api": {
-                target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+                target: "http://localhost:8000",
                 changeOrigin: true,
                 secure: false,
                 rewrite: (path) => path.replace(/^\/api/, ""),
