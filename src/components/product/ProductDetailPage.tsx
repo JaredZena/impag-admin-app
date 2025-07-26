@@ -30,7 +30,7 @@ const ProductDetailPage: React.FC = () => {
       setError(null);
       try {
         // Fetch variants for the product
-        const variantsRes = await fetch('/products/${productId}/variants`);
+        const variantsRes = await fetch(`/products/${productId}/variants`);
         if (!variantsRes.ok) throw new Error('Failed to fetch variants');
         const variantsData = await variantsRes.json();
         const mappedVariants: Variant[] = (variantsData.data || []).map((v: any) => ({
@@ -46,7 +46,7 @@ const ProductDetailPage: React.FC = () => {
         // Fetch suppliers for the first variant (as an example)
         if (mappedVariants.length > 0) {
           const variantId = mappedVariants[0].id;
-          const suppliersRes = await fetch('/variants/${variantId}/suppliers`);
+          const suppliersRes = await fetch(`/variants/${variantId}/suppliers`);
           if (!suppliersRes.ok) throw new Error('Failed to fetch suppliers');
           const suppliersData = await suppliersRes.json();
           const mappedSuppliers: Supplier[] = (suppliersData.data || []).map((s: any) => ({
