@@ -27,8 +27,8 @@ const ProductManagementPage: React.FC = () => {
     const fetchOptions = async () => {
       try {
         const [catRes, supRes] = await Promise.all([
-          fetch('/api/categories'),
-          fetch('/api/suppliers'),
+          fetch('/categories'),
+          fetch('/suppliers'),
         ]);
         const catData = await catRes.json();
         const supData = await supRes.json();
@@ -62,7 +62,7 @@ const ProductManagementPage: React.FC = () => {
         if (filters.supplier) params.append('supplier_id', filters.supplier);
         params.append('skip', '0');
         params.append('limit', PAGE_SIZE.toString());
-        const res = await fetch(`/api/products?${params.toString()}`);
+        const res = await fetch(`/products?${params.toString()}`);
         if (!res.ok) throw new Error('Failed to fetch products');
         const data = await res.json();
         const mapped: (ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[] = (data.data || []).map((p: any) => {
@@ -108,7 +108,7 @@ const ProductManagementPage: React.FC = () => {
       if (filters.supplier) params.append('supplier_id', filters.supplier);
       params.append('skip', skip.toString());
       params.append('limit', PAGE_SIZE.toString());
-      const res = await fetch(`/api/products?${params.toString()}`);
+      const res = await fetch(`/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch products');
       const data = await res.json();
       const mapped: (ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[] = (data.data || []).map((p: any) => {
