@@ -6,21 +6,41 @@ import tsconfigPaths from "vite-tsconfig-paths";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => ({
-    server: mode === "development" ? {
+    server: mode === "production" ? {
         proxy: {
             "/api": {
-                target: "http://localhost:8000",
-                changeOrigin: true,
-                secure: false,
-                rewrite: (path) => path.replace(/^\/api/, ""),
+              target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+              changeOrigin: true,
+              secure: true,
+              rewrite: (path) => path.replace(/^\/api/, ""),
             },
-        },
-        hmr: {
+            "/products": {
+              target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+              changeOrigin: true,
+              secure: true,
+            },
+            "/categories": {
+              target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+              changeOrigin: true,
+              secure: true,
+            },
+            "/suppliers": {
+              target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+              changeOrigin: true,
+              secure: true,
+            },
+            "/variants": {
+              target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+              changeOrigin: true,
+              secure: true,
+            },
+          },
+          hmr: {
             overlay: true,
-        },
-        watch: {
+          },
+          watch: {
             usePolling: true,
-        },
+          },
     } : {},
     plugins: [react(), tsconfigPaths()],
     resolve: {

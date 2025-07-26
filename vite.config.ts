@@ -8,13 +8,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ mode }) => ({
-  server: mode === "production" ? {
+  server: {
     proxy: {
-      "/": {
+      "/api": {
         target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
         changeOrigin: true,
-        secure: false,
+        secure: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+      "/products": {
+        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        changeOrigin: true,
+        secure: true,
+      },
+      "/categories": {
+        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        changeOrigin: true,
+        secure: true,
+      },
+      "/suppliers": {
+        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        changeOrigin: true,
+        secure: true,
+      },
+      "/variants": {
+        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        changeOrigin: true,
+        secure: true,
       },
     },
     hmr: {
@@ -23,7 +43,7 @@ export default defineConfig(({ mode }) => ({
     watch: {
       usePolling: true,
     },
-  } : {},
+  },
   plugins: [react(), tsconfigPaths()],
   resolve: {
     alias: {
