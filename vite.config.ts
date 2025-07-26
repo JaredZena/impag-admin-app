@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => ({
   server: mode === "production" ? {
     proxy: {
-      "/api": {
+      "/": {
         target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
         changeOrigin: true,
         secure: false,
