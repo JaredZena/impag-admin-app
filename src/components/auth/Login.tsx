@@ -68,6 +68,10 @@ const Login: React.FC<LoginProps> = () => {
   // Handle the credential response from Google
   const handleCredentialResponse = useCallback((response: any) => {
     try {
+      // Store the raw JWT token for API calls
+      localStorage.setItem('google_token', response.credential);
+
+      // Decode for user info (existing code)
       const payload = JSON.parse(atob(response.credential.split('.')[1]));
       const googleUser = {
         getBasicProfile: () => ({

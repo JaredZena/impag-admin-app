@@ -3,9 +3,9 @@ import ProductSearchBar from './ProductSearchBar';
 import ProductTable from './ProductTable';
 import { ProductRowProps } from './ProductRow';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import { apiRequest } from '@/utils/api';
 
 const PAGE_SIZE = 20;
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const ProductManagementPage: React.FC = () => {
   const [id, setId] = useState('');
@@ -27,12 +27,10 @@ const ProductManagementPage: React.FC = () => {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [catRes, supRes] = await Promise.all([
-          fetch(`${API_BASE}/categories`),
-          fetch(`${API_BASE}/suppliers`),
+        const [catData, supData] = await Promise.all([
+          apiRequest('/categories'),
+          apiRequest('/suppliers'),
         ]);
-        const catData = await catRes.json();
-        const supData = await supRes.json();
         setCategoryOptions((catData.data || []).map((c: any) => ({ value: String(c.id), label: c.name })));
         setSupplierOptions((supData.data || []).map((s: any) => ({ value: String(s.id), label: s.name })));
       } catch (err) {
@@ -63,9 +61,7 @@ const ProductManagementPage: React.FC = () => {
         if (filters.supplier) params.append('supplier_id', filters.supplier);
         params.append('skip', '0');
         params.append('limit', PAGE_SIZE.toString());
-        const res = await fetch(`${API_BASE}/products?${params.toString()}`);
-        if (!res.ok) throw new Error('Failed to fetch products');
-        const data = await res.json();
+        const data = await apiRequest(`/products?${params.toString()}`);
         const mapped: (ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[] = (data.data || []).map((p: any) => {
           const categoryName = categoryOptions.find(cat => cat.value === String(p.category_id))?.label || '';
           const supplierNames = (p.suppliers || []).map((s: any) => s.name || s);
@@ -109,9 +105,7 @@ const ProductManagementPage: React.FC = () => {
       if (filters.supplier) params.append('supplier_id', filters.supplier);
       params.append('skip', skip.toString());
       params.append('limit', PAGE_SIZE.toString());
-      const res = await fetch(`${API_BASE}/products?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch products');
-      const data = await res.json();
+      const data = await apiRequest(`/products?${params.toString()}`);
       const mapped: (ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[] = (data.data || []).map((p: any) => {
         const categoryName = categoryOptions.find(cat => cat.value === String(p.category_id))?.label || '';
         const supplierNames = (p.suppliers || []).map((s: any) => s.name || s);

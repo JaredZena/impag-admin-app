@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import VariantsTable, { Variant } from './VariantsTable';
 import SuppliersTable, { Supplier } from './SuppliersTable';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+import { apiRequest } from '@/utils/api';
 
 interface Product {
   id: number;
@@ -32,9 +31,7 @@ const ProductDetailPage: React.FC = () => {
       setError(null);
       try {
         // Fetch variants for the product
-        const variantsRes = await fetch(`${API_BASE}/products/${productId}/variants`);
-        if (!variantsRes.ok) throw new Error('Failed to fetch variants');
-        const variantsData = await variantsRes.json();
+        const variantsData = await apiRequest(`/products/${productId}/variants`);
         const mappedVariants: Variant[] = (variantsData.data || []).map((v: any) => ({
           id: v.id,
           sku: v.sku,
@@ -48,9 +45,7 @@ const ProductDetailPage: React.FC = () => {
         // Fetch suppliers for the first variant (as an example)
         if (mappedVariants.length > 0) {
           const variantId = mappedVariants[0].id;
-          const suppliersRes = await fetch(`${API_BASE}/variants/${variantId}/suppliers`);
-          if (!suppliersRes.ok) throw new Error('Failed to fetch suppliers');
-          const suppliersData = await suppliersRes.json();
+          const suppliersData = await apiRequest(`/variants/${variantId}/suppliers`);
           const mappedSuppliers: Supplier[] = (suppliersData.data || []).map((s: any) => ({
             id: s.id,
             name: s.name,
