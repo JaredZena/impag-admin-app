@@ -5,12 +5,10 @@ import { ProductRowProps } from './ProductRow';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { apiRequest } from '@/utils/api';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 const ProductManagementPage: React.FC = () => {
-  const [id, setId] = useState('');
   const [name, setName] = useState('');
-  const [sku, setSku] = useState('');
   const [category, setCategory] = useState('');
   const [supplier, setSupplier] = useState('');
   const [products, setProducts] = useState<(ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[]>([]);
@@ -21,7 +19,7 @@ const ProductManagementPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [skip, setSkip] = useState(0);
-  const [filters, setFilters] = useState({ id: '', name: '', sku: '', category: '', supplier: '' });
+  const [filters, setFilters] = useState({ name: '', category: '', supplier: '' });
 
   // Fetch categories and suppliers on mount
   useEffect(() => {
@@ -54,13 +52,13 @@ const ProductManagementPage: React.FC = () => {
       setError(null);
       try {
         const params = new URLSearchParams();
-        if (filters.id) params.append('id', filters.id);
         if (filters.name) params.append('name', filters.name);
-        if (filters.sku) params.append('sku', filters.sku);
         if (filters.category) params.append('category_id', filters.category);
         if (filters.supplier) params.append('supplier_id', filters.supplier);
         params.append('skip', '0');
         params.append('limit', PAGE_SIZE.toString());
+        params.append('sort_by', 'name');
+        params.append('sort_order', 'asc');
         const data = await apiRequest(`/products?${params.toString()}`);
         const mapped: (ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[] = (data.data || []).map((p: any) => {
           const categoryName = categoryOptions.find(cat => cat.value === String(p.category_id))?.label || '';
@@ -89,22 +87,21 @@ const ProductManagementPage: React.FC = () => {
     };
     fetchProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, categoryOptions]);
+  }, [filters, categoryOptions, supplierOptions]);
 
   // Load more products (infinite scroll)
   const loadMore = useCallback(async () => {
-    if (loadingMore || loading || !hasMore) return;
+    if (loadingMore || !hasMore) return;
     setLoadingMore(true);
-    setError(null);
     try {
       const params = new URLSearchParams();
-      if (filters.id) params.append('id', filters.id);
       if (filters.name) params.append('name', filters.name);
-      if (filters.sku) params.append('sku', filters.sku);
       if (filters.category) params.append('category_id', filters.category);
       if (filters.supplier) params.append('supplier_id', filters.supplier);
       params.append('skip', skip.toString());
       params.append('limit', PAGE_SIZE.toString());
+      params.append('sort_by', 'name');
+      params.append('sort_order', 'asc');
       const data = await apiRequest(`/products?${params.toString()}`);
       const mapped: (ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[] = (data.data || []).map((p: any) => {
         const categoryName = categoryOptions.find(cat => cat.value === String(p.category_id))?.label || '';
@@ -130,9 +127,8 @@ const ProductManagementPage: React.FC = () => {
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, loading, hasMore, filters, skip, categoryOptions]);
+  }, [filters, skip, loadingMore, hasMore, categoryOptions, supplierOptions]);
 
-  // Infinite scroll hook
   const sentinelRef = useInfiniteScroll({
     hasMore,
     loading: loadingMore,
@@ -140,9 +136,7 @@ const ProductManagementPage: React.FC = () => {
   });
 
   // Handlers for search/filter changes
-  const handleIdChange = (v: string) => setFilters(f => ({ ...f, id: v }));
   const handleNameChange = (v: string) => setFilters(f => ({ ...f, name: v }));
-  const handleSkuChange = (v: string) => setFilters(f => ({ ...f, sku: v }));
   const handleCategoryChange = (v: string) => setFilters(f => ({ ...f, category: v }));
   const handleSupplierChange = (v: string) => setFilters(f => ({ ...f, supplier: v }));
 
@@ -150,14 +144,10 @@ const ProductManagementPage: React.FC = () => {
     <div className="container mx-auto max-w-7xl xl:max-w-8xl 2xl:max-w-screen-2xl 3xl:max-w-9xl px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20 3xl:px-32">
       <h1 className="text-2xl font-bold mb-6">Product Management</h1>
       <ProductSearchBar
-        id={filters.id}
         name={filters.name}
-        sku={filters.sku}
         category={filters.category}
         supplier={filters.supplier}
-        onIdChange={handleIdChange}
         onNameChange={handleNameChange}
-        onSkuChange={handleSkuChange}
         onCategoryChange={handleCategoryChange}
         onSupplierChange={handleSupplierChange}
         categoryOptions={categoryOptions}

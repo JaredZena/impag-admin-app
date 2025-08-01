@@ -22,9 +22,8 @@ const ProductRow: React.FC<ProductRowProps> = ({ id, name, sku, category, suppli
   const formattedDate = dateToShow ? new Date(dateToShow).toISOString().slice(0, 10) : '-';
   return (
     <tr className="border-b hover:bg-gray-50">
-      <td className="px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">{id}</td>
       <td className="px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">{name}</td>
-      <td className="px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">{sku}</td>
+      <td className="hidden sm:table-cell px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">{sku}</td>
       <td className="px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">{category}</td>
       {/* XL: Last updated date */}
       <td className="hidden xl:table-cell px-2 py-1 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm align-top">
