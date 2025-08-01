@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import VariantsTable, { Variant } from './VariantsTable';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import SuppliersTable, { Supplier } from './SuppliersTable';
 import { apiRequest } from '@/utils/api';
 
@@ -10,52 +12,128 @@ interface Product {
   description: string;
   base_sku: string;
   category_id: number;
+  category_name?: string;
   unit: string;
   package_size: number | null;
   iva: boolean;
+  is_active: boolean;
   created_at: string;
   last_updated: string;
 }
 
 const ProductDetailPage: React.FC = () => {
   const { productId } = useParams<{ productId: string }>();
+  const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
-  const [variants, setVariants] = useState<Variant[]>([]);
+  const [editedProduct, setEditedProduct] = useState<Product | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [navigationInfo, setNavigationInfo] = useState<{
+    hasPrevious: boolean;
+    hasNext: boolean;
+    previousId?: number;
+    nextId?: number;
+  }>({ hasPrevious: false, hasNext: false });
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch variants for the product
-        const variantsData = await apiRequest(`/products/${productId}/variants`);
-        const mappedVariants: Variant[] = (variantsData.data || []).map((v: any) => ({
-          id: v.id,
-          sku: v.sku,
-          price: v.price,
-          stock: v.stock,
-          is_active: v.is_active,
-          suppliers: v.suppliers ? v.suppliers.map((s: any) => s.name) : [],
-        }));
-        setVariants(mappedVariants);
+        // Fetch categories first
+        const categoriesData = await apiRequest('/categories');
+        setCategories(categoriesData.data || []);
 
-        // Fetch suppliers for the first variant (as an example)
-        if (mappedVariants.length > 0) {
-          const variantId = mappedVariants[0].id;
-          const suppliersData = await apiRequest(`/variants/${variantId}/suppliers`);
-          const mappedSuppliers: Supplier[] = (suppliersData.data || []).map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            price: s.price || s.cost || 0,
-            stock: s.stock,
-            lead_time_days: s.lead_time_days,
-            is_active: s.is_active,
-          }));
-          setSuppliers(mappedSuppliers);
-        } else {
+        // Fetch product details
+        const productData = await apiRequest(`/products/${productId}`);
+        if (productData.data) {
+          const category = categoriesData.data?.find((c: any) => c.id === productData.data.category_id);
+          const productWithCategory = {
+            ...productData.data,
+            category_name: category?.name || 'Unknown Category'
+          };
+          setProduct(productWithCategory);
+          setEditedProduct(productWithCategory);
+        }
+
+        // Fetch navigation info (previous/next products)
+        try {
+          const allProductsData = await apiRequest('/products?limit=1000&sort_by=id&sort_order=asc');
+          const allProducts = allProductsData.data || [];
+          const currentIndex = allProducts.findIndex((p: any) => p.id === parseInt(productId!));
+          
+          if (currentIndex !== -1) {
+            setNavigationInfo({
+              hasPrevious: currentIndex > 0,
+              hasNext: currentIndex < allProducts.length - 1,
+              previousId: currentIndex > 0 ? allProducts[currentIndex - 1].id : undefined,
+              nextId: currentIndex < allProducts.length - 1 ? allProducts[currentIndex + 1].id : undefined,
+            });
+          }
+        } catch (navError) {
+          console.error('Could not fetch navigation info:', navError);
+        }
+
+        // Fetch suppliers through variants
+        try {
+          // First get variants for this product
+          console.log(`Fetching variants for product ${productId}`);
+          const variantsData = await apiRequest(`/products/${productId}/variants`);
+          const variants = variantsData.data || [];
+          console.log(`Found ${variants.length} variants:`, variants);
+          
+          if (variants.length === 0) {
+            console.log('No variants found for this product');
+            setSuppliers([]);
+            return;
+          }
+          
+          // Get suppliers for each variant and combine them
+          const allSuppliers: Supplier[] = [];
+          const supplierIds = new Set<string | number>(); // To avoid duplicates
+          
+          for (const variant of variants) {
+            try {
+              console.log(`Fetching suppliers for variant ${variant.id}`);
+              const suppliersData = await apiRequest(`/variants/${variant.id}/suppliers`);
+              console.log(`Suppliers data for variant ${variant.id}:`, suppliersData);
+              
+              const variantSuppliers = suppliersData.data || [];
+              console.log(`Found ${variantSuppliers.length} suppliers for variant ${variant.id}`);
+              
+              for (const supplierData of variantSuppliers) {
+                console.log('Processing supplier:', supplierData);
+                // Only add if we haven't seen this supplier before
+                if (!supplierIds.has(supplierData.id)) {
+                  supplierIds.add(supplierData.id);
+                  allSuppliers.push({
+                    id: supplierData.id,
+                    name: supplierData.name || 'Proveedor Desconocido',
+                    price: supplierData.cost || 0,
+                    stock: supplierData.stock || 0,
+                    lead_time_days: supplierData.lead_time_days || 0,
+                    is_active: supplierData.is_active !== false,
+                  });
+                }
+              }
+            } catch (variantSupplierError: any) {
+              console.error(`Could not fetch suppliers for variant ${variant.id}:`, variantSupplierError);
+              // If it's an auth error, we should know about it
+              if (variantSupplierError.message?.includes('401') || variantSupplierError.message?.includes('Authentication')) {
+                console.error('Authentication error when fetching suppliers. Check if user is logged in.');
+              }
+            }
+          }
+          
+          console.log(`Total unique suppliers found: ${allSuppliers.length}`, allSuppliers);
+          setSuppliers(allSuppliers);
+        } catch (variantsError: any) {
+          console.error('Could not fetch variants or suppliers:', variantsError);
           setSuppliers([]);
         }
       } catch (err: any) {
@@ -67,24 +145,475 @@ const ProductDetailPage: React.FC = () => {
     if (productId) fetchData();
   }, [productId]);
 
-  return (
-    <div className="container mx-auto max-w-7xl xl:max-w-8xl 2xl:max-w-screen-2xl 3xl:max-w-9xl px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20 3xl:px-32">
-      <h1 className="text-2xl font-bold mb-6">Product Detail</h1>
-      <p className="mb-4">Product ID: {productId}</p>
-      {loading ? (
-        <div className="text-muted-foreground py-8">Loading...</div>
-      ) : error ? (
-        <div className="text-destructive py-8">{error}</div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-7 gap-6">
-          <div className="lg:col-span-2 xl:col-span-3 2xl:col-span-4 3xl:col-span-5">
-            <VariantsTable variants={variants} />
+  const handleBack = () => {
+    navigate('/product-admin');
+  };
+
+  const handlePreviousProduct = () => {
+    if (navigationInfo.previousId) {
+      navigate(`/product-admin/${navigationInfo.previousId}`);
+    }
+  };
+
+  const handleNextProduct = () => {
+    if (navigationInfo.nextId) {
+      navigate(`/product-admin/${navigationInfo.nextId}`);
+    }
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditedProduct(product);
+  };
+
+  const handleSave = async () => {
+    if (!editedProduct) {
+      console.error('No edited product data available');
+      return;
+    }
+    
+    console.log('Starting save process...');
+    console.log('Original product:', product);
+    console.log('Edited product:', editedProduct);
+    
+    setSaving(true);
+    try {
+      // Ensure data matches backend expectations
+      const updateData = {
+        name: editedProduct.name,
+        description: editedProduct.description || null,
+        category_id: editedProduct.category_id,
+        base_sku: editedProduct.base_sku, // Include base_sku
+        unit: editedProduct.unit, // Should be enum value like "PIEZA", "KG", etc.
+        package_size: editedProduct.package_size,
+        iva: editedProduct.iva,
+        is_active: editedProduct.is_active,
+      };
+      
+      console.log('Update data to send:', updateData);
+      console.log(`Making PUT request to /products/${productId}`);
+      
+      const updateResponse = await apiRequest(`/products/${productId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+      });
+      
+      console.log('Update response:', updateResponse);
+      
+      // Check if the response indicates success
+      if (updateResponse.success === false) {
+        throw new Error(updateResponse.error || 'Failed to update product');
+      }
+      
+      // Refresh product data
+      console.log('Refreshing product data...');
+      const productData = await apiRequest(`/products/${productId}`);
+      console.log('Refreshed product data:', productData);
+      
+      if (productData.success === false) {
+        throw new Error(productData.error || 'Failed to fetch updated product');
+      }
+      
+      const category = categories.find(c => c.id === productData.data.category_id);
+      const updatedProduct = {
+        ...productData.data,
+        category_name: category?.name || 'Unknown Category'
+      };
+      
+      console.log('Final updated product:', updatedProduct);
+      
+      setProduct(updatedProduct);
+      setEditedProduct(updatedProduct);
+      setIsEditing(false);
+      setSaveSuccess(true); // Set success state
+      
+      console.log('Save completed successfully');
+      
+      // Clear any previous errors
+      setError(null);
+      
+    } catch (err: any) {
+      console.error('Error during save:', err);
+      console.error('Error message:', err.message);
+      console.error('Error details:', err);
+      
+      // Set a more descriptive error message
+      let errorMessage = 'Error al actualizar el producto';
+      if (err.message) {
+        if (err.message.includes('401') || err.message.includes('Authentication')) {
+          errorMessage = 'Error de autenticación. Por favor, inicia sesión nuevamente.';
+        } else if (err.message.includes('400')) {
+          errorMessage = 'Datos inválidos. Verifica que todos los campos estén correctos.';
+        } else if (err.message.includes('404')) {
+          errorMessage = 'Producto no encontrado.';
+        } else {
+          errorMessage = `Error: ${err.message}`;
+        }
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Clear success message after 3 seconds
+  useEffect(() => {
+    if (saveSuccess) {
+      const timer = setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [saveSuccess]);
+
+  const handleInputChange = (field: string, value: any) => {
+    if (!editedProduct) return;
+    setEditedProduct({
+      ...editedProduct,
+      [field]: value
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
+        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
+          {/* Back Button Skeleton */}
+          <div className="mb-4 sm:mb-6">
+            <div className="h-8 sm:h-10 w-28 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
           </div>
-          <div className="lg:col-span-1 xl:col-span-1 2xl:col-span-1 3xl:col-span-2">
-            <SuppliersTable suppliers={suppliers} />
+
+          {/* Header Skeleton */}
+          <div className="mb-6 sm:mb-8">
+            <div className="h-8 sm:h-10 w-72 sm:w-80 bg-gray-200 rounded animate-pulse mb-2"></div>
+            <div className="h-5 sm:h-6 w-40 sm:w-48 bg-gray-200 rounded animate-pulse mb-3 sm:mb-4"></div>
+            
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="h-8 sm:h-10 w-28 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 sm:h-10 w-28 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+              <div className="flex gap-2 sm:gap-3">
+                <div className="h-8 sm:h-10 w-24 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 sm:h-10 w-24 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Product Information Card Skeleton */}
+          <Card className="p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl">
+            <div className="h-6 sm:h-8 w-48 sm:w-64 bg-gray-200 rounded animate-pulse mb-4 sm:mb-6"></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-3 sm:h-4 w-16 sm:w-20 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-5 sm:h-6 w-24 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              ))}
+              <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4 2xl:col-span-5 space-y-2">
+                <div className="h-3 sm:h-4 w-16 sm:w-20 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-16 sm:h-20 w-full bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </Card>
+          
+          {/* Suppliers Table Skeleton */}
+          <Card className="shadow-lg border-0 rounded-xl">
+            <div className="p-3 sm:p-4 md:p-6">
+              <div className="h-5 sm:h-6 w-24 sm:w-32 bg-gray-200 rounded animate-pulse mb-3 sm:mb-4"></div>
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-16 sm:h-20 bg-gray-200 rounded animate-pulse"></div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
+        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
+          <div className="mb-4 sm:mb-6">
+            <Button 
+              variant="outline" 
+              onClick={handleBack}
+              className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 text-sm sm:text-base"
+            >
+              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span>Volver a Productos</span>
+            </Button>
+          </div>
+          
+          <Card className="p-6 sm:p-8 text-center">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 bg-red-100 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Error al Cargar Producto</h2>
+            <p className="text-sm sm:text-base text-gray-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-green-600 hover:bg-green-700 text-sm sm:text-base">
+              Intentar de Nuevo
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
+      <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
+        {/* Back Button */}
+        <div className="mb-4 sm:mb-6">
+          <Button 
+            variant="outline" 
+            onClick={handleBack}
+            className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-sm sm:text-base"
+          >
+            <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span>Volver a Productos</span>
+          </Button>
+        </div>
+
+        {/* Product Name and ID - Left Aligned */}
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent mb-2">
+            {product?.name || 'Detalles del Producto'}
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">ID del Producto: {productId}</p>
+          
+          {/* Navigation and Action Buttons */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+            <div className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handlePreviousProduct}
+                disabled={!navigationInfo.hasPrevious}
+                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto"
+              >
+                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>Producto Anterior</span>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={handleNextProduct}
+                disabled={!navigationInfo.hasNext}
+                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto"
+              >
+                <span>Producto Siguiente</span>
+                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Button>
+            </div>
+            
+            <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
+              {isEditing ? (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleCancelEdit}
+                    disabled={saving}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm w-full xs:w-auto"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="bg-green-600 hover:bg-green-700 text-white text-sm w-full xs:w-auto"
+                  >
+                    {saving ? 'Guardando...' : 'Guardar Cambios'}
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  onClick={handleEdit}
+                  className="bg-green-600 hover:bg-green-700 text-white text-sm w-full xs:w-auto"
+                >
+                  Editar Producto
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-      )}
+
+        {/* Success notification */}
+        {saveSuccess && (
+          <div className="mb-6">
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center">
+              <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-green-800 font-medium">Cambios guardados exitosamente</span>
+            </div>
+          </div>
+        )}
+
+        {product && editedProduct && (
+          <>
+            {/* Product Information Card */}
+            <Card className="p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm sm:text-lg">Información del Producto</span>
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6">
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Nombre</label>
+                  {isEditing ? (
+                    <Input
+                      value={editedProduct.name}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
+                    />
+                  ) : (
+                    <p className="text-sm sm:text-lg font-semibold text-gray-900 break-words">{product.name}</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">SKU Base</label>
+                  <span className="inline-block font-mono text-xs sm:text-sm text-gray-700 bg-gray-100 px-2 py-1 rounded break-all">
+                    {product.base_sku}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Categoría</label>
+                  {isEditing ? (
+                    <select
+                      value={editedProduct.category_id}
+                      onChange={(e) => handleInputChange('category_id', parseInt(e.target.value))}
+                      className="w-full px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900"
+                    >
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs sm:text-sm font-medium bg-green-100 text-green-800">
+                      {product.category_name}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Unidad</label>
+                  {isEditing ? (
+                    <Input
+                      value={editedProduct.unit}
+                      onChange={(e) => handleInputChange('unit', e.target.value)}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
+                    />
+                  ) : (
+                    <p className="text-xs sm:text-sm text-gray-900">{product.unit}</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Tamaño del Paquete</label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={editedProduct.package_size || ''}
+                      onChange={(e) => handleInputChange('package_size', e.target.value ? parseInt(e.target.value) : null)}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
+                    />
+                  ) : (
+                    <p className="text-xs sm:text-sm text-gray-900">{product.package_size || 'N/A'}</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Estado</label>
+                  {isEditing ? (
+                    <select
+                      value={editedProduct.is_active ? 'true' : 'false'}
+                      onChange={(e) => handleInputChange('is_active', e.target.value === 'true')}
+                      className="w-full px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900"
+                    >
+                      <option value="true">Activo</option>
+                      <option value="false">Inactivo</option>
+                    </select>
+                  ) : (
+                    <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      product.is_active 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {product.is_active ? 'Activo' : 'Inactivo'}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">IVA</label>
+                  {isEditing ? (
+                    <select
+                      value={editedProduct.iva ? 'true' : 'false'}
+                      onChange={(e) => handleInputChange('iva', e.target.value === 'true')}
+                      className="w-full px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900"
+                    >
+                      <option value="true">Sí</option>
+                      <option value="false">No</option>
+                    </select>
+                  ) : (
+                    <p className="text-xs sm:text-sm text-gray-900">{product.iva ? 'Sí' : 'No'}</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Creado</label>
+                  <p className="text-xs sm:text-sm text-gray-900">
+                    {new Date(product.created_at).toLocaleDateString('es-ES')}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Última Actualización</label>
+                  <p className="text-xs sm:text-sm text-gray-900">
+                    {new Date(product.last_updated).toLocaleDateString('es-ES')}
+                  </p>
+                </div>
+                {/* Description - Larger field */}
+                <div className="space-y-1 sm:col-span-2 lg:col-span-3 xl:col-span-4 2xl:col-span-5">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Descripción</label>
+                  {isEditing ? (
+                    <textarea
+                      value={editedProduct.description || ''}
+                      onChange={(e) => handleInputChange('description', e.target.value)}
+                      rows={4}
+                      className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900 resize-none"
+                      placeholder="Ingrese la descripción del producto..."
+                    />
+                  ) : (
+                    <div className="bg-gray-50 rounded-md p-3 sm:p-4 min-h-[80px] sm:min-h-[100px]">
+                      <p className="text-sm sm:text-base text-gray-900 leading-relaxed whitespace-pre-wrap break-words">
+                        {product.description || 'Sin descripción disponible'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Suppliers Table */}
+            <SuppliersTable suppliers={suppliers} />
+          </>
+        )}
+      </div>
     </div>
   );
 };

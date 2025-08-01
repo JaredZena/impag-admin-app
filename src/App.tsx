@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProductManagementPage from './components/product/ProductManagementPage';
 import ProductDetailPage from './components/product/ProductDetailPage';
+import SupplierDetailPage from './components/product/SupplierDetailPage';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -13,6 +14,7 @@ export default function App() {
           <Routes>
             <Route path="/product-admin" element={<ProductManagementPage />} />
             <Route path="/product-admin/:productId" element={<ProductDetailPage />} />
+            <Route path="/supplier-admin/:supplierId" element={<SupplierDetailPage />} />
             <Route path="*" element={<Navigate to="/product-admin" replace />} />
           </Routes>
         </ProtectedRoute>

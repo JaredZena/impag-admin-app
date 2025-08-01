@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export interface ProductRowProps {
   id: string | number;
@@ -17,30 +17,85 @@ export interface ProductRowProps {
 }
 
 const ProductRow: React.FC<ProductRowProps> = ({ id, name, sku, category, suppliers, status, description, lastUpdated, createdAt }) => {
-  // Format date as YYYY-MM-DD
+  const navigate = useNavigate();
   const dateToShow = lastUpdated || createdAt || '';
-  const formattedDate = dateToShow ? new Date(dateToShow).toISOString().slice(0, 10) : '-';
+  const formattedDate = dateToShow ? new Date(dateToShow).toLocaleDateString('es-ES') : '-';
+  
+  const handleRowClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on buttons or links
+    if ((e.target as HTMLElement).closest('button, a')) {
+      return;
+    }
+    navigate(`/product-admin/${id}`);
+  };
+  
   return (
-    <tr className="border-b hover:bg-gray-50">
-      <td className="px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">{name}</td>
-      <td className="hidden sm:table-cell px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">{sku}</td>
-      <td className="px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">{category}</td>
-      {/* XL: Last updated date */}
-      <td className="hidden xl:table-cell px-2 py-1 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm align-top">
-        <div className="text-xs text-muted-foreground mt-1">{formattedDate}</div>
+    <tr 
+      className="border-b border-gray-100 hover:bg-gradient-to-r hover:from-green-50/50 hover:to-emerald-50/50 transition-all duration-200 cursor-pointer"
+      onClick={handleRowClick}
+    >
+      {/* Name */}
+      <td className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
+        <div className="font-medium text-gray-900 text-sm sm:text-base break-words">{name}</div>
+        {/* Show additional info on mobile */}
+        <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+          {suppliers.length > 0 && (
+            <div>
+              Proveedores: {suppliers.slice(0, 1).join(', ')}
+              {suppliers.length > 1 && ` +${suppliers.length - 1} más`}
+            </div>
+          )}
+          {/* Show SKU on mobile (when SKU column is hidden) */}
+          <div className="md:hidden">
+            SKU: <span className="font-mono">{sku}</span>
+          </div>
+          {/* Show last updated on mobile (when date column is hidden) */}
+          <div className="lg:hidden">
+            Actualizado: {formattedDate}
+          </div>
+        </div>
       </td>
-      {/* XL: Description */}
-      <td className="hidden xl:table-cell px-2 py-1 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm align-top">
+      
+      {/* Category */}
+      <td className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
+        <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 break-words">
+          {category}
+        </span>
+      </td>
+      
+      {/* Last Updated - Hidden on smaller screens */}
+      <td className="hidden lg:table-cell px-2 py-2 lg:px-6 lg:py-4">
+        <div className="text-xs sm:text-sm text-gray-600">{formattedDate}</div>
+      </td>
+      
+      {/* Description - Hidden on smaller screens */}
+      <td className="hidden lg:table-cell px-2 py-2 lg:px-6 lg:py-4">
         {description ? (
-          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-line break-words max-w-xs">{description}</div>
+          <div className="text-xs sm:text-sm text-gray-600 max-w-xs truncate" title={description}>
+            {description}
+          </div>
         ) : (
-          <div className="text-xs text-muted-foreground mt-1">-</div>
+          <div className="text-xs sm:text-sm text-gray-400">Sin descripción</div>
         )}
       </td>
-      <td className="px-2 py-1 sm:px-4 sm:py-2 xl:px-6 xl:py-3 2xl:px-8 2xl:py-4 3xl:px-12 3xl:py-6 text-sm">
-        <div className="flex gap-x-2">
-          <Link to={`/product-admin/${id}`}><Button size="sm" variant="outline">View</Button></Link>
-          <Button size="sm" variant="default">Edit</Button>
+      
+      {/* SKU - Hidden on mobile */}
+      <td className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4">
+        <span className="font-mono text-xs sm:text-sm text-gray-700 bg-gray-100 px-1 sm:px-2 py-1 rounded break-all">{sku}</span>
+      </td>
+      
+      {/* Actions */}
+      <td className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
+        <div className="flex gap-x-1 sm:gap-x-2">
+          <Link to={`/product-admin/${id}`}>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+            >
+              Ver
+            </Button>
+          </Link>
         </div>
       </td>
     </tr>
