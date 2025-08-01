@@ -142,7 +142,7 @@ const ProductManagementPage: React.FC = () => {
 
   return (
     <div className="container mx-auto max-w-7xl xl:max-w-8xl 2xl:max-w-screen-2xl 3xl:max-w-9xl px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20 3xl:px-32">
-      <h1 className="text-2xl font-bold mb-6">Product Management</h1>
+      <h1 className="text-2xl font-bold mb-6">Base de Datos IMPAG</h1>
       <ProductSearchBar
         name={filters.name}
         category={filters.category}
