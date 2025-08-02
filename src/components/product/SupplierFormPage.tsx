@@ -157,7 +157,7 @@ const SupplierFormPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
+      <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
         <div className="container mx-auto max-w-4xl px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
           <Card className="p-6 sm:p-8">
             <div className="space-y-6">
@@ -178,7 +178,7 @@ const SupplierFormPage: React.FC = () => {
   }
 
   return (
-    <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
+    <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
       <div className="container mx-auto max-w-4xl px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -195,7 +195,7 @@ const SupplierFormPage: React.FC = () => {
             </Button>
           </div>
           
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent">
             {isEditing ? 'Editar Proveedor' : 'Agregar Nuevo Proveedor'}
           </h1>
           <p className="text-sm sm:text-base text-gray-600 mt-2">
