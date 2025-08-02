@@ -175,7 +175,7 @@ const SupplierManagementPage: React.FC = () => {
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              Agregar Proveedor
+              Agregar Nuevo Proveedor
             </Button>
           </div>
         </div>
@@ -275,7 +275,24 @@ const SupplierManagementPage: React.FC = () => {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm">
+                    {/* Mobile View - Simplified Details */}
+                    <div className="sm:hidden grid grid-cols-1 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-500 block">Contacto:</span>
+                        <div className="font-medium text-gray-900 mt-1">
+                          {supplier.contact_name || 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Teléfono:</span>
+                        <div className="font-medium text-gray-900 mt-1">
+                          {supplier.phone || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Desktop View - Full Details */}
+                    <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm">
                       <div>
                         <span className="text-gray-500 block sm:inline">RFC:</span>
                         <div className="font-medium text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
@@ -308,8 +325,9 @@ const SupplierManagementPage: React.FC = () => {
                       </div>
                     </div>
                     
+                    {/* Description - Desktop Only */}
                     {supplier.description && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="hidden sm:block mt-3 pt-3 border-t border-gray-100">
                         <p className="text-xs sm:text-sm text-gray-600">
                           {supplier.description}
                         </p>

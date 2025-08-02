@@ -39,6 +39,12 @@ const SupplierDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<{[key: number]: string}>({});
+  const [navigationInfo, setNavigationInfo] = useState<{
+    hasPrevious: boolean;
+    hasNext: boolean;
+    previousId?: number;
+    nextId?: number;
+  }>({ hasPrevious: false, hasNext: false });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -84,6 +90,24 @@ const SupplierDetailPage: React.FC = () => {
         
         if (supplierData.data) {
           setSupplier(supplierData.data);
+        }
+
+        // Fetch navigation info (previous/next suppliers)
+        try {
+          const allSuppliersData = await apiRequest('/suppliers?limit=1000');
+          const allSuppliers = allSuppliersData.data || [];
+          const currentIndex = allSuppliers.findIndex((s: any) => s.id === parseInt(supplierId!));
+          
+          if (currentIndex !== -1) {
+            setNavigationInfo({
+              hasPrevious: currentIndex > 0,
+              hasNext: currentIndex < allSuppliers.length - 1,
+              previousId: currentIndex > 0 ? allSuppliers[currentIndex - 1].id : undefined,
+              nextId: currentIndex < allSuppliers.length - 1 ? allSuppliers[currentIndex + 1].id : undefined,
+            });
+          }
+        } catch (navError) {
+          console.error('Could not fetch navigation info:', navError);
         }
 
         // Fetch SupplierProduct data with actual pricing information
@@ -195,8 +219,16 @@ const SupplierDetailPage: React.FC = () => {
     if (supplierId) fetchData();
   }, [supplierId]);
 
-  const handleBack = () => {
-    navigate(-1); // Go back to previous page
+  const handlePreviousSupplier = () => {
+    if (navigationInfo.previousId) {
+      navigate(`/supplier-admin/${navigationInfo.previousId}`);
+    }
+  };
+
+  const handleNextSupplier = () => {
+    if (navigationInfo.nextId) {
+      navigate(`/supplier-admin/${navigationInfo.nextId}`);
+    }
   };
 
   if (loading) {
@@ -229,13 +261,13 @@ const SupplierDetailPage: React.FC = () => {
           <div className="mb-4 sm:mb-6">
             <Button 
               variant="outline" 
-              onClick={handleBack}
+              onClick={() => navigate('/suppliers')}
               className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 text-sm sm:text-base"
             >
               <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              <span>Regresar</span>
+              <span>Volver a Proveedores</span>
             </Button>
           </div>
           
@@ -259,30 +291,18 @@ const SupplierDetailPage: React.FC = () => {
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
       <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
-        {/* Back Button */}
+        {/* Back to Suppliers Button */}
         <div className="mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <Button 
-              variant="outline" 
-              onClick={handleBack}
-              className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-sm sm:text-base"
-            >
-              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              <span>Regresar</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/suppliers')}
-              className="flex items-center space-x-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 text-sm sm:text-base"
-            >
-              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2v0" />
-              </svg>
-              <span>Ver Todos los Proveedores</span>
-            </Button>
-          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/suppliers')}
+            className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-sm sm:text-base"
+          >
+            <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span>Volver a Proveedores</span>
+          </Button>
         </div>
 
         {/* Supplier Name and ID - Left Aligned */}
@@ -292,14 +312,43 @@ const SupplierDetailPage: React.FC = () => {
           </h1>
           <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">ID del Proveedor: {supplierId}</p>
           
-          <div className="flex justify-end">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate(`/supplier-admin/edit/${supplierId}`)}
-              className="border-green-200 text-green-700 hover:bg-green-50 text-sm"
-            >
-              Editar Proveedor
-            </Button>
+          {/* Navigation and Action Buttons */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+            <div className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handlePreviousSupplier}
+                disabled={!navigationInfo.hasPrevious}
+                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto"
+              >
+                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>Proveedor Anterior</span>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={handleNextSupplier}
+                disabled={!navigationInfo.hasNext}
+                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto"
+              >
+                <span>Siguiente Proveedor</span>
+                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Button>
+            </div>
+            
+            <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(`/supplier-admin/edit/${supplierId}`)}
+                className="border-green-200 text-green-700 hover:bg-green-50 text-sm w-full xs:w-auto"
+              >
+                Editar Proveedor
+              </Button>
+            </div>
           </div>
         </div>
 
