@@ -23,6 +23,7 @@ interface SupplierProduct {
   name: string;
   sku: string;
   category: string;
+  unit: string;
   price: number;
   stock: number;
   lead_time_days: number;
@@ -37,14 +38,27 @@ const SupplierDetailPage: React.FC = () => {
   const [products, setProducts] = useState<SupplierProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<{[key: number]: string}>({});
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        // For now, we'll create mock data since the supplier endpoints might not be available
-        // Try to fetch supplier details, but fallback to mock data if it fails
+        // Fetch categories first
+        let categoriesMap: {[key: number]: string} = {};
+        try {
+          const categoriesData = await apiRequest('/categories');
+          categoriesMap = (categoriesData.data || []).reduce((acc: any, cat: any) => {
+            acc[cat.id] = cat.name;
+            return acc;
+          }, {});
+          setCategories(categoriesMap);
+        } catch (catError) {
+          console.warn('Error fetching categories:', catError);
+        }
+
+        // Fetch supplier details
         let supplierData;
         try {
           supplierData = await apiRequest(`/suppliers/${supplierId}`);
@@ -72,15 +86,104 @@ const SupplierDetailPage: React.FC = () => {
           setSupplier(supplierData.data);
         }
 
-        // Try to fetch products supplied by this supplier
-        // For now, we'll use mock data since the supplier products endpoint might not be available
+        // Fetch SupplierProduct data with actual pricing information
         try {
-          const productsData = await apiRequest(`/suppliers/${supplierId}/products`);
-          setProducts(productsData.data || []);
+          const supplierProductsData = await apiRequest('/supplier-product/');
+          
+          // Filter by current supplier and get product details
+          const supplierProducts = (supplierProductsData || []).filter((sp: any) => 
+            sp.supplier_id === parseInt(supplierId!)
+          );
+          
+          if (supplierProducts.length === 0) {
+            setProducts([]);
+            return;
+          }
+          
+          // Get variant IDs to fetch product details
+          const variantIds = supplierProducts.map((sp: any) => sp.variant_id);
+          
+          // Fetch variant details for each supplier product
+          const variantPromises = variantIds.map((variantId: number) =>
+            apiRequest(`/variants/${variantId}`)
+          );
+          
+          const variantResponses = await Promise.all(variantPromises);
+          
+          // Transform the data to include both product and supplier-specific info
+          const transformedProducts = supplierProducts.map((sp: any, index: number) => {
+            const variantData = variantResponses[index];
+            const variant = variantData?.data;
+            
+            if (!variant) return null;
+            
+            // Find the product info for this variant
+            const productId = variant.product_id;
+            
+            return {
+              id: productId,
+              name: `Variant ${variant.sku}`, // Will be updated with actual product name
+              sku: variant.sku || 'N/A',
+              category: 'Loading...', // Will be updated
+              unit: 'N/A', // Will be updated with product unit
+              price: sp.cost || null,
+              stock: sp.stock || 0,
+              lead_time_days: sp.lead_time_days || null,
+              is_active: sp.is_active || false,
+              last_updated: sp.last_updated || sp.created_at
+            };
+          }).filter(Boolean);
+          
+          // Now fetch product details to get names, categories, and units
+          const productIds = [...new Set(transformedProducts.map((p: any) => p.id))];
+          const productPromises = productIds.map((productId) =>
+            apiRequest(`/products?id=${productId}`)
+          );
+          
+          const productResponses = await Promise.all(productPromises);
+          const productsMap: {[key: number]: any} = {};
+          
+          productResponses.forEach(response => {
+            const products = response?.data || [];
+            products.forEach((product: any) => {
+              productsMap[product.id] = product;
+            });
+          });
+          
+          // Final transformation with complete data
+          const finalProducts = transformedProducts.map((tp: any) => {
+            const product = productsMap[tp.id];
+            return {
+              ...tp,
+              name: product?.name || tp.name,
+              category: categoriesMap[product?.category_id] || 'Sin categoría',
+              unit: product?.unit || 'N/A'
+            };
+          });
+          
+          setProducts(finalProducts);
         } catch (productsError) {
-          console.warn('Supplier products endpoint not available, using empty data');
-          // For now, set empty products array
-          setProducts([]);
+          console.warn('Error fetching supplier products:', productsError);
+          // Fallback to base products if SupplierProduct endpoint fails
+          try {
+            const productsData = await apiRequest(`/products?supplier_id=${supplierId}`);
+            const transformedProducts = (productsData.data || []).map((product: any) => ({
+              id: product.id,
+              name: product.name,
+              sku: product.base_sku || 'N/A',
+              category: categoriesMap[product.category_id] || 'Sin categoría',
+              unit: product.unit || 'N/A',
+              price: null,
+              stock: 0,
+              lead_time_days: null,
+              is_active: false,
+              last_updated: product.last_updated || product.created_at
+            }));
+            setProducts(transformedProducts);
+          } catch (fallbackError) {
+            console.error('Both SupplierProduct and fallback failed:', fallbackError);
+            setProducts([]);
+          }
         }
       } catch (err: any) {
         setError(err.message || 'Unknown error');
@@ -175,7 +278,7 @@ const SupplierDetailPage: React.FC = () => {
               className="flex items-center space-x-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 text-sm sm:text-base"
             >
               <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0h3m-3 0h5m0 0v-4a3 3 0 616 0v4m-3 0h.01M9 7h6m-6 4h6m-6 4h6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2v0" />
               </svg>
               <span>Ver Todos los Proveedores</span>
             </Button>
@@ -221,7 +324,7 @@ const SupplierDetailPage: React.FC = () => {
             <Card className="p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl">
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0h3m-3 0h5m0 0v-4a3 3 0 616 0v4m-3 0h.01M9 7h6m-6 4h6m-6 4h6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
                 <span className="text-sm sm:text-lg">Información del Proveedor</span>
               </h2>
@@ -279,6 +382,28 @@ const SupplierDetailPage: React.FC = () => {
                   <span className="text-sm sm:text-lg">Productos Suministrados</span>
                   <span className="ml-2 text-xs sm:text-sm font-normal text-gray-500">({products.length})</span>
                 </h3>
+                {products.length > 0 && products[0]?.price !== null && (
+                  <div className="mt-2 text-xs sm:text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-2">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-1 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium">Información específica del proveedor:</span>
+                    </div>
+                    <p className="mt-1 text-xs">Se muestran precios, stock y tiempos de entrega específicos de este proveedor.</p>
+                  </div>
+                )}
+                {products.length > 0 && products[0]?.price === null && (
+                  <div className="mt-2 text-xs sm:text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-1 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium">Información de productos base:</span>
+                    </div>
+                    <p className="mt-1 text-xs">Los precios, stock y tiempos de entrega específicos del proveedor no están disponibles actualmente. Se muestra información del catálogo base.</p>
+                  </div>
+                )}
               </div>
               
               <div className="overflow-x-auto">
@@ -288,6 +413,7 @@ const SupplierDetailPage: React.FC = () => {
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Producto</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden sm:table-cell">SKU</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Categoría</th>
+                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Unidad</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Precio</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Stock</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Tiempo de Entrega</th>
@@ -297,7 +423,7 @@ const SupplierDetailPage: React.FC = () => {
                   <tbody>
                     {products.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center py-8 sm:py-12 text-gray-500">
+                        <td colSpan={8} className="text-center py-8 sm:py-12 text-gray-500">
                           <div className="flex flex-col items-center justify-center">
                             <div className="w-10 h-10 sm:w-12 sm:h-12 mb-3 sm:mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                               <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -334,34 +460,45 @@ const SupplierDetailPage: React.FC = () => {
                               {product.category}
                             </span>
                           </td>
+                          <td className="hidden lg:table-cell px-2 sm:px-4 py-3 sm:py-4">
+                            <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                              {product.unit}
+                            </span>
+                          </td>
                           <td className="px-2 sm:px-4 py-3 sm:py-4">
-                            <span className="font-semibold text-gray-900 text-sm sm:text-base">
-                              {product.price != null ? `$${Number(product.price).toLocaleString()}` : 'N/A'}
+                            <span className={`text-sm sm:text-base ${product.price !== null ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
+                              {product.price !== null ? `$${Number(product.price).toLocaleString()}` : 'N/A'}
                             </span>
                           </td>
                           <td className="hidden lg:table-cell px-2 sm:px-4 py-3 sm:py-4">
-                            <div className="flex items-center">
-                              <span className={`text-xs sm:text-sm font-medium ${
-                                (product.stock || 0) > 50 ? 'text-green-600' : 
-                                (product.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'
-                              }`}>
-                                {product.stock != null ? product.stock : 0}
-                              </span>
-                              <span className="text-xs text-gray-500 ml-1">unidades</span>
-                            </div>
+                            {product.stock !== null && product.stock !== 0 ? (
+                              <div className="flex items-center">
+                                <span className={`text-xs sm:text-sm font-medium ${
+                                  product.stock > 50 ? 'text-green-600' : 
+                                  product.stock > 10 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                  {product.stock}
+                                </span>
+                                <span className="text-xs text-gray-500 ml-1">unidades</span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-500 text-xs sm:text-sm">N/A</span>
+                            )}
                           </td>
                           <td className="hidden xl:table-cell px-2 sm:px-4 py-3 sm:py-4">
-                            <span className="text-xs sm:text-sm text-gray-900">
-                              {product.lead_time_days != null ? `${product.lead_time_days} días` : 'N/A'}
+                            <span className={`text-xs sm:text-sm ${product.lead_time_days !== null ? 'text-gray-900' : 'text-gray-500'}`}>
+                              {product.lead_time_days !== null ? `${product.lead_time_days} días` : 'N/A'}
                             </span>
                           </td>
                           <td className="px-2 sm:px-4 py-3 sm:py-4">
                             <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium ${
                               product.is_active 
                                 ? 'bg-green-100 text-green-800' 
-                                : 'bg-gray-100 text-gray-800'
+                                : product.price !== null 
+                                  ? 'bg-gray-100 text-gray-800'
+                                  : 'bg-blue-100 text-blue-800'
                             }`}>
-                              {product.is_active ? 'Activo' : 'Inactivo'}
+                              {product.is_active ? 'Activo' : product.price !== null ? 'Inactivo' : 'En Catálogo'}
                             </span>
                           </td>
                         </tr>

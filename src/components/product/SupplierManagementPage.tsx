@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -26,27 +26,55 @@ const SupplierManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState({ name: '', contact: '', email: '' });
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, [searchTerm]);
-
-  const fetchSuppliers = async () => {
-    setLoading(true);
+  const fetchSuppliers = useCallback(async (searchFilters: { name: string; contact: string; email: string }, isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setLoading(true);
+    } else {
+      setSearchLoading(true);
+    }
     setError(null);
     try {
-      const queryParams = searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : '';
+      // Build search query from all filter fields
+      const searchTerms = [searchFilters.name, searchFilters.contact, searchFilters.email]
+        .filter(term => term.trim())
+        .join(' ');
+      
+      const queryParams = searchTerms ? `?search=${encodeURIComponent(searchTerms)}` : '';
       const response = await apiRequest(`/suppliers${queryParams}`);
       setSuppliers(response.data || []);
     } catch (err: any) {
       setError(err.message || 'Error al cargar proveedores');
       console.error('Error fetching suppliers:', err);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      } else {
+        setSearchLoading(false);
+      }
     }
-  };
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchSuppliers({ name: '', contact: '', email: '' }, true);
+  }, [fetchSuppliers]);
+
+  // Search when filters change
+  useEffect(() => {
+    // Skip initial empty state
+    if (loading) return;
+    
+    // Debounce the search to avoid too many API calls
+    const timeoutId = setTimeout(() => {
+      fetchSuppliers(filters, false);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [filters, fetchSuppliers, loading]);
 
   const handleSupplierClick = (supplierId: number) => {
     navigate(`/supplier-admin/${supplierId}`);
@@ -61,9 +89,10 @@ const SupplierManagementPage: React.FC = () => {
     navigate('/supplier-admin/new');
   };
 
-  const handleSearch = (term: string) => {
-    setSearchTerm(term);
-  };
+  // Handlers for search/filter changes
+  const handleNameChange = (value: string) => setFilters(f => ({ ...f, name: value }));
+  const handleContactChange = (value: string) => setFilters(f => ({ ...f, contact: value }));
+  const handleEmailChange = (value: string) => setFilters(f => ({ ...f, email: value }));
 
   if (loading) {
     return (
@@ -104,7 +133,7 @@ const SupplierManagementPage: React.FC = () => {
             </div>
             <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Error al Cargar Proveedores</h2>
             <p className="text-sm sm:text-base text-gray-600 mb-4">{error}</p>
-            <Button onClick={() => fetchSuppliers()} className="bg-green-600 hover:bg-green-700 text-sm sm:text-base">
+            <Button onClick={() => fetchSuppliers(filters, false)} className="bg-green-600 hover:bg-green-700 text-sm sm:text-base">
               Intentar de Nuevo
             </Button>
           </Card>
@@ -137,11 +166,8 @@ const SupplierManagementPage: React.FC = () => {
             </Button>
           </div>
           
-          {/* Search and Add Button */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1">
-              <SupplierSearchBar onSearch={handleSearch} />
-            </div>
+          {/* Add Button */}
+          <div className="flex justify-end mb-6">
             <Button 
               onClick={handleAddSupplier}
               className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
@@ -154,37 +180,56 @@ const SupplierManagementPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Search and Filter Card */}
+        <Card className="p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl">
+          <SupplierSearchBar
+            name={filters.name}
+            contact={filters.contact}
+            email={filters.email}
+            onNameChange={handleNameChange}
+            onContactChange={handleContactChange}
+            onEmailChange={handleEmailChange}
+          />
+        </Card>
+
         {/* Suppliers List */}
         <Card className="shadow-lg border-0 rounded-xl overflow-hidden">
           <div className="bg-gradient-to-r from-gray-50 to-green-50 border-b border-green-100 p-3 sm:p-4 md:p-6">
             <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
               <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0h3m-3 0h5m0 0v-4a3 3 0 616 0v4m-3 0h.01M9 7h6m-6 4h6m-6 4h6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               <span className="text-sm sm:text-lg">Proveedores</span>
               <span className="ml-2 text-xs sm:text-sm font-normal text-gray-500">({suppliers.length})</span>
             </h3>
           </div>
           
-          <div className="p-3 sm:p-4">
-            {suppliers.length === 0 ? (
-              <div className="text-center py-8 sm:py-12 text-gray-500">
+                    <div className="p-3 sm:p-4">
+            {searchLoading ? (
+              <div className="text-center py-8 sm:py-12">
                 <div className="flex flex-col items-center justify-center">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                    <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0h3m-3 0h5m0 0v-4a3 3 0 616 0v4m-3 0h.01M9 7h6m-6 4h6m-6 4h6" />
-                    </svg>
-                  </div>
-                  <p className="font-medium text-sm sm:text-base">
-                    {searchTerm ? 'No se encontraron proveedores' : 'No hay proveedores registrados'}
-                  </p>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mb-4"></div>
+                  <p className="text-sm text-gray-600">Buscando proveedores...</p>
+                </div>
+              </div>
+            ) : suppliers.length === 0 ? (
+              <div className="text-center py-8 sm:py-12 text-gray-500">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <p className="font-medium text-sm sm:text-base">
+                      {(filters.name || filters.contact || filters.email) ? 'No se encontraron proveedores' : 'No hay proveedores registrados'}
+                    </p>
                   <p className="text-xs sm:text-sm text-gray-400 mt-1">
-                    {searchTerm 
-                      ? `No hay proveedores que coincidan con "${searchTerm}"` 
+                    {(filters.name || filters.contact || filters.email)
+                      ? 'No hay proveedores que coincidan con los filtros aplicados' 
                       : 'Comienza agregando tu primer proveedor'
                     }
                   </p>
-                  {!searchTerm && (
+                  {!(filters.name || filters.contact || filters.email) && (
                     <Button 
                       onClick={handleAddSupplier}
                       className="mt-4 bg-green-600 hover:bg-green-700 text-white"

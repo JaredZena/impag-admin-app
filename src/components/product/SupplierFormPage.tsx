@@ -85,14 +85,6 @@ const SupplierFormPage: React.FC = () => {
       newErrors.name = 'El nombre es requerido';
     }
 
-    if (!formData.rfc.trim()) {
-      newErrors.rfc = 'El RFC es requerido';
-    }
-
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email inválido';
-    }
-
     if (formData.website_url && !formData.website_url.match(/^https?:\/\/.+/)) {
       newErrors.website_url = 'URL debe comenzar con http:// o https://';
     }
@@ -280,7 +272,7 @@ const SupplierFormPage: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    RFC <span className="text-red-500">*</span>
+                    RFC
                   </label>
                   <Input
                     type="text"
