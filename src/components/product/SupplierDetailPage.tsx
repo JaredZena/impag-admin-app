@@ -7,13 +7,13 @@ import { apiRequest } from '@/utils/api';
 interface SupplierDetail {
   id: number;
   name: string;
+  common_name?: string;
+  description?: string;
+  website_url?: string;
   contact_person?: string;
   email?: string;
   phone?: string;
   address?: string;
-  city?: string;
-  country?: string;
-  is_active: boolean;
   created_at: string;
   last_updated: string;
 }
@@ -69,13 +69,13 @@ const SupplierDetailPage: React.FC = () => {
             data: {
               id: parseInt(supplierId!),
               name: `Proveedor ${supplierId}`,
+              common_name: `Nombre Común ${supplierId}`,
+              description: `Descripción detallada del proveedor ${supplierId}. Este es un proveedor confiable con experiencia en el sector.`,
+              website_url: `https://proveedor${supplierId}.com`,
               contact_person: 'Persona de Contacto',
               email: `proveedor${supplierId}@email.com`,
               phone: '+1 234 567 8900',
               address: 'Dirección del Proveedor',
-              city: 'Ciudad',
-              country: 'País',
-              is_active: true,
               created_at: new Date().toISOString(),
               last_updated: new Date().toISOString(),
             }
@@ -292,29 +292,14 @@ const SupplierDetailPage: React.FC = () => {
           </h1>
           <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">ID del Proveedor: {supplierId}</p>
           
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-            <div className="flex items-center space-x-3">
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                supplier?.is_active 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {supplier?.is_active ? 'Activo' : 'Inactivo'}
-              </span>
-            </div>
-            
-            <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
-              <Button 
-                variant="outline" 
-                onClick={() => navigate(`/supplier-admin/edit/${supplierId}`)}
-                className="border-green-200 text-green-700 hover:bg-green-50 text-sm w-full xs:w-auto"
-              >
-                Editar Proveedor
-              </Button>
-              <Button className="bg-green-600 hover:bg-green-700 text-white text-sm w-full xs:w-auto">
-                Contactar Proveedor
-              </Button>
-            </div>
+          <div className="flex justify-end">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/supplier-admin/edit/${supplierId}`)}
+              className="border-green-200 text-green-700 hover:bg-green-50 text-sm"
+            >
+              Editar Proveedor
+            </Button>
           </div>
         </div>
 
@@ -334,6 +319,10 @@ const SupplierDetailPage: React.FC = () => {
                   <p className="text-sm sm:text-lg font-semibold text-gray-900 break-words">{supplier.name}</p>
                 </div>
                 <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Nombre Común</label>
+                  <p className="text-xs sm:text-sm text-gray-900">{supplier.common_name || 'N/A'}</p>
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Persona de Contacto</label>
                   <p className="text-xs sm:text-sm text-gray-900">{supplier.contact_person || 'N/A'}</p>
                 </div>
@@ -346,16 +335,23 @@ const SupplierDetailPage: React.FC = () => {
                   <p className="text-xs sm:text-sm text-gray-900">{supplier.phone || 'N/A'}</p>
                 </div>
                 <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Sitio Web</label>
+                  <p className="text-xs sm:text-sm text-gray-900">
+                    {supplier.website_url ? (
+                      <a 
+                        href={supplier.website_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline break-all"
+                      >
+                        {supplier.website_url}
+                      </a>
+                    ) : 'N/A'}
+                  </p>
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Dirección</label>
                   <p className="text-xs sm:text-sm text-gray-900">{supplier.address || 'N/A'}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs sm:text-sm font-medium text-gray-500">Ciudad</label>
-                  <p className="text-xs sm:text-sm text-gray-900">{supplier.city || 'N/A'}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs sm:text-sm font-medium text-gray-500">País</label>
-                  <p className="text-xs sm:text-sm text-gray-900">{supplier.country || 'N/A'}</p>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Creado</label>
@@ -370,6 +366,16 @@ const SupplierDetailPage: React.FC = () => {
                   </p>
                 </div>
               </div>
+              
+              {/* Description Section - Full Width */}
+              {supplier.description && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="space-y-2">
+                    <label className="text-xs sm:text-sm font-medium text-gray-500">Descripción</label>
+                    <p className="text-xs sm:text-sm text-gray-900 leading-relaxed">{supplier.description}</p>
+                  </div>
+                </div>
+              )}
             </Card>
 
             {/* Products Supplied */}
