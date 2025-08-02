@@ -158,16 +158,28 @@ const SupplierDetailPage: React.FC = () => {
       <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
         {/* Back Button */}
         <div className="mb-4 sm:mb-6">
-          <Button 
-            variant="outline" 
-            onClick={handleBack}
-            className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-sm sm:text-base"
-          >
-            <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            <span>Regresar</span>
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <Button 
+              variant="outline" 
+              onClick={handleBack}
+              className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-sm sm:text-base"
+            >
+              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span>Regresar</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/suppliers')}
+              className="flex items-center space-x-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 text-sm sm:text-base"
+            >
+              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0h3m-3 0h5m0 0v-4a3 3 0 616 0v4m-3 0h.01M9 7h6m-6 4h6m-6 4h6" />
+              </svg>
+              <span>Ver Todos los Proveedores</span>
+            </Button>
+          </div>
         </div>
 
         {/* Supplier Name and ID - Left Aligned */}
@@ -191,6 +203,7 @@ const SupplierDetailPage: React.FC = () => {
             <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
               <Button 
                 variant="outline" 
+                onClick={() => navigate(`/supplier-admin/edit/${supplierId}`)}
                 className="border-green-200 text-green-700 hover:bg-green-50 text-sm w-full xs:w-auto"
               >
                 Editar Proveedor

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ProductSearchBar from './ProductSearchBar';
 import ProductTable from './ProductTable';
 import { ProductRowProps } from './ProductRow';
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 const PAGE_SIZE = 50;
 
 const ProductManagementPage: React.FC = () => {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [supplier, setSupplier] = useState('');
@@ -28,17 +30,28 @@ const ProductManagementPage: React.FC = () => {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
+        console.log('🔄 Fetching categories and suppliers...');
         const [catData, supData] = await Promise.all([
           apiRequest('/categories'),
           apiRequest('/suppliers'),
         ]);
-        setCategoryOptions((catData.data || []).map((c: any) => ({ value: String(c.id), label: c.name })));
-        setSupplierOptions((supData.data || []).map((s: any) => ({ value: String(s.id), label: s.name })));
+        
+        console.log('📂 Raw categories data:', catData);
+        console.log('🏭 Raw suppliers data:', supData);
+        
+        const categoryOpts = (catData.data || []).map((c: any) => ({ value: String(c.id), label: c.name }));
+        const supplierOpts = (supData.data || []).map((s: any) => ({ value: String(s.id), label: s.name }));
+        
+        console.log('📂 Processed category options:', categoryOpts);
+        console.log('🏭 Processed supplier options:', supplierOpts);
+        
+        setCategoryOptions(categoryOpts);
+        setSupplierOptions(supplierOpts);
         setOptionsLoaded(true);
       } catch (err) {
         // Even if options fail to load, we should still allow product fetching
+        console.error('❌ Failed to load options:', err);
         setOptionsLoaded(true);
-        console.error('Failed to load options:', err);
       }
     };
     fetchOptions();
@@ -80,6 +93,9 @@ const ProductManagementPage: React.FC = () => {
         return;
       }
 
+      console.log('🔍 Fetching products with filters:', filters);
+      console.log('📋 Available supplier options:', supplierOptions);
+      
       setLoading(true);
       setError(null);
       try {
@@ -92,13 +108,20 @@ const ProductManagementPage: React.FC = () => {
         params.append('sort_by', 'name');
         params.append('sort_order', 'asc');
         
-        const data = await apiRequest(`/products?${params.toString()}`);
+        const url = `/products?${params.toString()}`;
+        console.log('🌐 API URL:', url);
+        
+        const data = await apiRequest(url);
+        console.log('📦 API Response:', data);
+        
         const mapped = mapProducts(data.data || [], categoryOptions);
+        console.log('🗺️ Mapped products:', mapped);
         
         setProducts(mapped);
         setHasMore((data.data || []).length === PAGE_SIZE);
         setSkip(PAGE_SIZE);
       } catch (err: any) {
+        console.error('❌ Error fetching products:', err);
         setError(err.message || 'Unknown error');
       } finally {
         setLoading(false);
@@ -111,6 +134,9 @@ const ProductManagementPage: React.FC = () => {
   // Load more products (infinite scroll)
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
+    
+    console.log('📄 Loading more products with filters:', filters);
+    
     setLoadingMore(true);
     try {
       const params = new URLSearchParams();
@@ -122,19 +148,26 @@ const ProductManagementPage: React.FC = () => {
       params.append('sort_by', 'name');
       params.append('sort_order', 'asc');
       
-      const data = await apiRequest(`/products?${params.toString()}`);
+      const url = `/products?${params.toString()}`;
+      console.log('🌐 LoadMore API URL:', url);
+      
+      const data = await apiRequest(url);
+      console.log('📦 LoadMore API Response:', data);
+      
       const mapped = mapProducts(data.data || [], categoryOptions);
       
       // Deduplicate products to prevent duplicate keys
       setProducts(prev => {
         const existingIds = new Set(prev.map(p => p.id));
         const newProducts = mapped.filter(p => !existingIds.has(p.id));
+        console.log('➕ Adding new products:', newProducts.length);
         return [...prev, ...newProducts];
       });
       
       setHasMore((data.data || []).length === PAGE_SIZE);
       setSkip(prev => prev + PAGE_SIZE);
     } catch (err: any) {
+      console.error('❌ Error loading more products:', err);
       setError(err.message || 'Unknown error');
     } finally {
       setLoadingMore(false);
@@ -150,17 +183,34 @@ const ProductManagementPage: React.FC = () => {
   // Handlers for search/filter changes
   const handleNameChange = (v: string) => setFilters(f => ({ ...f, name: v }));
   const handleCategoryChange = (v: string) => setFilters(f => ({ ...f, category: v }));
-  const handleSupplierChange = (v: string) => setFilters(f => ({ ...f, supplier: v }));
+  const handleSupplierChange = (v: string) => {
+    console.log('🏭 Supplier filter changed to:', v);
+    setFilters(f => ({ ...f, supplier: v }));
+  };
 
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
       <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
         {/* Page Header */}
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent mb-2">
-            Gestión de Productos
-          </h1>
-          <p className="text-sm sm:text-base text-gray-600">Administra tu catálogo de productos, precios y proveedores</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent mb-2">
+                Gestión de Productos
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600">Administra tu catálogo de productos, precios y proveedores</p>
+            </div>
+            <Button 
+              onClick={() => navigate('/suppliers')}
+              variant="outline"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50 whitespace-nowrap"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0h3m-3 0h5m0 0v-4a3 3 0 616 0v4m-3 0h.01M9 7h6m-6 4h6m-6 4h6" />
+              </svg>
+              Gestionar Proveedores
+            </Button>
+          </div>
         </div>
 
         {/* Search and Filter Card */}
@@ -225,4 +275,4 @@ const ProductManagementPage: React.FC = () => {
   );
 };
 
-export default ProductManagementPage; 
+export default ProductManagementPage;
