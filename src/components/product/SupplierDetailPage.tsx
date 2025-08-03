@@ -112,7 +112,7 @@ const SupplierDetailPage: React.FC = () => {
 
         // Fetch SupplierProduct data with actual pricing information
         try {
-          const supplierProductsData = await apiRequest('/supplier-product/');
+          const supplierProductsData = await apiRequest('/products/supplier-product/');
           
           // Filter by current supplier and get product details
           const supplierProducts = (supplierProductsData || []).filter((sp: any) => 
@@ -124,68 +124,38 @@ const SupplierDetailPage: React.FC = () => {
             return;
           }
           
-          // Get variant IDs to fetch product details
-          const variantIds = supplierProducts.map((sp: any) => sp.variant_id);
+          // Get product IDs to fetch product details
+          const productIds = supplierProducts.map((sp: any) => sp.product_id);
           
-          // Fetch variant details for each supplier product
-          const variantPromises = variantIds.map((variantId: number) =>
-            apiRequest(`/variants/${variantId}`)
+          // Fetch product details for each supplier product
+          const productPromises = productIds.map((productId: number) =>
+            apiRequest(`/products/${productId}`)
           );
           
-          const variantResponses = await Promise.all(variantPromises);
+          const productResponses = await Promise.all(productPromises);
           
           // Transform the data to include both product and supplier-specific info
           const transformedProducts = supplierProducts.map((sp: any, index: number) => {
-            const variantData = variantResponses[index];
-            const variant = variantData?.data;
+            const productData = productResponses[index];
+            const product = productData?.data;
             
-            if (!variant) return null;
-            
-            // Find the product info for this variant
-            const productId = variant.product_id;
+            if (!product) return null;
             
             return {
-              id: productId,
-              name: `Variant ${variant.sku}`, // Will be updated with actual product name
-              sku: variant.sku || 'N/A',
-              category: 'Loading...', // Will be updated
-              unit: 'N/A', // Will be updated with product unit
-              price: sp.cost || null,
+              id: product.id,
+              name: product.name || 'N/A',
+              sku: product.sku || 'N/A',
+              category: categoriesMap[product.category_id] || 'Sin categoría',
+              unit: product.unit || 'N/A',
+              price: sp.cost || 0,
               stock: sp.stock || 0,
-              lead_time_days: sp.lead_time_days || null,
-              is_active: sp.is_active || false,
+              lead_time_days: sp.lead_time_days || 0,
+              is_active: sp.is_active !== false,
               last_updated: sp.last_updated || sp.created_at
             };
           }).filter(Boolean);
           
-          // Now fetch product details to get names, categories, and units
-          const productIds = [...new Set(transformedProducts.map((p: any) => p.id))];
-          const productPromises = productIds.map((productId) =>
-            apiRequest(`/products?id=${productId}`)
-          );
-          
-          const productResponses = await Promise.all(productPromises);
-          const productsMap: {[key: number]: any} = {};
-          
-          productResponses.forEach(response => {
-            const products = response?.data || [];
-            products.forEach((product: any) => {
-              productsMap[product.id] = product;
-            });
-          });
-          
-          // Final transformation with complete data
-          const finalProducts = transformedProducts.map((tp: any) => {
-            const product = productsMap[tp.id];
-            return {
-              ...tp,
-              name: product?.name || tp.name,
-              category: categoriesMap[product?.category_id] || 'Sin categoría',
-              unit: product?.unit || 'N/A'
-            };
-          });
-          
-          setProducts(finalProducts);
+          setProducts(transformedProducts);
         } catch (productsError) {
           console.warn('Error fetching supplier products:', productsError);
           // Fallback to base products if SupplierProduct endpoint fails
@@ -194,18 +164,18 @@ const SupplierDetailPage: React.FC = () => {
             const transformedProducts = (productsData.data || []).map((product: any) => ({
               id: product.id,
               name: product.name,
-              sku: product.base_sku || 'N/A',
+              sku: product.sku || product.base_sku || 'N/A',
               category: categoriesMap[product.category_id] || 'Sin categoría',
               unit: product.unit || 'N/A',
-              price: null,
-              stock: 0,
+              price: product.price || null,
+              stock: product.stock || 0,
               lead_time_days: null,
-              is_active: false,
+              is_active: product.is_active || false,
               last_updated: product.last_updated || product.created_at
             }));
             setProducts(transformedProducts);
           } catch (fallbackError) {
-            console.error('Both SupplierProduct and fallback failed:', fallbackError);
+            console.error('Error fetching fallback products:', fallbackError);
             setProducts([]);
           }
         }

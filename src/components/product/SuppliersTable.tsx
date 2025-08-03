@@ -45,7 +45,7 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers }) => {
                 </svg>
               </div>
               <p className="font-medium text-sm sm:text-base">No se encontraron proveedores</p>
-              <p className="text-xs sm:text-sm text-gray-400 mt-1">No hay proveedores vinculados a esta variante</p>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1">No hay proveedores vinculados a este producto</p>
             </div>
           </div>
         ) : (

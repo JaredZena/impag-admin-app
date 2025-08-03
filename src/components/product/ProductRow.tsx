@@ -5,7 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 export interface ProductRowProps {
   id: string | number;
   name: string;
-  sku: string;
+  price?: number;
+  unit?: string;
   category: string;
   suppliers: string[];
   status: 'active' | 'inactive';
@@ -16,7 +17,7 @@ export interface ProductRowProps {
   // Add more fields as needed
 }
 
-const ProductRow: React.FC<ProductRowProps> = ({ id, name, sku, category, suppliers, status, description, lastUpdated, createdAt }) => {
+const ProductRow: React.FC<ProductRowProps> = ({ id, name, price, unit, category, suppliers, status, description, lastUpdated, createdAt }) => {
   const navigate = useNavigate();
   const dateToShow = lastUpdated || createdAt || '';
   const formattedDate = dateToShow ? new Date(dateToShow).toLocaleDateString('es-ES') : '-';
@@ -45,9 +46,14 @@ const ProductRow: React.FC<ProductRowProps> = ({ id, name, sku, category, suppli
               {suppliers.length > 1 && ` +${suppliers.length - 1} más`}
             </div>
           )}
-          {/* Show SKU on mobile (when SKU column is hidden) */}
+          {/* Show category and unit on mobile (when those columns are hidden) */}
           <div className="md:hidden">
-            SKU: <span className="font-mono">{sku}</span>
+            Categoría: <span className="font-medium">{category}</span>
+            {unit && <span className="ml-2">• Unidad: {unit}</span>}
+          </div>
+          {/* Show created date on mobile (when created column is hidden) */}
+          <div className="lg:hidden">
+            Creado: {createdAt ? new Date(createdAt).toLocaleDateString('es-ES') : '-'}
           </div>
           {/* Show last updated on mobile (when date column is hidden) */}
           <div className="lg:hidden">
@@ -56,11 +62,32 @@ const ProductRow: React.FC<ProductRowProps> = ({ id, name, sku, category, suppli
         </div>
       </td>
       
-      {/* Category */}
+      {/* Price - Always visible */}
       <td className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
+        <div className="text-sm sm:text-base font-semibold text-gray-900">
+          {price != null ? `$${Number(price).toLocaleString()}` : 'N/A'}
+        </div>
+      </td>
+      
+      {/* Unit - Hidden on mobile */}
+      <td className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4">
+        <div className="text-xs sm:text-sm text-gray-600">
+          {unit || 'N/A'}
+        </div>
+      </td>
+      
+      {/* Category - Hidden on mobile */}
+      <td className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4">
         <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 break-words">
           {category}
         </span>
+      </td>
+      
+      {/* Created Date - Hidden on smaller screens */}
+      <td className="hidden lg:table-cell px-2 py-2 lg:px-6 lg:py-4">
+        <div className="text-xs sm:text-sm text-gray-600">
+          {createdAt ? new Date(createdAt).toLocaleDateString('es-ES') : '-'}
+        </div>
       </td>
       
       {/* Last Updated - Hidden on smaller screens */}
@@ -77,11 +104,6 @@ const ProductRow: React.FC<ProductRowProps> = ({ id, name, sku, category, suppli
         ) : (
           <div className="text-xs sm:text-sm text-gray-400">Sin descripción</div>
         )}
-      </td>
-      
-      {/* SKU - Hidden on mobile */}
-      <td className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4">
-        <span className="font-mono text-xs sm:text-sm text-gray-700 bg-gray-100 px-1 sm:px-2 py-1 rounded break-all">{sku}</span>
       </td>
       
       {/* Actions */}

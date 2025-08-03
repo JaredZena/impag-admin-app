@@ -65,7 +65,8 @@ const ProductManagementPage: React.FC = () => {
       return {
         id: p.id,
         name: p.name || 'Unnamed Product',
-        sku: p.base_sku || '',
+        price: p.price || null,
+        unit: p.unit || 'N/A',
         category: categoryName,
         suppliers: supplierNames,
         status: (p.is_active ? 'active' : 'inactive') as 'active' | 'inactive',
@@ -211,6 +212,19 @@ const ProductManagementPage: React.FC = () => {
               Gestionar Proveedores
             </Button>
           </div>
+          
+          {/* Add Product Button */}
+          <div className="flex justify-end mb-6">
+            <Button 
+              onClick={() => navigate('/product-admin/new')}
+              className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Agregar Nuevo Producto
+            </Button>
+          </div>
         </div>
 
         {/* Search and Filter Card */}
@@ -245,7 +259,12 @@ const ProductManagementPage: React.FC = () => {
           </Card>
         ) : (
           <>
-            <ProductTable products={products} loading={loading && products.length === 0} />
+            <ProductTable 
+              products={products} 
+              loading={loading && products.length === 0}
+              hasFilters={!!(filters.name || filters.category || filters.supplier)}
+              onAddProduct={() => navigate('/product-admin/new')}
+            />
             
             {loadingMore && (
               <div className="flex items-center justify-center py-6 sm:py-8">

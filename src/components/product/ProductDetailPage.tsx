@@ -16,6 +16,11 @@ interface Product {
   unit: string;
   package_size: number | null;
   iva: boolean;
+  // New flattened fields
+  sku: string;
+  price: number | null;
+  stock: number;
+  specifications: any;
   is_active: boolean;
   created_at: string;
   last_updated: string;
@@ -79,61 +84,47 @@ const ProductDetailPage: React.FC = () => {
           console.error('Could not fetch navigation info:', navError);
         }
 
-        // Fetch suppliers through variants
+        // Fetch suppliers through supplier-product relationships
         try {
-          // First get variants for this product
-          console.log(`Fetching variants for product ${productId}`);
-          const variantsData = await apiRequest(`/products/${productId}/variants`);
-          const variants = variantsData.data || [];
-          console.log(`Found ${variants.length} variants:`, variants);
+          console.log(`Fetching suppliers for product ${productId}`);
+          const productSupplierProducts = await apiRequest(`/products/${productId}/supplier-products`);
           
-          if (variants.length === 0) {
-            console.log('No variants found for this product');
+          console.log(`Found ${productSupplierProducts.length} supplier-product relationships`);
+          
+          if (productSupplierProducts.length === 0) {
+            console.log('No suppliers found for this product');
             setSuppliers([]);
             return;
           }
           
-          // Get suppliers for each variant and combine them
-          const allSuppliers: Supplier[] = [];
-          const supplierIds = new Set<string | number>(); // To avoid duplicates
+          // Get supplier details for each relationship
+          const supplierPromises = productSupplierProducts.map((sp: any) =>
+            apiRequest(`/suppliers/${sp.supplier_id}`)
+          );
           
-          for (const variant of variants) {
-            try {
-              console.log(`Fetching suppliers for variant ${variant.id}`);
-              const suppliersData = await apiRequest(`/variants/${variant.id}/suppliers`);
-              console.log(`Suppliers data for variant ${variant.id}:`, suppliersData);
-              
-              const variantSuppliers = suppliersData.data || [];
-              console.log(`Found ${variantSuppliers.length} suppliers for variant ${variant.id}`);
-              
-              for (const supplierData of variantSuppliers) {
-                console.log('Processing supplier:', supplierData);
-                // Only add if we haven't seen this supplier before
-                if (!supplierIds.has(supplierData.id)) {
-                  supplierIds.add(supplierData.id);
-                  allSuppliers.push({
-                    id: supplierData.id,
-                    name: supplierData.name || 'Proveedor Desconocido',
-                    price: supplierData.cost || 0,
-                    stock: supplierData.stock || 0,
-                    lead_time_days: supplierData.lead_time_days || 0,
-                    is_active: supplierData.is_active !== false,
-                  });
-                }
-              }
-            } catch (variantSupplierError: any) {
-              console.error(`Could not fetch suppliers for variant ${variant.id}:`, variantSupplierError);
-              // If it's an auth error, we should know about it
-              if (variantSupplierError.message?.includes('401') || variantSupplierError.message?.includes('Authentication')) {
-                console.error('Authentication error when fetching suppliers. Check if user is logged in.');
-              }
-            }
-          }
+          const supplierResponses = await Promise.all(supplierPromises);
           
-          console.log(`Total unique suppliers found: ${allSuppliers.length}`, allSuppliers);
-          setSuppliers(allSuppliers);
-        } catch (variantsError: any) {
-          console.error('Could not fetch variants or suppliers:', variantsError);
+          // Transform the data to include both supplier and supplier-product info
+          const transformedSuppliers = productSupplierProducts.map((sp: any, index: number) => {
+            const supplierData = supplierResponses[index];
+            const supplier = supplierData?.data;
+            
+            if (!supplier) return null;
+            
+            return {
+              id: supplier.id,
+              name: supplier.name || 'Proveedor Desconocido',
+              price: sp.cost || 0,
+              stock: sp.stock || 0,
+              lead_time_days: sp.lead_time_days || 0,
+              is_active: sp.is_active !== false,
+            };
+          }).filter(Boolean);
+          
+          console.log(`Found ${transformedSuppliers.length} suppliers:`, transformedSuppliers);
+          setSuppliers(transformedSuppliers);
+        } catch (suppliersError: any) {
+          console.error('Could not fetch suppliers:', suppliersError);
           setSuppliers([]);
         }
       } catch (err: any) {
@@ -191,6 +182,11 @@ const ProductDetailPage: React.FC = () => {
         unit: editedProduct.unit, // Should be enum value like "PIEZA", "KG", etc.
         package_size: editedProduct.package_size,
         iva: editedProduct.iva,
+        // New flattened fields
+        sku: editedProduct.sku,
+        price: editedProduct.price,
+        stock: editedProduct.stock,
+        specifications: editedProduct.specifications,
         is_active: editedProduct.is_active,
       };
       
@@ -456,7 +452,7 @@ const ProductDetailPage: React.FC = () => {
         </div>
 
         {/* Success notification */}
-        {saveSuccess && (
+                        {saveSuccess && (
           <div className="mb-6">
             <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center">
               <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -464,6 +460,21 @@ const ProductDetailPage: React.FC = () => {
               </svg>
               <span className="text-green-800 font-medium">Cambios guardados exitosamente</span>
             </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        {!isEditing && product && (
+          <div className="mb-6 flex gap-3">
+            <Button 
+              onClick={() => navigate(`/product-admin/edit/${productId}`)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Editar Producto
+            </Button>
           </div>
         )}
 
@@ -495,6 +506,58 @@ const ProductDetailPage: React.FC = () => {
                   <span className="inline-block font-mono text-xs sm:text-sm text-gray-700 bg-gray-100 px-2 py-1 rounded break-all">
                     {product.base_sku}
                   </span>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">SKU Principal</label>
+                  {isEditing ? (
+                    <Input
+                      value={editedProduct.sku}
+                      onChange={(e) => handleInputChange('sku', e.target.value)}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm font-mono"
+                    />
+                  ) : (
+                    <span className="inline-block font-mono text-xs sm:text-sm text-gray-700 bg-blue-100 px-2 py-1 rounded break-all">
+                      {product.sku}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Precio</label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={editedProduct.price || ''}
+                      onChange={(e) => handleInputChange('price', e.target.value ? parseFloat(e.target.value) : null)}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
+                      placeholder="0.00"
+                    />
+                  ) : (
+                    <p className="text-sm sm:text-lg font-semibold text-gray-900">
+                      {product.price != null ? `$${Number(product.price).toLocaleString()}` : 'N/A'}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Stock</label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={editedProduct.stock || 0}
+                      onChange={(e) => handleInputChange('stock', e.target.value ? parseInt(e.target.value) : 0)}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
+                    />
+                  ) : (
+                    <div className="flex items-center">
+                      <span className={`text-sm font-medium ${
+                        (product.stock || 0) > 50 ? 'text-green-600' : 
+                        (product.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {product.stock != null ? product.stock : 0}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-1">unidades</span>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Categoría</label>
@@ -608,6 +671,30 @@ const ProductDetailPage: React.FC = () => {
                 </div>
               </div>
             </Card>
+
+            {/* Specifications Card */}
+            {product.specifications && Object.keys(product.specifications).length > 0 && (
+              <Card className="p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-sm sm:text-lg">Especificaciones Técnicas</span>
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                  {Object.entries(product.specifications).map(([key, value]) => (
+                    <div key={key} className="space-y-1">
+                      <label className="text-xs sm:text-sm font-medium text-gray-500 capitalize">
+                        {key.replace(/[_-]/g, ' ')}
+                      </label>
+                      <div className="text-sm sm:text-base text-gray-900 break-words">
+                        {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {/* Suppliers Table */}
             <SuppliersTable suppliers={suppliers} />

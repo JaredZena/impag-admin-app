@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProductManagementPage from './components/product/ProductManagementPage';
 import ProductDetailPage from './components/product/ProductDetailPage';
+import ProductFormPage from './components/product/ProductFormPage';
 import SupplierDetailPage from './components/product/SupplierDetailPage';
 import SupplierManagementPage from './components/product/SupplierManagementPage';
 import SupplierFormPage from './components/product/SupplierFormPage';
@@ -15,6 +16,8 @@ export default function App() {
         <ProtectedRoute>
           <Routes>
             <Route path="/product-admin" element={<ProductManagementPage />} />
+            <Route path="/product-admin/new" element={<ProductFormPage />} />
+            <Route path="/product-admin/edit/:productId" element={<ProductFormPage />} />
             <Route path="/product-admin/:productId" element={<ProductDetailPage />} />
             <Route path="/suppliers" element={<SupplierManagementPage />} />
             <Route path="/supplier-admin/new" element={<SupplierFormPage />} />
