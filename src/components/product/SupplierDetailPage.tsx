@@ -10,7 +10,7 @@ interface SupplierDetail {
   common_name?: string;
   description?: string;
   website_url?: string;
-  contact_person?: string;
+  contact_name?: string;
   email?: string;
   phone?: string;
   address?: string;
@@ -78,7 +78,7 @@ const SupplierDetailPage: React.FC = () => {
               common_name: `Nombre Común ${supplierId}`,
               description: `Descripción detallada del proveedor ${supplierId}. Este es un proveedor confiable con experiencia en el sector.`,
               website_url: `https://proveedor${supplierId}.com`,
-              contact_person: 'Persona de Contacto',
+              contact_name: 'Persona de Contacto',
               email: `proveedor${supplierId}@email.com`,
               phone: '+1 234 567 8900',
               address: 'Dirección del Proveedor',
@@ -343,7 +343,7 @@ const SupplierDetailPage: React.FC = () => {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Persona de Contacto</label>
-                  <p className="text-xs sm:text-sm text-gray-900">{supplier.contact_person || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm text-gray-900">{supplier.contact_name || 'N/A'}</p>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Email</label>
