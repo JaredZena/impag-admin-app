@@ -9,10 +9,11 @@ export interface ProductTableProps {
   loading?: boolean;
   hasFilters?: boolean;
   onAddProduct?: () => void;
+  totalCount?: number;
   // For future: pagination, sorting, loading, etc.
 }
 
-const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, hasFilters = false, onAddProduct }) => {
+const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, hasFilters = false, onAddProduct, totalCount = 0 }) => {
   // Show skeleton loader when loading and no products yet
   if (loading && products.length === 0) {
     return <ProductTableSkeleton />;
@@ -20,6 +21,17 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, 
 
   return (
     <Card className="w-full overflow-x-auto shadow-lg border-0 rounded-xl">
+      {/* Table Header with Count */}
+      <div className="bg-gradient-to-r from-gray-50 to-green-50 border-b border-green-100 p-3 sm:p-4 md:p-6">
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
+          <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
+          </svg>
+          <span className="text-sm sm:text-lg">Productos</span>
+          <span className="ml-2 text-xs sm:text-sm font-normal text-gray-500">({totalCount})</span>
+        </h3>
+      </div>
+
       <table className="min-w-full border-collapse">
         <thead>
           <tr className="bg-gradient-to-r from-gray-50 to-green-50 border-b border-green-100">

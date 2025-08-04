@@ -25,6 +25,40 @@ const ProductManagementPage: React.FC = () => {
   const [skip, setSkip] = useState(0);
   const [filters, setFilters] = useState({ name: '', category: '', supplier: '' });
   const [optionsLoaded, setOptionsLoaded] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Function to fetch total product count
+  const fetchTotalCount = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.name) params.append('name', filters.name);
+      if (filters.category) params.append('category_id', filters.category);
+      if (filters.supplier) params.append('supplier_id', filters.supplier);
+      params.append('limit', '1'); // We only need the count, so limit to 1
+      
+      const url = `/products?${params.toString()}`;
+      const response = await apiRequest(url);
+      
+      // The backend should return total count in the response
+      // If not available, we'll need to make a separate count endpoint
+      if (response.total_count !== undefined) {
+        setTotalCount(response.total_count);
+      } else {
+        // Fallback: get all products to count them (not ideal for performance)
+        const allParams = new URLSearchParams();
+        if (filters.name) allParams.append('name', filters.name);
+        if (filters.category) allParams.append('category_id', filters.category);
+        if (filters.supplier) allParams.append('supplier_id', filters.supplier);
+        allParams.append('limit', '10000'); // High limit to get all
+        
+        const allResponse = await apiRequest(`/products?${allParams.toString()}`);
+        setTotalCount((allResponse.data || []).length);
+      }
+    } catch (err) {
+      console.error('Error fetching total count:', err);
+      setTotalCount(0);
+    }
+  }, [filters]);
 
   // Fetch categories and suppliers on mount
   useEffect(() => {
@@ -130,7 +164,8 @@ const ProductManagementPage: React.FC = () => {
     };
 
     fetchProducts();
-  }, [filters, optionsLoaded, categoryOptions, mapProducts]);
+    fetchTotalCount(); // Also fetch total count when filters change
+  }, [filters, optionsLoaded, categoryOptions, mapProducts, fetchTotalCount]);
 
   // Load more products (infinite scroll)
   const loadMore = useCallback(async () => {
@@ -264,6 +299,7 @@ const ProductManagementPage: React.FC = () => {
               loading={loading && products.length === 0}
               hasFilters={!!(filters.name || filters.category || filters.supplier)}
               onAddProduct={() => navigate('/product-admin/new')}
+              totalCount={totalCount}
             />
             
             {loadingMore && (

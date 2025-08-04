@@ -42,6 +42,8 @@ const SupplierFormPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [errors, setErrors] = useState<Partial<SupplierFormData>>({});
 
   useEffect(() => {
@@ -152,6 +154,30 @@ const SupplierFormPage: React.FC = () => {
       navigate(`/supplier-admin/${supplierId}`);
     } else {
       navigate('/suppliers');
+    }
+  };
+
+  const handleArchiveSupplier = async () => {
+    if (!isEditing || !supplierId) return;
+    
+    setArchiving(true);
+    setError(null);
+
+    try {
+      await apiRequest(`/suppliers/${supplierId}/archive`, {
+        method: 'PATCH',
+      });
+
+      // Navigate back to supplier list after successful archive
+      navigate('/suppliers', { 
+        state: { message: 'Proveedor eliminado exitosamente' }
+      });
+    } catch (err: any) {
+      setError(err.message || 'Error al eliminar el proveedor');
+      console.error('Error archiving supplier:', err);
+    } finally {
+      setArchiving(false);
+      setShowArchiveDialog(false);
     }
   };
 
@@ -425,6 +451,89 @@ const SupplierFormPage: React.FC = () => {
                 Cancelar
               </Button>
             </div>
+
+            {/* Danger Zone - Only show when editing */}
+            {isEditing && (
+              <div className="pt-8 border-t border-red-200">
+                <div className="bg-red-50 rounded-lg p-6 border border-red-200">
+                  <h3 className="text-lg font-semibold text-red-800 mb-2 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    Zona de Peligro
+                  </h3>
+                  <p className="text-red-700 text-sm mb-4">
+                    Esta acción eliminará permanentemente el proveedor del sistema. Los datos asociados se conservarán pero el proveedor no aparecerá en las listas.
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => setShowArchiveDialog(true)}
+                    disabled={submitting || archiving}
+                    className="bg-red-600 hover:bg-red-700 text-white border-red-600"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Eliminar Proveedor
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Archive Confirmation Dialog */}
+            {showArchiveDialog && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                  <div className="flex items-center mb-4">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Confirmar Eliminación
+                    </h3>
+                  </div>
+                  
+                  <p className="text-gray-600 mb-6">
+                    ¿Estás seguro de que deseas eliminar este proveedor? Esta acción moverá el proveedor a un estado archivado y no aparecerá en las listas principales.
+                  </p>
+                  
+                  <p className="text-sm text-gray-500 mb-6">
+                    <strong>Proveedor:</strong> {formData.name}
+                  </p>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      onClick={handleArchiveSupplier}
+                      disabled={archiving}
+                      className="bg-red-600 hover:bg-red-700 text-white flex-1"
+                    >
+                      {archiving ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Eliminando...
+                        </>
+                      ) : (
+                        'Sí, Eliminar Proveedor'
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowArchiveDialog(false)}
+                      disabled={archiving}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </form>
         </Card>
       </div>
