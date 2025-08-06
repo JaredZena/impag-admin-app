@@ -236,20 +236,41 @@ const ProductManagementPage: React.FC = () => {
               </h1>
               <p className="text-sm sm:text-base text-gray-600">Administra tu catálogo de productos, precios y proveedores</p>
             </div>
-            <Button 
-              onClick={() => navigate('/suppliers')}
-              variant="outline"
-              className="border-blue-200 text-blue-700 hover:bg-blue-50 whitespace-nowrap"
-            >
-                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-               </svg>
-              Gestionar Proveedores
-            </Button>
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => navigate('/suppliers')}
+                variant="outline"
+                className="border-blue-200 text-blue-700 hover:bg-blue-50 whitespace-nowrap"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Gestionar Proveedores
+              </Button>
+              <Button 
+                onClick={() => navigate('/supplier-product-admin')}
+                variant="outline"
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 whitespace-nowrap"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Relaciones Proveedor-Producto
+              </Button>
+            </div>
           </div>
           
-          {/* Add Product Button */}
-          <div className="flex justify-end mb-6">
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 mb-6">
+            <Button 
+              onClick={() => navigate('/quotation-upload')}
+              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Subir Cotización PDF
+            </Button>
             <Button 
               onClick={() => navigate('/product-admin/new')}
               className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"

@@ -48,7 +48,7 @@ const ProductFormPage: React.FC = () => {
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
-  const isEditing = productId !== 'new';
+  const isEditing = !!productId; // If productId exists, we're editing; if not, we're creating
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -57,17 +57,26 @@ const ProductFormPage: React.FC = () => {
         setCategories(response.data || []);
       } catch (err) {
         console.error('Error fetching categories:', err);
+        // Don't set general error for categories, just log it
+        // setError('Error al cargar las categorías');
       }
     };
 
-    fetchCategories();
+    const loadData = async () => {
+      // Always fetch categories first
+      await fetchCategories();
+      
+      if (isEditing) {
+        await fetchProduct();
+      } else {
+        // Initialize with one empty specification row for new products
+        setSpecifications([{ key: '', value: '' }]);
+        // Clear any existing errors when creating new product
+        setError(null);
+      }
+    };
 
-    if (isEditing) {
-      fetchProduct();
-    } else {
-      // Initialize with one empty specification row for new products
-      setSpecifications([{ key: '', value: '' }]);
-    }
+    loadData();
   }, [productId, isEditing]);
 
   const fetchProduct = async () => {
@@ -115,7 +124,7 @@ const ProductFormPage: React.FC = () => {
       newErrors.sku = 'El SKU es requerido';
     }
 
-    if (!formData.category_id) {
+    if (!formData.category_id || formData.category_id === '') {
       newErrors.category_id = 'La categoría es requerida';
     }
 
@@ -173,8 +182,8 @@ const ProductFormPage: React.FC = () => {
         description: formData.description || null,
         base_sku: formData.base_sku || null,
         sku: formData.sku,
-        category_id: parseInt(formData.category_id),
-        unit: formData.unit,
+        category_id: formData.category_id ? parseInt(formData.category_id) : null,
+        unit: formData.unit || 'PIEZA',
         package_size: formData.package_size ? parseInt(formData.package_size) : null,
         price: formData.price ? parseFloat(formData.price) : null,
         stock: formData.stock ? parseInt(formData.stock) : 0,
@@ -182,6 +191,8 @@ const ProductFormPage: React.FC = () => {
         is_active: formData.is_active,
         specifications: specificationsObj,
       };
+
+
 
       if (isEditing) {
         await apiRequest(`/products/${productId}`, {
@@ -283,7 +294,7 @@ const ProductFormPage: React.FC = () => {
           </div>
           
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent">
-            {isEditing ? 'Editar Producto' : 'Agregar Nuevo Producto'}
+            {isEditing ? 'Editar Producto' : 'Agregar Producto'}
           </h1>
           <p className="text-sm sm:text-base text-gray-600 mt-2">
             {isEditing 
@@ -547,7 +558,7 @@ const ProductFormPage: React.FC = () => {
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    {isEditing ? 'Actualizar Producto' : 'Crear Producto'}
+                    {isEditing ? 'Actualizar Producto' : 'Agregar Producto'}
                   </>
                 )}
               </Button>

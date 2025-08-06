@@ -154,16 +154,28 @@ const SupplierManagementPage: React.FC = () => {
               </h1>
               <p className="text-sm sm:text-base text-gray-600">Administra tu directorio de proveedores y contactos</p>
             </div>
-            <Button 
-              onClick={() => navigate('/product-admin')}
-              variant="outline"
-              className="border-green-200 text-green-700 hover:bg-green-50 whitespace-nowrap"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
-              </svg>
-              Gestionar Productos
-            </Button>
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => navigate('/product-admin')}
+                variant="outline"
+                className="border-green-200 text-green-700 hover:bg-green-50 whitespace-nowrap"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
+                </svg>
+                Gestionar Productos
+              </Button>
+              <Button 
+                onClick={() => navigate('/supplier-product-admin')}
+                variant="outline"
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 whitespace-nowrap"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Relaciones Proveedor-Producto
+              </Button>
+            </div>
           </div>
           
           {/* Add Button */}

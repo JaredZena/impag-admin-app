@@ -6,6 +6,9 @@ import ProductFormPage from './components/product/ProductFormPage';
 import SupplierDetailPage from './components/product/SupplierDetailPage';
 import SupplierManagementPage from './components/product/SupplierManagementPage';
 import SupplierFormPage from './components/product/SupplierFormPage';
+import SupplierProductManagementPage from './components/product/SupplierProductManagementPage';
+import SupplierProductFormPage from './components/product/SupplierProductFormPage';
+import QuotationUploadPage from './components/quotation/QuotationUploadPage';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -23,6 +26,10 @@ export default function App() {
             <Route path="/supplier-admin/new" element={<SupplierFormPage />} />
             <Route path="/supplier-admin/edit/:supplierId" element={<SupplierFormPage />} />
             <Route path="/supplier-admin/:supplierId" element={<SupplierDetailPage />} />
+            <Route path="/supplier-product-admin" element={<SupplierProductManagementPage />} />
+            <Route path="/supplier-product-admin/new" element={<SupplierProductFormPage />} />
+            <Route path="/supplier-product-admin/edit/:id" element={<SupplierProductFormPage />} />
+            <Route path="/quotation-upload" element={<QuotationUploadPage />} />
             <Route path="*" element={<Navigate to="/product-admin" replace />} />
           </Routes>
         </ProtectedRoute>

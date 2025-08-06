@@ -36,6 +36,11 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: true,
       },
+      "/quotations": {
+        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        changeOrigin: true,
+        secure: true,
+      },
     },
     hmr: {
       overlay: true,
