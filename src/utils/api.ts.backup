@@ -7,16 +7,11 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
     throw new Error('No authentication token found');
   }
 
-  // Prepare headers
-  const headers: Record<string, string> = {
+  const headers = {
+    'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`,
     ...options.headers,
   };
-
-  // Don't set Content-Type for FormData - let the browser set it automatically
-  if (!(options.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
@@ -31,23 +26,8 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
   }
 
   if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `API request failed: ${response.statusText}`;
-    
-    try {
-      const errorData = JSON.parse(errorText);
-      if (errorData.detail) {
-        errorMessage = errorData.detail;
-      }
-    } catch {
-      // If not JSON, use the raw text
-      if (errorText) {
-        errorMessage = errorText;
-      }
-    }
-    
-    throw new Error(errorMessage);
+    throw new Error(`API request failed: ${response.statusText}`);
   }
 
   return response.json();
-};
+}; 
