@@ -10,8 +10,20 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
   // Prepare headers
   const headers: Record<string, string> = {
     'Authorization': `Bearer ${token}`,
-    ...options.headers,
   };
+
+  // Handle options.headers properly - it could be a Headers object or plain object
+  if (options.headers) {
+    if (options.headers instanceof Headers) {
+      // Convert Headers object to plain object
+      options.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+    } else {
+      // It's already a plain object, safe to spread
+      Object.assign(headers, options.headers);
+    }
+  }
 
   // Don't set Content-Type for FormData - let the browser set it automatically
   if (!(options.body instanceof FormData)) {
