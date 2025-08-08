@@ -1,0 +1,236 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import SuppliersTable from './SuppliersTable';
+import { apiRequest } from '@/utils/api';
+const ProductDetailPage = () => {
+    const { productId } = useParams();
+    const navigate = useNavigate();
+    const [product, setProduct] = useState(null);
+    const [editedProduct, setEditedProduct] = useState(null);
+    const [suppliers, setSuppliers] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const [navigationInfo, setNavigationInfo] = useState({ hasPrevious: false, hasNext: false });
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                // Fetch categories first
+                const categoriesData = await apiRequest('/categories');
+                setCategories(categoriesData.data || []);
+                // Fetch product details
+                const productData = await apiRequest(`/products/${productId}`);
+                if (productData.data) {
+                    const category = categoriesData.data?.find((c) => c.id === productData.data.category_id);
+                    const productWithCategory = {
+                        ...productData.data,
+                        category_name: category?.name || 'Unknown Category'
+                    };
+                    setProduct(productWithCategory);
+                    setEditedProduct(productWithCategory);
+                }
+                // Fetch navigation info (previous/next products)
+                try {
+                    const allProductsData = await apiRequest('/products?limit=1000&sort_by=id&sort_order=asc');
+                    const allProducts = allProductsData.data || [];
+                    const currentIndex = allProducts.findIndex((p) => p.id === parseInt(productId));
+                    if (currentIndex !== -1) {
+                        setNavigationInfo({
+                            hasPrevious: currentIndex > 0,
+                            hasNext: currentIndex < allProducts.length - 1,
+                            previousId: currentIndex > 0 ? allProducts[currentIndex - 1].id : undefined,
+                            nextId: currentIndex < allProducts.length - 1 ? allProducts[currentIndex + 1].id : undefined,
+                        });
+                    }
+                }
+                catch (navError) {
+                    console.error('Could not fetch navigation info:', navError);
+                }
+                // Fetch suppliers through supplier-product relationships
+                try {
+                    console.log(`Fetching suppliers for product ${productId}`);
+                    const productSupplierProducts = await apiRequest(`/products/${productId}/supplier-products`);
+                    console.log(`Found ${productSupplierProducts.length} supplier-product relationships`);
+                    if (productSupplierProducts.length === 0) {
+                        console.log('No suppliers found for this product');
+                        setSuppliers([]);
+                        return;
+                    }
+                    // Get supplier details for each relationship
+                    const supplierPromises = productSupplierProducts.map((sp) => apiRequest(`/suppliers/${sp.supplier_id}`));
+                    const supplierResponses = await Promise.all(supplierPromises);
+                    // Transform the data to include both supplier and supplier-product info
+                    const transformedSuppliers = productSupplierProducts.map((sp, index) => {
+                        const supplierData = supplierResponses[index];
+                        const supplier = supplierData?.data;
+                        if (!supplier)
+                            return null;
+                        return {
+                            id: supplier.id,
+                            name: supplier.name || 'Proveedor Desconocido',
+                            price: sp.cost || 0,
+                            stock: sp.stock || 0,
+                            lead_time_days: sp.lead_time_days || 0,
+                            is_active: sp.is_active !== false,
+                        };
+                    }).filter(Boolean);
+                    console.log(`Found ${transformedSuppliers.length} suppliers:`, transformedSuppliers);
+                    setSuppliers(transformedSuppliers);
+                }
+                catch (suppliersError) {
+                    console.error('Could not fetch suppliers:', suppliersError);
+                    setSuppliers([]);
+                }
+            }
+            catch (err) {
+                setError(err.message || 'Unknown error');
+            }
+            finally {
+                setLoading(false);
+            }
+        };
+        if (productId)
+            fetchData();
+    }, [productId]);
+    const handleBack = () => {
+        navigate('/product-admin');
+    };
+    const handlePreviousProduct = () => {
+        if (navigationInfo.previousId) {
+            navigate(`/product-admin/${navigationInfo.previousId}`);
+        }
+    };
+    const handleNextProduct = () => {
+        if (navigationInfo.nextId) {
+            navigate(`/product-admin/${navigationInfo.nextId}`);
+        }
+    };
+    const handleEdit = () => {
+        setIsEditing(true);
+    };
+    const handleCancelEdit = () => {
+        setIsEditing(false);
+        setEditedProduct(product);
+    };
+    const handleSave = async () => {
+        if (!editedProduct) {
+            console.error('No edited product data available');
+            return;
+        }
+        console.log('Starting save process...');
+        console.log('Original product:', product);
+        console.log('Edited product:', editedProduct);
+        setSaving(true);
+        try {
+            // Ensure data matches backend expectations
+            const updateData = {
+                name: editedProduct.name,
+                description: editedProduct.description || null,
+                category_id: editedProduct.category_id,
+                base_sku: editedProduct.base_sku, // Include base_sku
+                unit: editedProduct.unit, // Should be enum value like "PIEZA", "KG", etc.
+                package_size: editedProduct.package_size,
+                iva: editedProduct.iva,
+                // New flattened fields
+                sku: editedProduct.sku,
+                price: editedProduct.price,
+                stock: editedProduct.stock,
+                specifications: editedProduct.specifications,
+                is_active: editedProduct.is_active,
+            };
+            console.log('Update data to send:', updateData);
+            console.log(`Making PUT request to /products/${productId}`);
+            const updateResponse = await apiRequest(`/products/${productId}`, {
+                method: 'PUT',
+                body: JSON.stringify(updateData)
+            });
+            console.log('Update response:', updateResponse);
+            // Check if the response indicates success
+            if (updateResponse.success === false) {
+                throw new Error(updateResponse.error || 'Failed to update product');
+            }
+            // Refresh product data
+            console.log('Refreshing product data...');
+            const productData = await apiRequest(`/products/${productId}`);
+            console.log('Refreshed product data:', productData);
+            if (productData.success === false) {
+                throw new Error(productData.error || 'Failed to fetch updated product');
+            }
+            const category = categories.find(c => c.id === productData.data.category_id);
+            const updatedProduct = {
+                ...productData.data,
+                category_name: category?.name || 'Unknown Category'
+            };
+            console.log('Final updated product:', updatedProduct);
+            setProduct(updatedProduct);
+            setEditedProduct(updatedProduct);
+            setIsEditing(false);
+            setSaveSuccess(true); // Set success state
+            console.log('Save completed successfully');
+            // Clear any previous errors
+            setError(null);
+        }
+        catch (err) {
+            console.error('Error during save:', err);
+            console.error('Error message:', err.message);
+            console.error('Error details:', err);
+            // Set a more descriptive error message
+            let errorMessage = 'Error al actualizar el producto';
+            if (err.message) {
+                if (err.message.includes('401') || err.message.includes('Authentication')) {
+                    errorMessage = 'Error de autenticación. Por favor, inicia sesión nuevamente.';
+                }
+                else if (err.message.includes('400')) {
+                    errorMessage = 'Datos inválidos. Verifica que todos los campos estén correctos.';
+                }
+                else if (err.message.includes('404')) {
+                    errorMessage = 'Producto no encontrado.';
+                }
+                else {
+                    errorMessage = `Error: ${err.message}`;
+                }
+            }
+            setError(errorMessage);
+        }
+        finally {
+            setSaving(false);
+        }
+    };
+    // Clear success message after 3 seconds
+    useEffect(() => {
+        if (saveSuccess) {
+            const timer = setTimeout(() => {
+                setSaveSuccess(false);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [saveSuccess]);
+    const handleInputChange = (field, value) => {
+        if (!editedProduct)
+            return;
+        setEditedProduct({
+            ...editedProduct,
+            [field]: value
+        });
+    };
+    if (loading) {
+        return (_jsx("div", { className: "w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden", children: _jsxs("div", { className: "container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8", children: [_jsx("div", { className: "mb-4 sm:mb-6", children: _jsx("div", { className: "h-8 sm:h-10 w-28 sm:w-32 bg-gray-200 rounded animate-pulse" }) }), _jsxs("div", { className: "mb-6 sm:mb-8", children: [_jsx("div", { className: "h-8 sm:h-10 w-72 sm:w-80 bg-gray-200 rounded animate-pulse mb-2" }), _jsx("div", { className: "h-5 sm:h-6 w-40 sm:w-48 bg-gray-200 rounded animate-pulse mb-3 sm:mb-4" }), _jsxs("div", { className: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0", children: [_jsxs("div", { className: "flex items-center gap-2 sm:gap-3", children: [_jsx("div", { className: "h-8 sm:h-10 w-28 sm:w-32 bg-gray-200 rounded animate-pulse" }), _jsx("div", { className: "h-8 sm:h-10 w-28 sm:w-32 bg-gray-200 rounded animate-pulse" })] }), _jsxs("div", { className: "flex gap-2 sm:gap-3", children: [_jsx("div", { className: "h-8 sm:h-10 w-24 sm:w-32 bg-gray-200 rounded animate-pulse" }), _jsx("div", { className: "h-8 sm:h-10 w-24 sm:w-32 bg-gray-200 rounded animate-pulse" })] })] })] }), _jsxs(Card, { className: "p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl", children: [_jsx("div", { className: "h-6 sm:h-8 w-48 sm:w-64 bg-gray-200 rounded animate-pulse mb-4 sm:mb-6" }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6", children: [Array.from({ length: 9 }).map((_, i) => (_jsxs("div", { className: "space-y-2", children: [_jsx("div", { className: "h-3 sm:h-4 w-16 sm:w-20 bg-gray-200 rounded animate-pulse" }), _jsx("div", { className: "h-5 sm:h-6 w-24 sm:w-32 bg-gray-200 rounded animate-pulse" })] }, i))), _jsxs("div", { className: "sm:col-span-2 lg:col-span-3 xl:col-span-4 2xl:col-span-5 space-y-2", children: [_jsx("div", { className: "h-3 sm:h-4 w-16 sm:w-20 bg-gray-200 rounded animate-pulse" }), _jsx("div", { className: "h-16 sm:h-20 w-full bg-gray-200 rounded animate-pulse" })] })] })] }), _jsx(Card, { className: "shadow-lg border-0 rounded-xl", children: _jsxs("div", { className: "p-3 sm:p-4 md:p-6", children: [_jsx("div", { className: "h-5 sm:h-6 w-24 sm:w-32 bg-gray-200 rounded animate-pulse mb-3 sm:mb-4" }), _jsx("div", { className: "space-y-3", children: Array.from({ length: 3 }).map((_, i) => (_jsx("div", { className: "h-16 sm:h-20 bg-gray-200 rounded animate-pulse" }, i))) })] }) })] }) }));
+    }
+    if (error) {
+        return (_jsx("div", { className: "w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden", children: _jsxs("div", { className: "container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8", children: [_jsx("div", { className: "mb-4 sm:mb-6", children: _jsxs(Button, { variant: "outline", onClick: handleBack, className: "flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 text-sm sm:text-base", children: [_jsx("svg", { className: "w-3 h-3 sm:w-4 sm:h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M15 19l-7-7 7-7" }) }), _jsx("span", { children: "Volver a Productos" })] }) }), _jsxs(Card, { className: "p-6 sm:p-8 text-center", children: [_jsx("div", { className: "w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 bg-red-100 rounded-full flex items-center justify-center", children: _jsx("svg", { className: "w-6 h-6 sm:w-8 sm:h-8 text-red-500", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" }) }) }), _jsx("h2", { className: "text-lg sm:text-xl font-semibold text-gray-900 mb-2", children: "Error al Cargar Producto" }), _jsx("p", { className: "text-sm sm:text-base text-gray-600 mb-4", children: error }), _jsx(Button, { onClick: () => window.location.reload(), className: "bg-green-600 hover:bg-green-700 text-sm sm:text-base", children: "Intentar de Nuevo" })] })] }) }));
+    }
+    return (_jsx("div", { className: "w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden", children: _jsxs("div", { className: "container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8", children: [_jsx("div", { className: "mb-4 sm:mb-6", children: _jsxs(Button, { variant: "outline", onClick: handleBack, className: "flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-sm sm:text-base", children: [_jsx("svg", { className: "w-3 h-3 sm:w-4 sm:h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M15 19l-7-7 7-7" }) }), _jsx("span", { children: "Volver a Productos" })] }) }), _jsxs("div", { className: "mb-6 sm:mb-8", children: [_jsx("h1", { className: "text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent mb-2", children: product?.name || 'Detalles del Producto' }), _jsxs("p", { className: "text-sm sm:text-base text-gray-600 mb-3 sm:mb-4", children: ["ID del Producto: ", productId] }), _jsxs("div", { className: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0", children: [_jsxs("div", { className: "flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-3", children: [_jsxs(Button, { variant: "outline", onClick: handlePreviousProduct, disabled: !navigationInfo.hasPrevious, className: "flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto", children: [_jsx("svg", { className: "w-3 h-3 sm:w-4 sm:h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M15 19l-7-7 7-7" }) }), _jsx("span", { children: "Producto Anterior" })] }), _jsxs(Button, { variant: "outline", onClick: handleNextProduct, disabled: !navigationInfo.hasNext, className: "flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto", children: [_jsx("span", { children: "Producto Siguiente" }), _jsx("svg", { className: "w-3 h-3 sm:w-4 sm:h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 5l7 7-7 7" }) })] })] }), _jsx("div", { className: "flex flex-col xs:flex-row gap-2 xs:gap-3", children: isEditing ? (_jsxs(_Fragment, { children: [_jsx(Button, { variant: "outline", onClick: handleCancelEdit, disabled: saving, className: "border-gray-300 text-gray-700 hover:bg-gray-50 text-sm w-full xs:w-auto", children: "Cancelar" }), _jsx(Button, { onClick: handleSave, disabled: saving, className: "bg-green-600 hover:bg-green-700 text-white text-sm w-full xs:w-auto", children: saving ? 'Guardando...' : 'Guardar Cambios' })] })) : (_jsxs(Button, { onClick: () => navigate(`/product-admin/edit/${productId}`), className: "bg-green-600 hover:bg-green-700 text-white text-sm w-full xs:w-auto", children: [_jsx("svg", { className: "w-4 h-4 mr-2", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" }) }), "Editar Producto"] })) })] })] }), saveSuccess && (_jsx("div", { className: "mb-6", children: _jsxs("div", { className: "bg-green-50 border border-green-200 rounded-xl p-4 flex items-center", children: [_jsx("svg", { className: "w-5 h-5 text-green-600 mr-3", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M5 13l4 4L19 7" }) }), _jsx("span", { className: "text-green-800 font-medium", children: "Cambios guardados exitosamente" })] }) })), product && editedProduct && (_jsxs(_Fragment, { children: [_jsxs(Card, { className: "p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl", children: [_jsxs("h2", { className: "text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center", children: [_jsx("svg", { className: "w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" }) }), _jsx("span", { className: "text-sm sm:text-lg", children: "Informaci\u00F3n del Producto" })] }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6", children: [_jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Nombre" }), isEditing ? (_jsx(Input, { value: editedProduct.name, onChange: (e) => handleInputChange('name', e.target.value), className: "border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm" })) : (_jsx("p", { className: "text-sm sm:text-lg font-semibold text-gray-900 break-words", children: product.name }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "SKU Base" }), _jsx("span", { className: "inline-block font-mono text-xs sm:text-sm text-gray-700 bg-gray-100 px-2 py-1 rounded break-all", children: product.base_sku })] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "SKU Principal" }), isEditing ? (_jsx(Input, { value: editedProduct.sku, onChange: (e) => handleInputChange('sku', e.target.value), className: "border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm font-mono" })) : (_jsx("span", { className: "inline-block font-mono text-xs sm:text-sm text-gray-700 bg-blue-100 px-2 py-1 rounded break-all", children: product.sku }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Precio" }), isEditing ? (_jsx(Input, { type: "number", step: "0.01", value: editedProduct.price || '', onChange: (e) => handleInputChange('price', e.target.value ? parseFloat(e.target.value) : null), className: "border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm", placeholder: "0.00" })) : (_jsx("p", { className: "text-sm sm:text-lg font-semibold text-gray-900", children: product.price != null ? `$${Number(product.price).toLocaleString()}` : 'N/A' }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Stock" }), isEditing ? (_jsx(Input, { type: "number", value: editedProduct.stock || 0, onChange: (e) => handleInputChange('stock', e.target.value ? parseInt(e.target.value) : 0), className: "border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm" })) : (_jsxs("div", { className: "flex items-center", children: [_jsx("span", { className: `text-sm font-medium ${(product.stock || 0) > 50 ? 'text-green-600' :
+                                                                (product.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'}`, children: product.stock != null ? product.stock : 0 }), _jsx("span", { className: "text-xs text-gray-500 ml-1", children: "unidades" })] }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Categor\u00EDa" }), isEditing ? (_jsx("select", { value: editedProduct.category_id, onChange: (e) => handleInputChange('category_id', parseInt(e.target.value)), className: "w-full px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900", children: categories.map(cat => (_jsx("option", { value: cat.id, children: cat.name }, cat.id))) })) : (_jsx("span", { className: "inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs sm:text-sm font-medium bg-green-100 text-green-800", children: product.category_name }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Unidad" }), isEditing ? (_jsx(Input, { value: editedProduct.unit, onChange: (e) => handleInputChange('unit', e.target.value), className: "border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm" })) : (_jsx("p", { className: "text-xs sm:text-sm text-gray-900", children: product.unit }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Tama\u00F1o del Paquete" }), isEditing ? (_jsx(Input, { type: "number", value: editedProduct.package_size || '', onChange: (e) => handleInputChange('package_size', e.target.value ? parseInt(e.target.value) : null), className: "border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm" })) : (_jsx("p", { className: "text-xs sm:text-sm text-gray-900", children: product.package_size || 'N/A' }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Estado" }), isEditing ? (_jsxs("select", { value: editedProduct.is_active ? 'true' : 'false', onChange: (e) => handleInputChange('is_active', e.target.value === 'true'), className: "w-full px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900", children: [_jsx("option", { value: "true", children: "Activo" }), _jsx("option", { value: "false", children: "Inactivo" })] })) : (_jsx("span", { className: `inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium ${product.is_active
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-gray-100 text-gray-800'}`, children: product.is_active ? 'Activo' : 'Inactivo' }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "IVA" }), isEditing ? (_jsxs("select", { value: editedProduct.iva ? 'true' : 'false', onChange: (e) => handleInputChange('iva', e.target.value === 'true'), className: "w-full px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900", children: [_jsx("option", { value: "true", children: "S\u00ED" }), _jsx("option", { value: "false", children: "No" })] })) : (_jsx("p", { className: "text-xs sm:text-sm text-gray-900", children: product.iva ? 'Sí' : 'No' }))] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Creado" }), _jsx("p", { className: "text-xs sm:text-sm text-gray-900", children: new Date(product.created_at).toLocaleDateString('es-ES') })] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "\u00DAltima Actualizaci\u00F3n" }), _jsx("p", { className: "text-xs sm:text-sm text-gray-900", children: new Date(product.last_updated).toLocaleDateString('es-ES') })] }), _jsxs("div", { className: "space-y-1 sm:col-span-2 lg:col-span-3 xl:col-span-4 2xl:col-span-5", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500", children: "Descripci\u00F3n" }), isEditing ? (_jsx("textarea", { value: editedProduct.description || '', onChange: (e) => handleInputChange('description', e.target.value), rows: 4, className: "w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900 resize-none", placeholder: "Ingrese la descripci\u00F3n del producto..." })) : (_jsx("div", { className: "bg-gray-50 rounded-md p-3 sm:p-4 min-h-[80px] sm:min-h-[100px]", children: _jsx("p", { className: "text-sm sm:text-base text-gray-900 leading-relaxed whitespace-pre-wrap break-words", children: product.description || 'Sin descripción disponible' }) }))] })] })] }), product.specifications && Object.keys(product.specifications).length > 0 && (_jsxs(Card, { className: "p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl", children: [_jsxs("h2", { className: "text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center", children: [_jsx("svg", { className: "w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" }) }), _jsx("span", { className: "text-sm sm:text-lg", children: "Especificaciones T\u00E9cnicas" })] }), _jsx("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6", children: Object.entries(product.specifications).map(([key, value]) => (_jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-xs sm:text-sm font-medium text-gray-500 capitalize", children: key.replace(/[_-]/g, ' ') }), _jsx("div", { className: "text-sm sm:text-base text-gray-900 break-words", children: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value) })] }, key))) })] })), _jsx(SuppliersTable, { suppliers: suppliers })] }))] }) }));
+};
+export default ProductDetailPage;
