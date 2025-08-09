@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import SuppliersTable, { Supplier } from './SuppliersTable';
+import AddSupplierModal from './AddSupplierModal';
 import { apiRequest } from '@/utils/api';
 
 interface Product {
@@ -44,6 +45,7 @@ const ProductDetailPage: React.FC = () => {
     previousId?: number;
     nextId?: number;
   }>({ hasPrevious: false, hasNext: false });
+  const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -115,8 +117,11 @@ const ProductDetailPage: React.FC = () => {
               id: supplier.id,
               name: supplier.name || 'Proveedor Desconocido',
               price: sp.cost || 0,
-              stock: sp.stock || 0,
-              lead_time_days: sp.lead_time_days || 0,
+              contact_name: supplier.contact_name || null,
+              phone: supplier.phone || null,
+              website_url: supplier.website_url || null,
+              address: supplier.address || null,
+              last_updated: sp.last_updated || sp.created_at || null,
               is_active: sp.is_active !== false,
             };
           }).filter(Boolean);
@@ -275,6 +280,49 @@ const ProductDetailPage: React.FC = () => {
     });
   };
 
+  const refreshSuppliers = async () => {
+    try {
+      console.log(`Refreshing suppliers for product ${productId}`);
+      const productSupplierProducts = await apiRequest(`/products/${productId}/supplier-products`);
+      
+      if (productSupplierProducts.length === 0) {
+        setSuppliers([]);
+        return;
+      }
+      
+      // Get supplier details for each relationship
+      const supplierPromises = productSupplierProducts.map((sp: any) =>
+        apiRequest(`/suppliers/${sp.supplier_id}`)
+      );
+      
+      const supplierResponses = await Promise.all(supplierPromises);
+      
+      // Transform the data to include both supplier and supplier-product info
+      const transformedSuppliers = productSupplierProducts.map((sp: any, index: number) => {
+        const supplierData = supplierResponses[index];
+        const supplier = supplierData?.data;
+        
+        if (!supplier) return null;
+        
+        return {
+          id: supplier.id,
+          name: supplier.name || 'Proveedor Desconocido',
+          price: sp.cost || 0,
+          contact_name: supplier.contact_name || null,
+          phone: supplier.phone || null,
+          website_url: supplier.website_url || null,
+          address: supplier.address || null,
+          last_updated: sp.last_updated || sp.created_at || null,
+          is_active: sp.is_active !== false,
+        };
+      }).filter(Boolean);
+      
+      setSuppliers(transformedSuppliers);
+    } catch (err: any) {
+      console.error('Error refreshing suppliers:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
@@ -394,12 +442,12 @@ const ProductDetailPage: React.FC = () => {
           
           {/* Navigation and Action Buttons */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-            <div className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
               <Button 
                 variant="outline" 
                 onClick={handlePreviousProduct}
                 disabled={!navigationInfo.hasPrevious}
-                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto"
+                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full sm:w-auto"
               >
                 <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -411,7 +459,7 @@ const ProductDetailPage: React.FC = () => {
                 variant="outline" 
                 onClick={handleNextProduct}
                 disabled={!navigationInfo.hasNext}
-                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto"
+                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full sm:w-auto"
               >
                 <span>Producto Siguiente</span>
                 <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -420,21 +468,21 @@ const ProductDetailPage: React.FC = () => {
               </Button>
             </div>
             
-            <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               {isEditing ? (
                 <>
                   <Button 
                     variant="outline" 
                     onClick={handleCancelEdit}
                     disabled={saving}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm w-full xs:w-auto"
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm w-full sm:w-auto"
                   >
                     Cancelar
                   </Button>
                   <Button 
                     onClick={handleSave}
                     disabled={saving}
-                    className="bg-green-600 hover:bg-green-700 text-white text-sm w-full xs:w-auto"
+                    className="bg-green-600 hover:bg-green-700 text-white text-sm w-full sm:w-auto"
                   >
                     {saving ? 'Guardando...' : 'Guardar Cambios'}
                   </Button>
@@ -442,10 +490,10 @@ const ProductDetailPage: React.FC = () => {
               ) : (
                 <Button 
                   onClick={() => navigate(`/product-admin/edit/${productId}`)}
-                  className="bg-green-600 hover:bg-green-700 text-white text-sm w-full xs:w-auto"
+                  className="bg-green-600 hover:bg-green-700 text-white text-sm w-full sm:w-auto"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 0 002-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Editar Producto
                 </Button>
@@ -686,8 +734,32 @@ const ProductDetailPage: React.FC = () => {
               </Card>
             )}
 
-            {/* Suppliers Table */}
-            <SuppliersTable suppliers={suppliers} />
+            {/* Suppliers Section */}
+            <div className="space-y-4">
+              {/* Add Supplier Button */}
+              <div className="flex justify-end">
+                <Button 
+                  onClick={() => setIsAddSupplierModalOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Agregar Nuevo Proveedor
+                </Button>
+              </div>
+              
+              {/* Suppliers Table */}
+              <SuppliersTable suppliers={suppliers} />
+            </div>
+
+            {/* Add Supplier Modal */}
+            <AddSupplierModal
+              isOpen={isAddSupplierModalOpen}
+              onClose={() => setIsAddSupplierModalOpen(false)}
+              onSuccess={refreshSuppliers}
+              productId={productId!}
+            />
           </>
         )}
       </div>

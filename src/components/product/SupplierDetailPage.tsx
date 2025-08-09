@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import AddProductForm from './AddProductForm';
 import { apiRequest } from '@/utils/api';
 
 interface SupplierDetail {
@@ -25,7 +26,6 @@ interface SupplierProduct {
   category: string;
   unit: string;
   price: number;
-  stock: number;
   lead_time_days: number;
   is_active: boolean;
   last_updated: string;
@@ -45,6 +45,7 @@ const SupplierDetailPage: React.FC = () => {
     previousId?: number;
     nextId?: number;
   }>({ hasPrevious: false, hasNext: false });
+  const [showAddProductForm, setShowAddProductForm] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -148,7 +149,6 @@ const SupplierDetailPage: React.FC = () => {
               category: categoriesMap[product.category_id] || 'Sin categoría',
               unit: product.unit || 'N/A',
               price: sp.cost || 0,
-              stock: sp.stock || 0,
               lead_time_days: sp.lead_time_days || 0,
               is_active: sp.is_active !== false,
               last_updated: sp.last_updated || sp.created_at
@@ -168,7 +168,6 @@ const SupplierDetailPage: React.FC = () => {
               category: categoriesMap[product.category_id] || 'Sin categoría',
               unit: product.unit || 'N/A',
               price: product.price || null,
-              stock: product.stock || 0,
               lead_time_days: null,
               is_active: product.is_active || false,
               last_updated: product.last_updated || product.created_at
@@ -199,6 +198,57 @@ const SupplierDetailPage: React.FC = () => {
     if (navigationInfo.nextId) {
       navigate(`/supplier-admin/${navigationInfo.nextId}`);
     }
+  };
+
+  const refreshProducts = async () => {
+    try {
+      console.log(`Refreshing products for supplier ${supplierId}`);
+      
+      // Fetch categories first
+      const categoriesData = await apiRequest('/categories');
+      const categoriesMap = (categoriesData.data || []).reduce((acc: any, cat: any) => {
+        acc[cat.id] = cat.name;
+        return acc;
+      }, {});
+      setCategories(categoriesMap);
+
+      // Fetch supplier products
+      try {
+        const supplierProductsData = await apiRequest(`/suppliers/${supplierId}/products`);
+        console.log('Supplier products data:', supplierProductsData);
+        
+        if (supplierProductsData && supplierProductsData.length > 0) {
+          const transformedProducts = supplierProductsData.map((sp: any) => {
+            const product = sp.product;
+            return {
+              id: product.id,
+              name: product.name || 'N/A',
+              sku: product.sku || product.base_sku || 'N/A',
+              category: categoriesMap[product.category_id] || 'Sin categoría',
+              unit: product.unit || 'N/A',
+              price: sp.cost || 0,
+              lead_time_days: sp.lead_time_days || 0,
+              is_active: sp.is_active !== false,
+              last_updated: sp.last_updated || sp.created_at
+            };
+          }).filter(Boolean);
+          
+          setProducts(transformedProducts);
+        } else {
+          setProducts([]);
+        }
+      } catch (productsError) {
+        console.warn('Error fetching supplier products:', productsError);
+        setProducts([]);
+      }
+    } catch (err: any) {
+      console.error('Error refreshing products:', err);
+    }
+  };
+
+  const handleAddProductSuccess = () => {
+    setShowAddProductForm(false);
+    refreshProducts();
   };
 
   if (loading) {
@@ -284,12 +334,12 @@ const SupplierDetailPage: React.FC = () => {
           
           {/* Navigation and Action Buttons */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-            <div className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
               <Button 
                 variant="outline" 
                 onClick={handlePreviousSupplier}
                 disabled={!navigationInfo.hasPrevious}
-                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto"
+                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full sm:w-auto"
               >
                 <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -301,7 +351,7 @@ const SupplierDetailPage: React.FC = () => {
                 variant="outline" 
                 onClick={handleNextSupplier}
                 disabled={!navigationInfo.hasNext}
-                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full xs:w-auto"
+                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full sm:w-auto"
               >
                 <span>Siguiente Proveedor</span>
                 <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -310,11 +360,11 @@ const SupplierDetailPage: React.FC = () => {
               </Button>
             </div>
             
-            <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <Button 
                 variant="outline" 
                 onClick={() => navigate(`/supplier-admin/edit/${supplierId}`)}
-                className="border-green-200 text-green-700 hover:bg-green-50 text-sm w-full xs:w-auto"
+                className="border-green-200 text-green-700 hover:bg-green-50 text-sm w-full sm:w-auto"
               >
                 Editar Proveedor
               </Button>
@@ -400,13 +450,37 @@ const SupplierDetailPage: React.FC = () => {
             {/* Products Supplied */}
             <Card className="shadow-lg border-0 rounded-xl overflow-hidden">
               <div className="bg-gradient-to-r from-gray-50 to-green-50 border-b border-green-100 p-3 sm:p-4 md:p-6">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
-                  </svg>
-                  <span className="text-sm sm:text-lg">Productos Suministrados</span>
-                  <span className="ml-2 text-xs sm:text-sm font-normal text-gray-500">({products.length})</span>
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
+                    </svg>
+                    <span className="text-sm sm:text-lg">Productos Suministrados</span>
+                    <span className="ml-2 text-xs sm:text-sm font-normal text-gray-500">({products.length})</span>
+                  </h3>
+                  <Button 
+                    onClick={() => setShowAddProductForm(!showAddProductForm)}
+                    variant={showAddProductForm ? "outline" : "default"}
+                    className={showAddProductForm ? "border-gray-300 text-gray-700 hover:bg-gray-50" : "bg-green-600 hover:bg-green-700 text-white"}
+                    size="sm"
+                  >
+                    {showAddProductForm ? (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Cancelar
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Agregar Producto
+                      </>
+                    )}
+                  </Button>
+                </div>
                 {products.length > 0 && products[0]?.price !== null && (
                   <div className="mt-2 text-xs sm:text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-2">
                     <div className="flex items-center">
@@ -415,7 +489,7 @@ const SupplierDetailPage: React.FC = () => {
                       </svg>
                       <span className="font-medium">Información específica del proveedor:</span>
                     </div>
-                    <p className="mt-1 text-xs">Se muestran precios, stock y tiempos de entrega específicos de este proveedor.</p>
+                    <p className="mt-1 text-xs">Se muestran precios y tiempos de entrega específicos de este proveedor.</p>
                   </div>
                 )}
                 {products.length > 0 && products[0]?.price === null && (
@@ -426,10 +500,21 @@ const SupplierDetailPage: React.FC = () => {
                       </svg>
                       <span className="font-medium">Información de productos base:</span>
                     </div>
-                    <p className="mt-1 text-xs">Los precios, stock y tiempos de entrega específicos del proveedor no están disponibles actualmente. Se muestra información del catálogo base.</p>
+                    <p className="mt-1 text-xs">Los precios y tiempos de entrega específicos del proveedor no están disponibles actualmente. Se muestra información del catálogo base.</p>
                   </div>
                 )}
               </div>
+
+              {/* Add Product Form */}
+              {showAddProductForm && (
+                <div className="p-3 sm:p-4 md:p-6 border-b border-gray-100">
+                  <AddProductForm
+                    supplierId={supplierId!}
+                    onSuccess={handleAddProductSuccess}
+                    onCancel={() => setShowAddProductForm(false)}
+                  />
+                </div>
+              )}
               
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse">
@@ -440,7 +525,6 @@ const SupplierDetailPage: React.FC = () => {
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Categoría</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Unidad</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Precio</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Stock</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Tiempo de Entrega</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Estado</th>
                     </tr>
@@ -448,7 +532,7 @@ const SupplierDetailPage: React.FC = () => {
                   <tbody>
                     {products.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center py-8 sm:py-12 text-gray-500">
+                        <td colSpan={7} className="text-center py-8 sm:py-12 text-gray-500">
                           <div className="flex flex-col items-center justify-center">
                             <div className="w-10 h-10 sm:w-12 sm:h-12 mb-3 sm:mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                               <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -495,21 +579,7 @@ const SupplierDetailPage: React.FC = () => {
                               {product.price !== null ? `$${Number(product.price).toLocaleString()}` : 'N/A'}
                             </span>
                           </td>
-                          <td className="hidden lg:table-cell px-2 sm:px-4 py-3 sm:py-4">
-                            {product.stock !== null && product.stock !== 0 ? (
-                              <div className="flex items-center">
-                                <span className={`text-xs sm:text-sm font-medium ${
-                                  product.stock > 50 ? 'text-green-600' : 
-                                  product.stock > 10 ? 'text-yellow-600' : 'text-red-600'
-                                }`}>
-                                  {product.stock}
-                                </span>
-                                <span className="text-xs text-gray-500 ml-1">unidades</span>
-                              </div>
-                            ) : (
-                              <span className="text-gray-500 text-xs sm:text-sm">N/A</span>
-                            )}
-                          </td>
+
                           <td className="hidden xl:table-cell px-2 sm:px-4 py-3 sm:py-4">
                             <span className={`text-xs sm:text-sm ${product.lead_time_days !== null ? 'text-gray-900' : 'text-gray-500'}`}>
                               {product.lead_time_days !== null ? `${product.lead_time_days} días` : 'N/A'}

@@ -165,24 +165,23 @@ const SupplierManagementPage: React.FC = () => {
                 </svg>
                 Gestionar Productos
               </Button>
-              <Button 
-                onClick={() => navigate('/supplier-product-admin')}
-                variant="outline"
-                className="border-purple-200 text-purple-700 hover:bg-purple-50 whitespace-nowrap"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-                Relaciones Proveedor-Producto
-              </Button>
             </div>
           </div>
           
-          {/* Add Button */}
-          <div className="flex justify-end mb-6">
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mb-6">
+            <Button 
+              onClick={() => navigate('/quotation-upload')}
+              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap text-sm"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Subir Cotización
+            </Button>
             <Button 
               onClick={handleAddSupplier}
-              className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
+              className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap text-sm"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -280,7 +279,7 @@ const SupplierManagementPage: React.FC = () => {
                           className="border-blue-200 text-blue-700 hover:bg-blue-50 text-xs px-2 py-1"
                         >
                           <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                           Editar
                         </Button>

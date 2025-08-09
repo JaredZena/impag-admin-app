@@ -7,8 +7,11 @@ export interface Supplier {
   id: string | number;
   name: string;
   price: number;
-  stock: number;
-  lead_time_days: number;
+  contact_name: string | null;
+  phone: string | null;
+  website_url: string | null;
+  address: string | null;
+  last_updated: string | null;
   is_active: boolean;
 }
 
@@ -58,12 +61,20 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers }) => {
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 sm:mb-3 gap-2 sm:gap-0">
-                  <h4 
-                    className="font-semibold text-gray-900 hover:text-green-700 cursor-pointer transition-colors duration-200 text-sm sm:text-base break-words"
-                    onClick={() => handleSupplierClick(supplier.id)}
-                  >
-                    {supplier.name || 'Proveedor Desconocido'}
-                  </h4>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <h4 
+                      className="font-semibold text-gray-900 hover:text-green-700 cursor-pointer transition-colors duration-200 text-sm sm:text-base break-words"
+                      onClick={() => handleSupplierClick(supplier.id)}
+                    >
+                      {supplier.name || 'Proveedor Desconocido'}
+                    </h4>
+                    {/* Mobile: Show price next to name */}
+                    <div className="sm:hidden">
+                      <span className="font-semibold text-gray-900 text-sm">
+                        {supplier.price != null ? `$${Number(supplier.price).toLocaleString()}` : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
                   <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium self-start sm:self-auto ${
                     supplier.is_active 
                       ? 'bg-green-100 text-green-800' 
@@ -73,7 +84,18 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers }) => {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm">
+                {/* Mobile View - Last Update */}
+                <div className="sm:hidden">
+                  <div>
+                    <span className="text-gray-500 block text-xs">Última actualización:</span>
+                    <div className="text-gray-700 mt-1 text-xs">
+                      {supplier.last_updated ? new Date(supplier.last_updated).toLocaleDateString('es-ES') : 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop View - All Fields */}
+                <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 text-xs sm:text-sm">
                   <div>
                     <span className="text-gray-500 block sm:inline">Precio:</span>
                     <div className="font-semibold text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
@@ -81,28 +103,52 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers }) => {
                     </div>
                   </div>
                   <div>
-                    <span className="text-gray-500 block sm:inline">Stock:</span>
-                    <div className={`font-medium mt-1 sm:mt-0 sm:ml-1 sm:inline ${
-                      (supplier.stock || 0) > 50 ? 'text-green-600' : 
-                      (supplier.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {supplier.stock != null ? supplier.stock : 0} unidades
+                    <span className="text-gray-500 block sm:inline">Persona de Contacto:</span>
+                    <div className="font-medium text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
+                      {supplier.contact_name || 'N/A'}
                     </div>
                   </div>
-                  <div className="sm:col-span-1 lg:col-span-1">
-                    <span className="text-gray-500 block sm:inline">Tiempo de Entrega:</span>
+                  <div>
+                    <span className="text-gray-500 block sm:inline">Teléfono:</span>
                     <div className="font-medium text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
-                      {supplier.lead_time_days != null ? supplier.lead_time_days : 0} días
+                      {supplier.phone || 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block sm:inline">Sitio Web:</span>
+                    <div className="font-medium text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline break-all">
+                      {supplier.website_url ? (
+                        <a 
+                          href={supplier.website_url.startsWith('http') ? supplier.website_url : `https://${supplier.website_url}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          {supplier.website_url}
+                        </a>
+                      ) : 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block sm:inline">Última Actualización:</span>
+                    <div className="font-medium text-gray-700 mt-1 sm:mt-0 sm:ml-1 sm:inline">
+                      {supplier.last_updated ? new Date(supplier.last_updated).toLocaleDateString('es-ES') : 'N/A'}
+                    </div>
+                  </div>
+                  <div className="hidden xl:block sm:col-span-2 lg:col-span-3 xl:col-span-5">
+                    <span className="text-gray-500 block sm:inline">Dirección:</span>
+                    <div className="font-medium text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
+                      {supplier.address || 'N/A'}
                     </div>
                   </div>
                 </div>
                 
-                <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="mt-3 pt-3 border-t border-gray-100 flex justify-start sm:justify-end">
                   <Button 
                     size="sm" 
                     variant="outline"
                     onClick={() => handleSupplierClick(supplier.id)}
-                    className="w-full border-green-200 text-green-700 hover:bg-green-50 text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                    className="w-full sm:w-auto border-green-200 text-green-700 hover:bg-green-50 text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
                   >
                     Ver Detalles
                   </Button>
