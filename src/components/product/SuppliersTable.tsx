@@ -13,13 +13,15 @@ export interface Supplier {
   address: string | null;
   last_updated: string | null;
   is_active: boolean;
+  supplier_product_id?: string | number; // ID of the supplier-product relationship
 }
 
 export interface SuppliersTableProps {
   suppliers: Supplier[];
+  onRemoveSupplier?: (supplierProductId: string | number) => void;
 }
 
-const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers }) => {
+const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupplier }) => {
   const navigate = useNavigate();
 
   const handleSupplierClick = (supplierId: string | number) => {
@@ -143,7 +145,7 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers }) => {
                   </div>
                 </div>
                 
-                <div className="mt-3 pt-3 border-t border-gray-100 flex justify-start sm:justify-end">
+                <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col sm:flex-row justify-start sm:justify-end gap-2">
                   <Button 
                     size="sm" 
                     variant="outline"
@@ -152,6 +154,19 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers }) => {
                   >
                     Ver Detalles
                   </Button>
+                  {onRemoveSupplier && supplier.supplier_product_id && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => onRemoveSupplier(supplier.supplier_product_id!)}
+                      className="w-full sm:w-auto border-red-200 text-red-700 hover:bg-red-50 text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                    >
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Remover
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

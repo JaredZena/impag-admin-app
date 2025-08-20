@@ -123,6 +123,7 @@ const ProductDetailPage: React.FC = () => {
               address: supplier.address || null,
               last_updated: sp.last_updated || sp.created_at || null,
               is_active: sp.is_active !== false,
+              supplier_product_id: sp.id, // Add the supplier-product relationship ID
             };
           }).filter(Boolean);
           
@@ -314,12 +315,31 @@ const ProductDetailPage: React.FC = () => {
           address: supplier.address || null,
           last_updated: sp.last_updated || sp.created_at || null,
           is_active: sp.is_active !== false,
+          supplier_product_id: sp.id, // Add the supplier-product relationship ID
         };
       }).filter(Boolean);
       
       setSuppliers(transformedSuppliers);
     } catch (err: any) {
       console.error('Error refreshing suppliers:', err);
+    }
+  };
+
+  const handleRemoveSupplier = async (supplierProductId: string | number) => {
+    if (!confirm('¿Estás seguro de que quieres remover este proveedor del producto?')) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/products/supplier-product/${supplierProductId}/archive`, {
+        method: 'PATCH'
+      });
+      
+      // Refresh the suppliers list
+      await refreshSuppliers();
+    } catch (err: any) {
+      console.error('Error removing supplier:', err);
+      alert('Error al remover proveedor: ' + (err.message || 'Error desconocido'));
     }
   };
 
@@ -750,7 +770,7 @@ const ProductDetailPage: React.FC = () => {
               </div>
               
               {/* Suppliers Table */}
-              <SuppliersTable suppliers={suppliers} />
+              <SuppliersTable suppliers={suppliers} onRemoveSupplier={handleRemoveSupplier} />
             </div>
 
             {/* Add Supplier Modal */}

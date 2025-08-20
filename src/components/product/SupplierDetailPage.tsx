@@ -111,51 +111,28 @@ const SupplierDetailPage: React.FC = () => {
           console.error('Could not fetch navigation info:', navError);
         }
 
-        // Fetch SupplierProduct data with actual pricing information
+        // Fetch supplier products using the efficient endpoint
         try {
-          const supplierProductsData = await apiRequest('/products/supplier-product/');
+          const supplierProductsData = await apiRequest(`/suppliers/${supplierId}/products`);
+          console.log('Supplier products data:', supplierProductsData);
           
-          // Filter by current supplier and get product details
-          const supplierProducts = (supplierProductsData || []).filter((sp: any) => 
-            sp.supplier_id === parseInt(supplierId!)
-          );
-          
-          if (supplierProducts.length === 0) {
+          if (supplierProductsData.success && supplierProductsData.data && supplierProductsData.data.length > 0) {
+            const transformedProducts = supplierProductsData.data.map((productData: any) => ({
+              id: productData.product_id,
+              name: productData.product_name || 'N/A',
+              sku: productData.sku || productData.base_sku || 'N/A',
+              category: categoriesMap[productData.category_id] || 'Sin categoría',
+              unit: productData.unit || 'N/A',
+              price: productData.cost || 0,
+              lead_time_days: productData.lead_time_days || 0,
+              is_active: productData.supplier_is_active !== false,
+              last_updated: productData.supplier_relationship_last_updated || productData.supplier_relationship_created_at
+            }));
+            
+            setProducts(transformedProducts);
+          } else {
             setProducts([]);
-            return;
           }
-          
-          // Get product IDs to fetch product details
-          const productIds = supplierProducts.map((sp: any) => sp.product_id);
-          
-          // Fetch product details for each supplier product
-          const productPromises = productIds.map((productId: number) =>
-            apiRequest(`/products/${productId}`)
-          );
-          
-          const productResponses = await Promise.all(productPromises);
-          
-          // Transform the data to include both product and supplier-specific info
-          const transformedProducts = supplierProducts.map((sp: any, index: number) => {
-            const productData = productResponses[index];
-            const product = productData?.data;
-            
-            if (!product) return null;
-            
-            return {
-              id: product.id,
-              name: product.name || 'N/A',
-              sku: product.sku || 'N/A',
-              category: categoriesMap[product.category_id] || 'Sin categoría',
-              unit: product.unit || 'N/A',
-              price: sp.cost || 0,
-              lead_time_days: sp.lead_time_days || 0,
-              is_active: sp.is_active !== false,
-              last_updated: sp.last_updated || sp.created_at
-            };
-          }).filter(Boolean);
-          
-          setProducts(transformedProducts);
         } catch (productsError) {
           console.warn('Error fetching supplier products:', productsError);
           // Fallback to base products if SupplierProduct endpoint fails
@@ -212,26 +189,23 @@ const SupplierDetailPage: React.FC = () => {
       }, {});
       setCategories(categoriesMap);
 
-      // Fetch supplier products
+      // Fetch supplier products using the efficient endpoint
       try {
         const supplierProductsData = await apiRequest(`/suppliers/${supplierId}/products`);
         console.log('Supplier products data:', supplierProductsData);
         
-        if (supplierProductsData && supplierProductsData.length > 0) {
-          const transformedProducts = supplierProductsData.map((sp: any) => {
-            const product = sp.product;
-            return {
-              id: product.id,
-              name: product.name || 'N/A',
-              sku: product.sku || product.base_sku || 'N/A',
-              category: categoriesMap[product.category_id] || 'Sin categoría',
-              unit: product.unit || 'N/A',
-              price: sp.cost || 0,
-              lead_time_days: sp.lead_time_days || 0,
-              is_active: sp.is_active !== false,
-              last_updated: sp.last_updated || sp.created_at
-            };
-          }).filter(Boolean);
+        if (supplierProductsData.success && supplierProductsData.data && supplierProductsData.data.length > 0) {
+          const transformedProducts = supplierProductsData.data.map((productData: any) => ({
+            id: productData.product_id,
+            name: productData.product_name || 'N/A',
+            sku: productData.sku || productData.base_sku || 'N/A',
+            category: categoriesMap[productData.category_id] || 'Sin categoría',
+            unit: productData.unit || 'N/A',
+            price: productData.cost || 0,
+            lead_time_days: productData.lead_time_days || 0,
+            is_active: productData.supplier_is_active !== false,
+            last_updated: productData.supplier_relationship_last_updated || productData.supplier_relationship_created_at
+          }));
           
           setProducts(transformedProducts);
         } else {
