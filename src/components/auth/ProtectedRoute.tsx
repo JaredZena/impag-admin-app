@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Login from './Login';
+import Navigation from '../ui/Navigation';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -24,9 +25,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Login />;
   }
 
-  // Authenticated: show user indicator and children
+  // Authenticated: show user indicator, navigation, and children
   return (
     <>
+      <Navigation />
       <div className="fixed top-2 sm:top-4 right-2 sm:right-4 z-50">
         <div className="flex items-center gap-1 sm:gap-2 bg-white border rounded-lg px-2 sm:px-3 py-1 sm:py-2 shadow-sm">
           {user.picture && (

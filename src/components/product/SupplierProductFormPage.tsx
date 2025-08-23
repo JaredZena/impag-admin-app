@@ -153,7 +153,7 @@ const SupplierProductFormPage: React.FC = () => {
   if (loading) {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-4xl px-4 py-8">
+        <div className="container mx-auto max-w-4xl px-4 pt-20 pb-8">
           <div className="mb-8">
             <div className="h-10 w-96 bg-gray-200 rounded animate-pulse mb-4"></div>
             <div className="h-6 w-64 bg-gray-200 rounded animate-pulse"></div>
@@ -175,28 +175,16 @@ const SupplierProductFormPage: React.FC = () => {
 
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-      <div className="container mx-auto max-w-4xl px-4 py-8">
+      <div className="container mx-auto max-w-4xl px-4 pt-20 pb-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-4 mb-6">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/supplier-product-admin')}
-              className="border-gray-200 text-gray-700 hover:bg-gray-50"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Volver
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent mb-2">
-                {isEditing ? 'Editar Relación' : 'Nueva Relación'} Proveedor-Producto
-              </h1>
-              <p className="text-gray-600">
-                {isEditing ? 'Modifica la información de la relación' : 'Configura una nueva relación entre proveedor y producto'}
-              </p>
-            </div>
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent mb-2">
+              {isEditing ? 'Editar Relación' : 'Nueva Relación'} Proveedor-Producto
+            </h1>
+            <p className="text-gray-600">
+              {isEditing ? 'Modifica la información de la relación' : 'Configura una nueva relación entre proveedor y producto'}
+            </p>
           </div>
         </div>
 

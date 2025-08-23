@@ -29,6 +29,20 @@ const SupplierManagementPage: React.FC = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ name: '', contact: '', email: '' });
+  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'last_updated'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Sorting handlers
+  const handleSortChange = (field: 'name' | 'created_at' | 'last_updated') => {
+    if (sortBy === field) {
+      // If clicking the same field, toggle order
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a different field, set to asc by default
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
 
   const fetchSuppliers = useCallback(async (searchFilters: { name: string; contact: string; email: string }, isInitialLoad = false) => {
     if (isInitialLoad) {
@@ -43,7 +57,12 @@ const SupplierManagementPage: React.FC = () => {
         .filter(term => term.trim())
         .join(' ');
       
-      const queryParams = searchTerms ? `?search=${encodeURIComponent(searchTerms)}` : '';
+      const params = new URLSearchParams();
+      if (searchTerms) params.append('search', searchTerms);
+      params.append('sort_by', sortBy);
+      params.append('sort_order', sortOrder);
+      
+      const queryParams = params.toString() ? `?${params.toString()}` : '';
       const response = await apiRequest(`/suppliers${queryParams}`);
       setSuppliers(response.data || []);
     } catch (err: any) {
@@ -56,14 +75,14 @@ const SupplierManagementPage: React.FC = () => {
         setSearchLoading(false);
       }
     }
-  }, []);
+  }, [sortBy, sortOrder]);
 
   // Initial load
   useEffect(() => {
     fetchSuppliers({ name: '', contact: '', email: '' }, true);
   }, [fetchSuppliers]);
 
-  // Search when filters change
+  // Search when filters or sorting change
   useEffect(() => {
     // Skip initial empty state
     if (loading) return;
@@ -74,7 +93,7 @@ const SupplierManagementPage: React.FC = () => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [filters, fetchSuppliers, loading]);
+  }, [filters, sortBy, sortOrder, fetchSuppliers, loading]);
 
   const handleSupplierClick = (supplierId: number) => {
     navigate(`/supplier-admin/${supplierId}`);
@@ -125,17 +144,26 @@ const SupplierManagementPage: React.FC = () => {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
         <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
-          <Card className="p-6 sm:p-8 text-center">
+          <Card className="p-6 sm:p-8 text-center shadow-lg border-0 rounded-xl border-red-200 bg-red-50">
             <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 bg-red-100 rounded-full flex items-center justify-center">
               <svg className="w-6 h-6 sm:w-8 sm:h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Error al Cargar Proveedores</h2>
-            <p className="text-sm sm:text-base text-gray-600 mb-4">{error}</p>
-            <Button onClick={() => fetchSuppliers(filters, false)} className="bg-green-600 hover:bg-green-700 text-sm sm:text-base">
-              Intentar de Nuevo
-            </Button>
+            <h2 className="text-lg sm:text-xl font-semibold text-red-800 mb-2">Error al Cargar Proveedores</h2>
+            <p className="text-sm sm:text-base text-red-600 mb-4 max-w-md mx-auto">{error}</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={() => fetchSuppliers(filters, false)} className="bg-green-600 hover:bg-green-700 text-sm sm:text-base">
+                Intentar de Nuevo
+              </Button>
+              <Button 
+                onClick={() => setError(null)} 
+                variant="outline"
+                className="text-sm sm:text-base"
+              >
+                Cerrar Error
+              </Button>
+            </div>
           </Card>
         </div>
       </div>
@@ -144,7 +172,7 @@ const SupplierManagementPage: React.FC = () => {
 
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-      <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
+      <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
@@ -155,30 +183,12 @@ const SupplierManagementPage: React.FC = () => {
               <p className="text-sm sm:text-base text-gray-600">Administra tu directorio de proveedores y contactos</p>
             </div>
             <div className="flex gap-3">
-              <Button 
-                onClick={() => navigate('/product-admin')}
-                variant="outline"
-                className="border-green-200 text-green-700 hover:bg-green-50 whitespace-nowrap"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
-                </svg>
-                Gestionar Productos
-              </Button>
+              {/* Navigation moved to global navigation bar */}
             </div>
           </div>
           
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mb-6">
-            <Button 
-              onClick={() => navigate('/quotation-upload')}
-              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap text-sm"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              Subir Cotización
-            </Button>
             <Button 
               onClick={handleAddSupplier}
               className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap text-sm"
@@ -201,6 +211,59 @@ const SupplierManagementPage: React.FC = () => {
             onContactChange={handleContactChange}
             onEmailChange={handleEmailChange}
           />
+        </Card>
+
+        {/* Sorting Controls */}
+        <Card className="p-4 mb-6 shadow-sm border-0 rounded-xl bg-gradient-to-r from-gray-50 to-blue-50">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700">Ordenar por:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={sortBy === 'name' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleSortChange('name')}
+                className={`text-xs font-medium transition-all duration-200 ${sortBy === 'name' ? 'shadow-md' : ''}`}
+              >
+                <span>Nombre</span>
+                {sortBy === 'name' && (
+                  <span className="ml-1 text-xs">
+                    {sortOrder === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant={sortBy === 'created_at' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleSortChange('created_at')}
+                className={`text-xs font-medium transition-all duration-200 ${sortBy === 'created_at' ? 'shadow-md' : ''}`}
+              >
+                <span>Creado</span>
+                {sortBy === 'created_at' && (
+                  <span className="ml-1 text-xs">
+                    {sortOrder === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant={sortBy === 'last_updated' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleSortChange('last_updated')}
+                className={`text-xs font-medium transition-all duration-200 ${sortBy === 'last_updated' ? 'shadow-md' : ''}`}
+              >
+                <span>Actualizado</span>
+                {sortBy === 'last_updated' && (
+                  <span className="ml-1 text-xs">
+                    {sortOrder === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
         </Card>
 
         {/* Suppliers List */}

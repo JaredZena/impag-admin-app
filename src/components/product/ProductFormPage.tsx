@@ -255,7 +255,7 @@ const ProductFormPage: React.FC = () => {
   if (loading) {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-4xl px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        <div className="container mx-auto max-w-4xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
           <div className="mb-6 sm:mb-8">
             <div className="h-8 sm:h-10 w-48 bg-gray-200 rounded animate-pulse mb-4"></div>
             <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
@@ -277,21 +277,9 @@ const ProductFormPage: React.FC = () => {
 
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
-      <div className="container mx-auto max-w-4xl px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+      <div className="container mx-auto max-w-4xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
-          <div className="flex items-center space-x-4 mb-4">
-            <Button 
-              variant="outline" 
-              onClick={handleCancel}
-              className="border-green-200 text-green-700 hover:bg-green-50"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Regresar
-            </Button>
-          </div>
           
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent">
             {isEditing ? 'Editar Producto' : 'Agregar Producto'}

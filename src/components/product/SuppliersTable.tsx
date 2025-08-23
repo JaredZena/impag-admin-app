@@ -1,12 +1,14 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { formatReadableDate } from '@/utils/dateUtils';
 import { useNavigate } from 'react-router-dom';
 
 export interface Supplier {
   id: string | number;
   name: string;
   price: number;
+  shipping_cost?: number | null;
   contact_name: string | null;
   phone: string | null;
   website_url: string | null;
@@ -91,17 +93,23 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupp
                   <div>
                     <span className="text-gray-500 block text-xs">Última actualización:</span>
                     <div className="text-gray-700 mt-1 text-xs">
-                      {supplier.last_updated ? new Date(supplier.last_updated).toLocaleDateString('es-ES') : 'N/A'}
+                      {formatReadableDate(supplier.last_updated)}
                     </div>
                   </div>
                 </div>
 
                 {/* Desktop View - All Fields */}
-                <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 text-xs sm:text-sm">
+                <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 text-xs sm:text-sm">
                   <div>
                     <span className="text-gray-500 block sm:inline">Precio:</span>
                     <div className="font-semibold text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
                       {supplier.price != null ? `$${Number(supplier.price).toLocaleString()}` : 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block sm:inline">Costo de Envío:</span>
+                    <div className="font-medium text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
+                      {supplier.shipping_cost != null ? `$${Number(supplier.shipping_cost).toLocaleString()}` : 'N/A'}
                     </div>
                   </div>
                   <div>
@@ -134,10 +142,10 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupp
                   <div>
                     <span className="text-gray-500 block sm:inline">Última Actualización:</span>
                     <div className="font-medium text-gray-700 mt-1 sm:mt-0 sm:ml-1 sm:inline">
-                      {supplier.last_updated ? new Date(supplier.last_updated).toLocaleDateString('es-ES') : 'N/A'}
+                      {formatReadableDate(supplier.last_updated)}
                     </div>
                   </div>
-                  <div className="hidden xl:block sm:col-span-2 lg:col-span-3 xl:col-span-5">
+                  <div className="hidden xl:block sm:col-span-2 lg:col-span-3 xl:col-span-6">
                     <span className="text-gray-500 block sm:inline">Dirección:</span>
                     <div className="font-medium text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
                       {supplier.address || 'N/A'}

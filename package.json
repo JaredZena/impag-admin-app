@@ -16,6 +16,7 @@
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dayjs": "^1.11.13",
     "google-auth-library": "^10.1.0",
     "lucide-react": "^0.475.0",
     "postcss": "8.4.37",

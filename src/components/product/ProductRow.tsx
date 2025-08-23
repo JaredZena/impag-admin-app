@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Link, useNavigate } from 'react-router-dom';
+import { formatDate } from '@/utils/dateUtils';
 
 export interface ProductRowProps {
   id: string | number;
@@ -19,8 +20,7 @@ export interface ProductRowProps {
 
 const ProductRow: React.FC<ProductRowProps> = ({ id, name, price, unit, category, suppliers, status, description, lastUpdated, createdAt }) => {
   const navigate = useNavigate();
-  const dateToShow = lastUpdated || createdAt || '';
-  const formattedDate = dateToShow ? new Date(dateToShow).toLocaleDateString('es-ES') : '-';
+  const formattedDate = formatDate(lastUpdated || createdAt);
   
   const handleRowClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on buttons or links
@@ -53,7 +53,7 @@ const ProductRow: React.FC<ProductRowProps> = ({ id, name, price, unit, category
           </div>
           {/* Show created date on mobile (when created column is hidden) */}
           <div className="lg:hidden">
-            Creado: {createdAt ? new Date(createdAt).toLocaleDateString('es-ES') : '-'}
+            Creado: {formatDate(createdAt)}
           </div>
           {/* Show last updated on mobile (when date column is hidden) */}
           <div className="lg:hidden">
@@ -86,7 +86,7 @@ const ProductRow: React.FC<ProductRowProps> = ({ id, name, price, unit, category
       {/* Created Date - Hidden on smaller screens */}
       <td className="hidden lg:table-cell px-2 py-2 lg:px-6 lg:py-4">
         <div className="text-xs sm:text-sm text-gray-600">
-          {createdAt ? new Date(createdAt).toLocaleDateString('es-ES') : '-'}
+          {formatDate(createdAt)}
         </div>
       </td>
       

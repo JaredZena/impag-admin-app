@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import SuppliersTable, { Supplier } from './SuppliersTable';
 import AddSupplierModal from './AddSupplierModal';
 import { apiRequest } from '@/utils/api';
+import { formatReadableDate } from '@/utils/dateUtils';
 
 interface Product {
   id: number;
@@ -22,6 +23,7 @@ interface Product {
   price: number | null;
   stock: number;
   specifications: any;
+  default_margin: number | null;
   is_active: boolean;
   created_at: string;
   last_updated: string;
@@ -117,6 +119,7 @@ const ProductDetailPage: React.FC = () => {
               id: supplier.id,
               name: supplier.name || 'Proveedor Desconocido',
               price: sp.cost || 0,
+              shipping_cost: sp.shipping_cost || null,
               contact_name: supplier.contact_name || null,
               phone: supplier.phone || null,
               website_url: supplier.website_url || null,
@@ -193,6 +196,7 @@ const ProductDetailPage: React.FC = () => {
         price: editedProduct.price,
         stock: editedProduct.stock,
         specifications: editedProduct.specifications,
+        default_margin: editedProduct.default_margin,
         is_active: editedProduct.is_active,
       };
       
@@ -309,6 +313,7 @@ const ProductDetailPage: React.FC = () => {
           id: supplier.id,
           name: supplier.name || 'Proveedor Desconocido',
           price: sp.cost || 0,
+          shipping_cost: sp.shipping_cost || null,
           contact_name: supplier.contact_name || null,
           phone: supplier.phone || null,
           website_url: supplier.website_url || null,
@@ -346,7 +351,7 @@ const ProductDetailPage: React.FC = () => {
   if (loading) {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
+        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
           {/* Back Button Skeleton */}
           <div className="mb-4 sm:mb-6">
             <div className="h-8 sm:h-10 w-28 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
@@ -405,19 +410,7 @@ const ProductDetailPage: React.FC = () => {
   if (error) {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
-          <div className="mb-4 sm:mb-6">
-            <Button 
-              variant="outline" 
-              onClick={handleBack}
-              className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 text-sm sm:text-base"
-            >
-              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              <span>Volver a Productos</span>
-            </Button>
-          </div>
+        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
           
           <Card className="p-6 sm:p-8 text-center">
             <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 bg-red-100 rounded-full flex items-center justify-center">
@@ -439,19 +432,6 @@ const ProductDetailPage: React.FC = () => {
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
       <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
-        {/* Back Button */}
-        <div className="mb-4 sm:mb-6">
-          <Button 
-            variant="outline" 
-            onClick={handleBack}
-            className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-sm sm:text-base"
-          >
-            <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            <span>Volver a Productos</span>
-          </Button>
-        </div>
 
         {/* Product Name and ID - Left Aligned */}
         <div className="mb-6 sm:mb-8">
@@ -682,6 +662,25 @@ const ProductDetailPage: React.FC = () => {
                   )}
                 </div>
                 <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Margen por Defecto (%)</label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={editedProduct.default_margin != null ? (editedProduct.default_margin * 100).toFixed(2) : ''}
+                      onChange={(e) => handleInputChange('default_margin', e.target.value ? parseFloat(e.target.value) / 100 : null)}
+                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
+                      placeholder="25.00"
+                    />
+                  ) : (
+                    <p className="text-xs sm:text-sm text-gray-900">
+                      {product.default_margin != null ? `${(product.default_margin * 100).toFixed(2)}%` : 'N/A'}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">IVA</label>
                   {isEditing ? (
                     <select
@@ -699,13 +698,13 @@ const ProductDetailPage: React.FC = () => {
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Creado</label>
                   <p className="text-xs sm:text-sm text-gray-900">
-                    {new Date(product.created_at).toLocaleDateString('es-ES')}
+                    {formatReadableDate(product.created_at)}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Última Actualización</label>
                   <p className="text-xs sm:text-sm text-gray-900">
-                    {new Date(product.last_updated).toLocaleDateString('es-ES')}
+                    {formatReadableDate(product.last_updated)}
                   </p>
                 </div>
                 {/* Description - Larger field */}

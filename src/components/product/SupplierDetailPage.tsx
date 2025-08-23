@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import AddProductForm from './AddProductForm';
 import { apiRequest } from '@/utils/api';
+import { formatReadableDate } from '@/utils/dateUtils';
 
 interface SupplierDetail {
   id: number;
@@ -228,7 +229,7 @@ const SupplierDetailPage: React.FC = () => {
   if (loading) {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
+        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
           <div className="mb-4 sm:mb-6">
             <div className="h-8 sm:h-10 w-20 sm:w-24 bg-gray-200 rounded animate-pulse"></div>
           </div>
@@ -251,19 +252,7 @@ const SupplierDetailPage: React.FC = () => {
   if (error) {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
-          <div className="mb-4 sm:mb-6">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/suppliers')}
-              className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 text-sm sm:text-base"
-            >
-              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              <span>Volver a Proveedores</span>
-            </Button>
-          </div>
+        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
           
           <Card className="p-6 sm:p-8 text-center">
             <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 bg-red-100 rounded-full flex items-center justify-center">
@@ -284,20 +273,7 @@ const SupplierDetailPage: React.FC = () => {
 
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-      <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
-        {/* Back to Suppliers Button */}
-        <div className="mb-4 sm:mb-6">
-          <Button 
-            variant="outline" 
-            onClick={() => navigate('/suppliers')}
-            className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-sm sm:text-base"
-          >
-            <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            <span>Volver a Proveedores</span>
-          </Button>
-        </div>
+      <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
 
         {/* Supplier Name and ID - Left Aligned */}
         <div className="mb-6 sm:mb-8">
@@ -405,7 +381,7 @@ const SupplierDetailPage: React.FC = () => {
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Última Actualización</label>
                   <p className="text-xs sm:text-sm text-gray-900">
-                    {new Date(supplier.last_updated).toLocaleDateString('es-ES')}
+                    {formatReadableDate(supplier.last_updated)}
                   </p>
                 </div>
               </div>

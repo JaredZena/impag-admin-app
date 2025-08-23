@@ -1,5 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://democratic-cuckoo-impag-f0717e14.koyeb.app';
 
+// Global session expiration handler - will be set by App.tsx
+let sessionExpirationHandler: (() => void) | null = null;
+
+export const setSessionExpirationHandler = (handler: () => void) => {
+  sessionExpirationHandler = handler;
+};
+
 export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('google_token');
 
@@ -36,9 +43,17 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
   });
 
   if (response.status === 401) {
-    // Token expired, redirect to login
+    // Token expired - use the session expiration handler if available
+    console.log('Session expired - handling gracefully');
     localStorage.removeItem('google_token');
-    window.location.reload();
+    
+    if (sessionExpirationHandler) {
+      sessionExpirationHandler();
+    } else {
+      // Fallback to page reload if no handler is set
+      window.location.reload();
+    }
+    
     throw new Error('Authentication expired');
   }
 
