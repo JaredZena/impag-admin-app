@@ -15,6 +15,7 @@ interface ProductFormData {
   package_size: string;
   price: string;
   stock: string;
+  default_margin: string;
   iva: boolean;
   is_active: boolean;
   specifications: Record<string, any>;
@@ -30,6 +31,7 @@ const initialFormData: ProductFormData = {
   package_size: '',
   price: '',
   stock: '0',
+  default_margin: '0.25',
   iva: true,
   is_active: true,
   specifications: {},
@@ -95,6 +97,7 @@ const ProductFormPage: React.FC = () => {
         package_size: product.package_size?.toString() || '',
         price: product.price?.toString() || '',
         stock: product.stock?.toString() || '0',
+        default_margin: product.default_margin?.toString() || '0.25',
         iva: product.iva !== false,
         is_active: product.is_active !== false,
         specifications: product.specifications || {},
@@ -134,6 +137,10 @@ const ProductFormPage: React.FC = () => {
 
     if (formData.stock && isNaN(parseInt(formData.stock))) {
       newErrors.stock = 'El stock debe ser un número válido';
+    }
+
+    if (formData.default_margin && (isNaN(parseFloat(formData.default_margin)) || parseFloat(formData.default_margin) < 0 || parseFloat(formData.default_margin) > 1)) {
+      newErrors.default_margin = 'El margen debe ser un número entre 0 y 1 (ej: 0.25 para 25%)';
     }
 
     // Validate specifications
@@ -187,6 +194,7 @@ const ProductFormPage: React.FC = () => {
         package_size: formData.package_size ? parseInt(formData.package_size) : null,
         price: formData.price ? parseFloat(formData.price) : null,
         stock: formData.stock ? parseInt(formData.stock) : 0,
+        default_margin: formData.default_margin ? parseFloat(formData.default_margin) : null,
         iva: formData.iva,
         is_active: formData.is_active,
         specifications: specificationsObj,
@@ -411,6 +419,27 @@ const ProductFormPage: React.FC = () => {
                   className={errors.stock ? 'border-red-300' : ''}
                 />
                 {errors.stock && <p className="text-red-500 text-xs mt-1">{errors.stock}</p>}
+              </div>
+
+              {/* Default Margin */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Margen por Defecto (%)
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={formData.default_margin}
+                  onChange={(e) => handleInputChange('default_margin', e.target.value)}
+                  placeholder="0.25"
+                  className={errors.default_margin ? 'border-red-300' : ''}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Ejemplo: 0.25 = 25% de margen
+                </p>
+                {errors.default_margin && <p className="text-red-500 text-xs mt-1">{errors.default_margin}</p>}
               </div>
 
               {/* Package Size */}

@@ -15,6 +15,7 @@ export interface AuthContextType {
   sessionExpired: boolean;
   clearSessionExpired: () => void;
   forceReauthenticate: () => void;
+  reauthenticate: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -116,6 +117,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSessionExpired(true);
   };
 
+  // Reauthenticate using Google Sign-In
+  const reauthenticate = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!window.google) {
+        reject(new Error('Google Sign-In not available'));
+        return;
+      }
+
+      // Initialize Google Identity Services if not already done
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (response: any) => {
+          try {
+            // Store the new token
+            localStorage.setItem('google_token', response.credential);
+
+            // Process the credential and update user
+            const payload = JSON.parse(atob(response.credential.split('.')[1]));
+            const googleUser = {
+              getBasicProfile: () => ({
+                getEmail: () => payload.email,
+                getName: () => payload.name,
+                getImageUrl: () => payload.picture,
+                getId: () => payload.sub,
+              })
+            };
+            
+            login(googleUser);
+            setSessionExpired(false);
+            resolve();
+          } catch (err) {
+            console.error('Failed to process reauthentication:', err);
+            reject(err);
+          }
+        },
+        use_fedcm_for_prompt: false,
+      });
+
+      // Trigger the sign-in flow
+      window.google.accounts.id.prompt((notification: any) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          // If prompt fails, try button flow
+          const buttonDiv = document.createElement('div');
+          buttonDiv.style.position = 'fixed';
+          buttonDiv.style.top = '-1000px';
+          document.body.appendChild(buttonDiv);
+          
+          window.google.accounts.id.renderButton(buttonDiv, {
+            theme: 'outline',
+            size: 'medium',
+            type: 'standard',
+          });
+          
+          // Simulate click on the button
+          setTimeout(() => {
+            const button = buttonDiv.querySelector('div[role="button"]') as HTMLElement;
+            if (button) {
+              button.click();
+            }
+            document.body.removeChild(buttonDiv);
+          }, 100);
+        }
+      });
+    });
+  };
+
   // Logout and clear session
   const logout = () => {
     setUser(null);
@@ -142,6 +209,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     sessionExpired,
     clearSessionExpired,
     forceReauthenticate,
+    reauthenticate,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

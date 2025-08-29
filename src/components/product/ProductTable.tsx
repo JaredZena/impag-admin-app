@@ -37,18 +37,17 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, 
           <tr className="bg-gradient-to-r from-gray-50 to-green-50 border-b border-green-100">
             <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Nombre</th>
             <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Precio</th>
+            <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Stock</th>
             <th className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Unidad</th>
             <th className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Categoría</th>
-            <th className="hidden lg:table-cell px-2 py-2 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Creado</th>
             <th className="hidden lg:table-cell px-2 py-2 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Última Actualización</th>
             <th className="hidden lg:table-cell px-2 py-2 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Descripción</th>
-            <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {products.length === 0 && !loading ? (
             <tr>
-              <td colSpan={8} className="text-center py-8 sm:py-12 text-gray-500">
+              <td colSpan={7} className="text-center py-8 sm:py-12 text-gray-500">
                 <div className="flex flex-col items-center justify-center">
                   <div className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                     <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

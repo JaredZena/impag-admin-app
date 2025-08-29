@@ -23,11 +23,12 @@ const ProductManagementPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [skip, setSkip] = useState(0);
-  const [filters, setFilters] = useState({ name: '', category: '', supplier: '' });
+  const [filters, setFilters] = useState({ name: '', category: '', supplier: '', stockFilter: '' });
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'last_updated' | 'category_name'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Sorting handlers
   const handleSortChange = (field: 'name' | 'created_at' | 'last_updated' | 'category_name') => {
@@ -78,20 +79,14 @@ const ProductManagementPage: React.FC = () => {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        console.log('🔄 Fetching categories and suppliers...');
+
         const [catData, supData] = await Promise.all([
           apiRequest('/categories'),
           apiRequest('/suppliers'),
         ]);
         
-        console.log('📂 Raw categories data:', catData);
-        console.log('🏭 Raw suppliers data:', supData);
-        
         const categoryOpts = (catData.data || []).map((c: any) => ({ value: String(c.id), label: c.name }));
         const supplierOpts = (supData.data || []).map((s: any) => ({ value: String(s.id), label: s.name }));
-        
-        console.log('📂 Processed category options:', categoryOpts);
-        console.log('🏭 Processed supplier options:', supplierOpts);
         
         setCategoryOptions(categoryOpts);
         setSupplierOptions(supplierOpts);
@@ -114,6 +109,7 @@ const ProductManagementPage: React.FC = () => {
         id: p.id,
         name: p.name || 'Unnamed Product',
         price: p.price || null,
+        stock: p.stock || 0,
         unit: p.unit || 'N/A',
         category: categoryName,
         suppliers: supplierNames,
@@ -122,6 +118,14 @@ const ProductManagementPage: React.FC = () => {
         supplierNames,
         lastUpdated: p.last_updated || '',
         createdAt: p.created_at || '',
+        categoryId: p.category_id,
+        categoryOptions: categoryOpts,
+        onUpdate: (updatedData: any) => {
+          // Update only the specific product in the list without full rerender
+          setProducts(prev => prev.map(product => 
+            product.id === updatedData.id ? { ...product, ...updatedData } : product
+          ));
+        }
       };
     });
   }, []);
@@ -131,13 +135,13 @@ const ProductManagementPage: React.FC = () => {
     setProducts([]);
     setSkip(0);
     setHasMore(true);
-  }, [filters, sortBy, sortOrder]);
+  }, [filters, sortBy, sortOrder, refreshTrigger]);
 
   // Fetch products (initial and on filter change)
   useEffect(() => {
     const fetchProducts = async () => {
       // Allow search to happen immediately if user is searching/filtering
-      if (!optionsLoaded && filters.name === '' && filters.category === '' && filters.supplier === '') {
+      if (!optionsLoaded && filters.name === '' && filters.category === '' && filters.supplier === '' && filters.stockFilter === '') {
         // Only wait for options to load on initial page load with no filters
         return;
       }
@@ -152,6 +156,22 @@ const ProductManagementPage: React.FC = () => {
         if (filters.name) params.append('name', filters.name);
         if (filters.category) params.append('category_id', filters.category);
         if (filters.supplier) params.append('supplier_id', filters.supplier);
+        
+        // Handle stock filter
+        if (filters.stockFilter) {
+          switch (filters.stockFilter) {
+            case 'in_stock':
+              params.append('min_stock', '1');
+              break;
+            case 'out_of_stock':
+              params.append('max_stock', '0');
+              break;
+            case 'low_stock':
+              params.append('max_stock', '9');
+              break;
+          }
+        }
+        
         params.append('skip', '0');
         params.append('limit', PAGE_SIZE.toString());
         params.append('sort_by', sortBy);
@@ -193,6 +213,22 @@ const ProductManagementPage: React.FC = () => {
       if (filters.name) params.append('name', filters.name);
       if (filters.category) params.append('category_id', filters.category);
       if (filters.supplier) params.append('supplier_id', filters.supplier);
+      
+      // Handle stock filter
+      if (filters.stockFilter) {
+        switch (filters.stockFilter) {
+          case 'in_stock':
+            params.append('min_stock', '1');
+            break;
+          case 'out_of_stock':
+            params.append('max_stock', '0');
+            break;
+          case 'low_stock':
+            params.append('max_stock', '9');
+            break;
+        }
+      }
+      
       params.append('skip', skip.toString());
       params.append('limit', PAGE_SIZE.toString());
       params.append('sort_by', sortBy);
@@ -237,6 +273,10 @@ const ProductManagementPage: React.FC = () => {
     console.log('🏭 Supplier filter changed to:', v);
     setFilters(f => ({ ...f, supplier: v }));
   };
+  const handleStockFilterChange = (v: string) => {
+    console.log('📦 Stock filter changed to:', v);
+    setFilters(f => ({ ...f, stockFilter: v }));
+  };
 
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
@@ -275,9 +315,11 @@ const ProductManagementPage: React.FC = () => {
             name={filters.name}
             category={filters.category}
             supplier={filters.supplier}
+            stockFilter={filters.stockFilter}
             onNameChange={handleNameChange}
             onCategoryChange={handleCategoryChange}
             onSupplierChange={handleSupplierChange}
+            onStockFilterChange={handleStockFilterChange}
             categoryOptions={categoryOptions}
             supplierOptions={supplierOptions}
           />

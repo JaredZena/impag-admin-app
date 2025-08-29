@@ -70,33 +70,29 @@ const ProductDetailPage: React.FC = () => {
           setEditedProduct(productWithCategory);
         }
 
-        // Fetch navigation info (previous/next products)
+        // Simple navigation: just check if prev/next IDs exist
         try {
-          const allProductsData = await apiRequest('/products?limit=1000&sort_by=id&sort_order=asc');
-          const allProducts = allProductsData.data || [];
-          const currentIndex = allProducts.findIndex((p: any) => p.id === parseInt(productId!));
+          const currentId = parseInt(productId!);
+          const [prevCheck, nextCheck] = await Promise.all([
+            apiRequest(`/products/${currentId - 1}`).catch(() => null),
+            apiRequest(`/products/${currentId + 1}`).catch(() => null)
+          ]);
           
-          if (currentIndex !== -1) {
-            setNavigationInfo({
-              hasPrevious: currentIndex > 0,
-              hasNext: currentIndex < allProducts.length - 1,
-              previousId: currentIndex > 0 ? allProducts[currentIndex - 1].id : undefined,
-              nextId: currentIndex < allProducts.length - 1 ? allProducts[currentIndex + 1].id : undefined,
-            });
-          }
+          setNavigationInfo({
+            hasPrevious: prevCheck?.success === true,
+            hasNext: nextCheck?.success === true,
+            previousId: prevCheck?.success ? currentId - 1 : undefined,
+            nextId: nextCheck?.success ? currentId + 1 : undefined,
+          });
         } catch (navError) {
-          console.error('Could not fetch navigation info:', navError);
+          setNavigationInfo({ hasPrevious: false, hasNext: false });
         }
 
         // Fetch suppliers through supplier-product relationships
         try {
-          console.log(`Fetching suppliers for product ${productId}`);
           const productSupplierProducts = await apiRequest(`/products/${productId}/supplier-products`);
           
-          console.log(`Found ${productSupplierProducts.length} supplier-product relationships`);
-          
           if (productSupplierProducts.length === 0) {
-            console.log('No suppliers found for this product');
             setSuppliers([]);
             return;
           }
@@ -130,10 +126,8 @@ const ProductDetailPage: React.FC = () => {
             };
           }).filter(Boolean);
           
-          console.log(`Found ${transformedSuppliers.length} suppliers:`, transformedSuppliers);
           setSuppliers(transformedSuppliers);
         } catch (suppliersError: any) {
-          console.error('Could not fetch suppliers:', suppliersError);
           setSuppliers([]);
         }
       } catch (err: any) {
@@ -172,13 +166,8 @@ const ProductDetailPage: React.FC = () => {
 
   const handleSave = async () => {
     if (!editedProduct) {
-      console.error('No edited product data available');
       return;
     }
-    
-    console.log('Starting save process...');
-    console.log('Original product:', product);
-    console.log('Edited product:', editedProduct);
     
     setSaving(true);
     try {
@@ -594,6 +583,67 @@ const ProductDetailPage: React.FC = () => {
                         {product.stock != null ? product.stock : 0}
                       </span>
                       <span className="text-xs text-gray-500 ml-1">unidades</span>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Margen por Defecto</label>
+                  {isEditing ? (
+                    <div className="space-y-1">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="1"
+                        value={editedProduct.default_margin || 0.25}
+                        onChange={(e) => handleInputChange('default_margin', e.target.value ? parseFloat(e.target.value) : null)}
+                        className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
+                        placeholder="0.25"
+                      />
+                      <p className="text-xs text-gray-400">
+                        Ej: 0.25 = 25% de margen
+                      </p>
+                      {/* Quick margin presets */}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        <span className="text-xs text-gray-500">Rápido:</span>
+                        {[0.15, 0.20, 0.25, 0.30, 0.35, 0.40].map(margin => (
+                          <button
+                            key={margin}
+                            type="button"
+                            onClick={() => handleInputChange('default_margin', margin)}
+                            className={`px-2 py-1 text-xs rounded border ${
+                              editedProduct.default_margin === margin 
+                                ? 'bg-green-500 text-white border-green-500' 
+                                : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+                            }`}
+                          >
+                            {(margin * 100).toFixed(0)}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <span className="text-sm font-medium text-blue-600">
+                          {product.default_margin != null ? `${(product.default_margin * 100).toFixed(1)}%` : 'No establecido'}
+                        </span>
+                        {product.default_margin != null && (
+                          <span className="text-xs text-gray-500 ml-1">
+                            ({product.default_margin})
+                          </span>
+                        )}
+                      </div>
+                      {/* Quick edit button */}
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="text-xs text-green-600 hover:text-green-800 flex items-center"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Editar
+                      </button>
                     </div>
                   )}
                 </div>

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProductManagementPage from './components/product/ProductManagementPage';
 import ProductDetailPage from './components/product/ProductDetailPage';
 import ProductFormPage from './components/product/ProductFormPage';
+import StockManagementPage from './components/product/StockManagementPage';
 import SupplierDetailPage from './components/product/SupplierDetailPage';
 import SupplierManagementPage from './components/product/SupplierManagementPage';
 import SupplierFormPage from './components/product/SupplierFormPage';
@@ -16,7 +17,7 @@ import { NotificationProvider, useNotifications } from './components/ui/notifica
 import { setSessionExpirationHandler } from './utils/api';
 
 const AppContent: React.FC = () => {
-  const { sessionExpired, forceReauthenticate, clearSessionExpired } = useAuth();
+  const { sessionExpired, forceReauthenticate, clearSessionExpired, reauthenticate } = useAuth();
   const { addNotification } = useNotifications();
 
   useEffect(() => {
@@ -33,9 +34,26 @@ const AppContent: React.FC = () => {
     });
   }, [forceReauthenticate, addNotification]);
 
-  const handleReauthenticate = () => {
-    // Trigger re-authentication by redirecting to login
-    window.location.reload();
+  const handleReauthenticate = async () => {
+    try {
+      await reauthenticate();
+      addNotification({
+        type: 'success',
+        title: 'Sesión Renovada',
+        message: 'Tu sesión ha sido renovada exitosamente.',
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error('Reauthentication failed:', error);
+      addNotification({
+        type: 'error',
+        title: 'Error de Autenticación',
+        message: 'No se pudo renovar la sesión. Por favor, recarga la página.',
+        duration: 8000,
+      });
+      // Fallback to reload if reauthentication fails
+      setTimeout(() => window.location.reload(), 2000);
+    }
   };
 
   const handleCloseSessionDialog = () => {
@@ -54,6 +72,7 @@ const AppContent: React.FC = () => {
           <Route path="/supplier-admin/new" element={<SupplierFormPage />} />
           <Route path="/supplier-admin/edit/:supplierId" element={<SupplierFormPage />} />
           <Route path="/supplier-admin/:supplierId" element={<SupplierDetailPage />} />
+          <Route path="/stock" element={<StockManagementPage />} />
           <Route path="/supplier-product-admin" element={<SupplierProductManagementPage />} />
           <Route path="/supplier-product-admin/new" element={<SupplierProductFormPage />} />
           <Route path="/supplier-product-admin/edit/:id" element={<SupplierProductFormPage />} />

@@ -6,9 +6,11 @@ interface ProductSearchBarProps {
   name: string;
   category: string;
   supplier: string;
+  stockFilter?: string;
   onNameChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onSupplierChange: (value: string) => void;
+  onStockFilterChange?: (value: string) => void;
   categoryOptions?: { value: string; label: string }[];
   supplierOptions?: { value: string; label: string }[];
 }
@@ -17,9 +19,11 @@ const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
   name,
   category,
   supplier,
+  stockFilter = '',
   onNameChange,
   onCategoryChange,
   onSupplierChange,
+  onStockFilterChange,
   categoryOptions = [],
   supplierOptions = [],
 }) => {
@@ -34,7 +38,7 @@ const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <div className="space-y-1 sm:space-y-2">
           <label className="text-xs sm:text-sm font-medium text-gray-700">Nombre del Producto</label>
           <Input
@@ -72,9 +76,25 @@ const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
             ))}
           </select>
         </div>
+
+        {onStockFilterChange && (
+          <div className="space-y-1 sm:space-y-2">
+            <label className="text-xs sm:text-sm font-medium text-gray-700">Stock</label>
+            <select
+              value={stockFilter}
+              onChange={e => onStockFilterChange(e.target.value)}
+              className="w-full px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900"
+            >
+              <option value="">Todos los Productos</option>
+              <option value="in_stock">Solo con Stock</option>
+              <option value="out_of_stock">Sin Stock</option>
+              <option value="low_stock">Stock Bajo (&lt; 10)</option>
+            </select>
+          </div>
+        )}
       </div>
 
-      {(name || category || supplier) && (
+      {(name || category || supplier || stockFilter) && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-3 sm:pt-4 border-t border-gray-200 gap-2 sm:gap-0">
           <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
             <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,6 +109,7 @@ const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
               onNameChange('');
               onCategoryChange('');
               onSupplierChange('');
+              if (onStockFilterChange) onStockFilterChange('');
             }}
             className="text-gray-600 border-gray-300 hover:bg-gray-50 text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2 w-full sm:w-auto"
           >
