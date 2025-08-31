@@ -9,6 +9,8 @@ import SupplierManagementPage from './components/product/SupplierManagementPage'
 import SupplierFormPage from './components/product/SupplierFormPage';
 import SupplierProductManagementPage from './components/product/SupplierProductManagementPage';
 import SupplierProductFormPage from './components/product/SupplierProductFormPage';
+import KitManagementPage from './components/product/KitManagementPage';
+import ProductBalancePage from './components/product/ProductBalancePage';
 import QuotationUploadPage from './components/quotation/QuotationUploadPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -76,6 +78,8 @@ const AppContent: React.FC = () => {
           <Route path="/supplier-product-admin" element={<SupplierProductManagementPage />} />
           <Route path="/supplier-product-admin/new" element={<SupplierProductFormPage />} />
           <Route path="/supplier-product-admin/edit/:id" element={<SupplierProductFormPage />} />
+          <Route path="/kits" element={<KitManagementPage />} />
+          <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
           <Route path="*" element={<Navigate to="/product-admin" replace />} />
         </Routes>

@@ -31,15 +31,47 @@ const StockManagementPage: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<number | null>(null);
   const [tempValues, setTempValues] = useState<{[key: number]: {stock: string, price: string}}>({});
   const [saving, setSaving] = useState<{[key: number]: boolean}>({});
+  const [sortBy, setSortBy] = useState<string>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     fetchStockData();
-  }, [includeZeroStock]);
+  }, [includeZeroStock, sortBy, sortOrder]);
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      // If clicking the same column, toggle sort order
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a different column, set new column and default to asc
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  const getSortIcon = (column: string) => {
+    if (sortBy !== column) {
+      return <span className="text-gray-400">↕</span>;
+    }
+    return sortOrder === 'asc' ? <span className="text-blue-600">↑</span> : <span className="text-blue-600">↓</span>;
+  };
+
+  const SortableHeader = ({ column, children, className = "" }: { column: string; children: React.ReactNode; className?: string }) => (
+    <th 
+      className={`px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none ${className}`}
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center space-x-1">
+        <span>{children}</span>
+        {getSortIcon(column)}
+      </div>
+    </th>
+  );
 
   const fetchStockData = async () => {
     try {
       setLoading(true);
-      const response = await apiRequest(`/products/stock?include_zero_stock=${includeZeroStock}&limit=500`);
+      const response = await apiRequest(`/products/stock?include_zero_stock=${includeZeroStock}&limit=500&sort_by=${sortBy}&sort_order=${sortOrder}`);
       
       if (response.success) {
         setProducts(response.data.products);
@@ -167,6 +199,55 @@ const StockManagementPage: React.FC = () => {
           </div>
         </div>
 
+                {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Productos</p>
+                <p className="text-2xl font-bold text-gray-900">{products.length}</p>
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Con Stock</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {products.filter(p => p.stock > 0).length}
+                </p>
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Valor Total</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(products.reduce((sum, p) => sum + (p.total_value || 0), 0))}
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
         {/* Filters */}
         <Card className="p-6">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -221,25 +302,25 @@ const StockManagementPage: React.FC = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <SortableHeader column="name">
                     Producto
-                  </th>
+                  </SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Unidad
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <SortableHeader column="stock">
                     Stock
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </SortableHeader>
+                  <SortableHeader column="price">
                     Precio Unitario
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </SortableHeader>
+                  <SortableHeader column="total_value">
                     Valor Total
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </SortableHeader>
+                  <SortableHeader column="last_updated" className="hidden md:table-cell">
                     Última Actualización
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  </SortableHeader>
+                  <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
@@ -249,10 +330,14 @@ const StockManagementPage: React.FC = () => {
                   <tr key={product.id} className="hover:bg-gray-50">
                     <td className="px-4 py-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                        <div className="text-sm font-medium text-gray-900 truncate max-w-xs md:max-w-sm">
                           {product.name}
                         </div>
                         <div className="text-sm text-gray-500">{product.sku}</div>
+                        {/* Show last updated on mobile under product name */}
+                        <div className="md:hidden text-xs text-gray-400 mt-1">
+                          {formatDate(product.last_updated)}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-900">
@@ -306,10 +391,10 @@ const StockManagementPage: React.FC = () => {
                     <td className="px-4 py-4 text-sm font-medium text-gray-900">
                       {formatCurrency(product.total_value)}
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-500">
+                    <td className="hidden md:table-cell px-4 py-4 text-sm text-gray-500">
                       {formatDate(product.last_updated)}
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="hidden md:table-cell px-4 py-4">
                       {editingProduct === product.id ? (
                         <div className="flex space-x-2">
                           <Button
@@ -368,55 +453,6 @@ const StockManagementPage: React.FC = () => {
             </div>
           )}
         </Card>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Productos</p>
-                <p className="text-2xl font-bold text-gray-900">{products.length}</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Con Stock</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {products.filter(p => p.stock > 0).length}
-                </p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Valor Total</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(products.reduce((sum, p) => sum + (p.total_value || 0), 0))}
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
       </div>
     </div>
   );
