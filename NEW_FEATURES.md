@@ -126,3 +126,4 @@ CREATE TABLE kit_products (
 3. Test integration
 4. Add edit/delete functionality for kits
 5. Add save/load functionality for balance analyses
+

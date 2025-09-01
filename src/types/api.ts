@@ -200,3 +200,4 @@ export const API_ENDPOINTS = {
   SUPPLIER_PRODUCTS: '/supplier-products',
   CATEGORIES: '/categories',
 } as const;
+
