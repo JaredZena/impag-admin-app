@@ -85,7 +85,7 @@ const ProductBalancePage: React.FC = () => {
       const [productsResponse, suppliersResponse, supplierProductsResponse] = await Promise.all([
         apiRequest('/products?limit=1000'),
         apiRequest('/suppliers'),
-        apiRequest('/supplier-products?limit=1000')
+        apiRequest('/products/supplier-products?limit=1000')
       ]);
       
       if (productsResponse.success) {
