@@ -127,7 +127,7 @@ const StockManagementPage: React.FC = () => {
                 stock: stock,
                 price: price || p.price,
                 total_value: price && stock ? stock * price : p.total_value,
-                last_updated: response.data.data.last_updated
+                last_updated: response.data.last_updated
               }
             : p
         ));
