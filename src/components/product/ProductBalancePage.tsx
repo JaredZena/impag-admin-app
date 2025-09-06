@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card } from '../ui/card';
@@ -80,6 +81,10 @@ interface Balance {
 }
 
 const ProductBalancePage: React.FC = () => {
+  // URL parameters and navigation
+  const { balanceId } = useParams();
+  const navigate = useNavigate();
+  
   // State management
   const [products, setProducts] = useState<Product[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
@@ -134,7 +139,15 @@ const ProductBalancePage: React.FC = () => {
         console.error('Error parsing return navigation data:', error);
       }
     }
-  }, []);
+    
+    // Load balance from URL parameter if present
+    if (balanceId) {
+      const id = parseInt(balanceId, 10);
+      if (!isNaN(id)) {
+        loadBalance(id);
+      }
+    }
+  }, [balanceId]);
 
   // Set default sorting for comparison balance and initialize comparison quantity
   useEffect(() => {
@@ -232,6 +245,9 @@ const ProductBalancePage: React.FC = () => {
       
       const response = await apiRequest(`/balance/${balanceId}`);
       setCurrentBalance(response);
+      
+      // Update URL to include balance ID
+      navigate(`/balance/${balanceId}`, { replace: true });
     } catch (err: any) {
       console.error('Error loading balance:', err);
       setError(err.message || 'Error loading balance');
@@ -385,97 +401,141 @@ const ProductBalancePage: React.FC = () => {
   };
 
   const exportToCSV = () => {
-    if (!currentBalance || !currentBalance.items.length) return;
+    if (!currentBalance || !currentBalance.items.length) {
+      setError('No data available for export');
+      return;
+    }
 
-    const headers = [
-      'Proveedor',
-      'Producto',
-      'Cantidad',
-      'Unidad',
-      'Precio Unitario',
-      'Importe Total',
-      'Costo Total U',
-      'Costo Total',
-      'Costo Envío Total',
-      'Ganancia %',
-      'Importe Venta U',
-      'Importe Venta',
-      'Ganancia U',
-      'Ganancia T'
-    ];
+    try {
+      setSaving(true);
+      setError(null);
 
-    const rows = currentBalance.items.map(item => {
-      const values = calculateItemValues(item);
-      return [
-        item.supplier_name || `Supplier ${item.supplier_id}`,
-        item.product_name || `Product ${item.product_id}`,
-      item.quantity,
-        item.unit || 'pcs',
-        item.unit_price,
-        item.unit_price * item.quantity,
-        item.unit_price + item.shipping_cost,
-        item.total_cost,
-        item.shipping_cost * item.quantity,
-        values.margin,
-        values.sellingPriceUnit,
-        values.sellingPriceTotal,
-        values.profitUnit,
-        values.profitTotal
+      const headers = [
+        'Proveedor',
+        'Producto',
+        'Cantidad',
+        'Unidad',
+        'Precio Unitario',
+        'Importe Total',
+        'Costo Total U',
+        'Costo Total',
+        'Costo Envío Total',
+        'Ganancia %',
+        'Importe Venta U',
+        'Importe Venta',
+        'Ganancia U',
+        'Ganancia T'
       ];
-    });
 
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
+      const rows = currentBalance.items.map(item => {
+        const values = calculateItemValues(item);
+        return [
+          item.supplier_name || `Supplier ${item.supplier_id}`,
+          item.product_name || `Product ${item.product_id}`,
+          item.quantity,
+          item.unit || 'pcs',
+          item.unit_price,
+          item.unit_price * item.quantity,
+          item.unit_price + item.shipping_cost,
+          item.total_cost,
+          item.shipping_cost * item.quantity,
+          values.margin,
+          values.sellingPriceUnit,
+          values.sellingPriceTotal,
+          values.profitUnit,
+          values.profitTotal
+        ];
+      });
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${currentBalance.name.replace(/[^a-z0-9]/gi, '_')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${cell}"`).join(','))
+        .join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${currentBalance.name.replace(/[^a-z0-9]/gi, '_')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating CSV:', error);
+      setError(`Error generating CSV: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const exportToExcel = () => {
-    if (!currentBalance || !currentBalance.items.length) return;
+    if (!currentBalance || !currentBalance.items.length) {
+      setError('No data available for export');
+      return;
+    }
 
-    const headers = [
-      'Proveedor', 'Producto', 'Cantidad', 'Unidad', 'Precio Unitario',
-      'Importe Total', 'Costo Total U', 'Costo Total', 'Costo Envío Total',
-      'Ganancia %', 'Importe Venta U', 'Importe Venta', 'Ganancia U', 'Ganancia T'
-    ];
+    try {
+      setSaving(true);
+      setError(null);
 
-    const rows = currentBalance.items.map(item => {
-      const values = calculateItemValues(item);
-      return [
-        item.supplier_name || `Supplier ${item.supplier_id}`,
-        item.product_name || `Product ${item.product_id}`,
-        item.quantity, item.unit || 'pcs', item.unit_price,
-        item.unit_price * item.quantity, item.unit_price + item.shipping_cost,
-        item.total_cost, item.shipping_cost * item.quantity, values.margin,
-        values.sellingPriceUnit, values.sellingPriceTotal, values.profitUnit, values.profitTotal
+      const headers = [
+        'Proveedor', 'Producto', 'Cantidad', 'Unidad', 'Precio Unitario',
+        'Importe Total', 'Costo Total U', 'Costo Total', 'Costo Envío Total',
+        'Ganancia %', 'Importe Venta U', 'Importe Venta', 'Ganancia U', 'Ganancia T'
       ];
-    });
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Balance');
-    
-    XLSX.writeFile(workbook, `${currentBalance.name.replace(/[^a-z0-9]/gi, '_')}.xlsx`);
+      const rows = currentBalance.items.map(item => {
+        const values = calculateItemValues(item);
+        return [
+          item.supplier_name || `Supplier ${item.supplier_id}`,
+          item.product_name || `Product ${item.product_id}`,
+          item.quantity, item.unit || 'pcs', item.unit_price,
+          item.unit_price * item.quantity, item.unit_price + item.shipping_cost,
+          item.total_cost, item.shipping_cost * item.quantity, values.margin,
+          values.sellingPriceUnit, values.sellingPriceTotal, values.profitUnit, values.profitTotal
+        ];
+      });
+
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Balance');
+      
+      XLSX.writeFile(workbook, `${currentBalance.name.replace(/[^a-z0-9]/gi, '_')}.xlsx`);
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      setError(`Error generating Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const exportToPDF = async () => {
-    if (!currentBalance || !currentBalance.items.length || !exportTableRef.current) return;
+    if (!currentBalance || !currentBalance.items.length || !exportTableRef.current) {
+      setError('No data available for export');
+      return;
+    }
 
     try {
+      setSaving(true);
+      setError(null);
+      
+      // Wait a bit to ensure the table is rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const canvas = await html2canvas(exportTableRef.current, {
         scale: 2,
         useCORS: true,
-        allowTaint: true
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        width: exportTableRef.current.scrollWidth,
+        height: exportTableRef.current.scrollHeight
       });
+      
+      // Check if canvas is valid
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Canvas has zero dimensions');
+      }
       
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('l', 'mm', 'a4');
@@ -500,34 +560,61 @@ const ProductBalancePage: React.FC = () => {
       pdf.save(`${currentBalance.name.replace(/[^a-z0-9]/gi, '_')}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      setError('Error generating PDF');
+      setError(`Error generating PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSaving(false);
     }
   };
 
   const exportToImage = async () => {
-    if (!currentBalance || !currentBalance.items.length || !exportTableRef.current) return;
+    if (!currentBalance || !currentBalance.items.length || !exportTableRef.current) {
+      setError('No data available for export');
+      return;
+    }
 
     try {
+      setSaving(true);
+      setError(null);
+      
+      // Wait a bit to ensure the table is rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const canvas = await html2canvas(exportTableRef.current, {
         scale: 2,
         useCORS: true,
-        allowTaint: true
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        width: exportTableRef.current.scrollWidth,
+        height: exportTableRef.current.scrollHeight
       });
+      
+      // Check if canvas is valid
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Canvas has zero dimensions');
+      }
       
       const link = document.createElement('a');
       link.download = `${currentBalance.name.replace(/[^a-z0-9]/gi, '_')}.png`;
-      link.href = canvas.toDataURL();
+      link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (error) {
       console.error('Error generating image:', error);
-      setError('Error generating image');
+      setError(`Error generating image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSaving(false);
     }
   };
 
   const exportToWord = async () => {
-    if (!currentBalance || !currentBalance.items.length) return;
+    if (!currentBalance || !currentBalance.items.length) {
+      setError('No data available for export');
+      return;
+    }
 
     try {
+      setSaving(true);
+      setError(null);
+
       const tableRows = currentBalance.items.map(item => {
         const values = calculateItemValues(item);
         return new TableRow({
@@ -596,9 +683,12 @@ const ProductBalancePage: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error generating Word document:', error);
-      setError('Error generating Word document');
+      setError(`Error generating Word document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -914,6 +1004,18 @@ const ProductBalancePage: React.FC = () => {
     window.location.href = `/product-admin/${productId}`;
   };
 
+  // Sort handler function (consistent with other pages)
+  const handleSortChange = (field: string) => {
+    if (sortBy === field) {
+      // Toggle order if same field
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with asc as default
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 pt-20 px-4">
@@ -926,7 +1028,7 @@ const ProductBalancePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pt-20 px-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-full mx-auto space-y-6 px-2">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
@@ -936,17 +1038,19 @@ const ProductBalancePage: React.FC = () => {
                 Gestiona y compara cotizaciones de productos
               </p>
             </div>
-            <div className="flex space-x-3">
-              <Button 
-                onClick={() => setShowCreateBalance(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Nuevo Balance
-              </Button>
-            </div>
+            {!currentBalance && (
+              <div className="flex space-x-3">
+                <Button 
+                  onClick={() => setShowCreateBalance(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Nuevo Balance
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1118,7 +1222,10 @@ const ProductBalancePage: React.FC = () => {
                   <div className="flex items-center space-x-3">
                     <Button
                       variant="ghost"
-                      onClick={() => setCurrentBalance(null)}
+                      onClick={() => {
+                        setCurrentBalance(null);
+                        navigate('/balance', { replace: true });
+                      }}
                       className="p-2"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1366,31 +1473,113 @@ const ProductBalancePage: React.FC = () => {
             {/* Balance Items */}
             {currentBalance.items && currentBalance.items.length > 0 ? (
               <Card className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-gray-900">Productos en el Balance</h3>
-                  <div className="flex items-center space-x-2">
-                    <label className="text-sm text-gray-600">Ordenar por:</label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
-                    >
-                      <option value="importe_venta">Importe Venta</option>
-                      <option value="product_name">Producto</option>
-                      <option value="supplier_name">Proveedor</option>
-                      <option value="cantidad">Cantidad</option>
-                      <option value="precio_unitario">Precio Unitario</option>
-                      <option value="costo_total">Costo Total</option>
-                      <option value="envio">Envío</option>
-                      <option value="ganancia">Ganancia</option>
-                    </select>
-                    <button
-                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                    >
-                      {sortOrder === 'asc' ? '↑' : '↓'}
-                    </button>
-                  </div>
+                <div className="mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Productos en el Balance</h3>
+                  
+                  {/* Sort Controls - Consistent with other pages */}
+                  <Card className="p-4 mb-6 shadow-sm border-0 rounded-xl bg-gradient-to-r from-gray-50 to-blue-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">Ordenar por:</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          variant={sortBy === 'importe_venta' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handleSortChange('importe_venta')}
+                          className={`text-xs font-medium transition-all duration-200 ${sortBy === 'importe_venta' ? 'shadow-md' : ''}`}
+                        >
+                          <span>Importe Venta</span>
+                          {sortBy === 'importe_venta' && (
+                            <span className="ml-1 text-xs">
+                              {sortOrder === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </Button>
+                        <Button
+                          variant={sortBy === 'product_name' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handleSortChange('product_name')}
+                          className={`text-xs font-medium transition-all duration-200 ${sortBy === 'product_name' ? 'shadow-md' : ''}`}
+                        >
+                          <span>Producto</span>
+                          {sortBy === 'product_name' && (
+                            <span className="ml-1 text-xs">
+                              {sortOrder === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </Button>
+                        <Button
+                          variant={sortBy === 'supplier_name' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handleSortChange('supplier_name')}
+                          className={`text-xs font-medium transition-all duration-200 ${sortBy === 'supplier_name' ? 'shadow-md' : ''}`}
+                        >
+                          <span>Proveedor</span>
+                          {sortBy === 'supplier_name' && (
+                            <span className="ml-1 text-xs">
+                              {sortOrder === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </Button>
+                        <Button
+                          variant={sortBy === 'cantidad' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handleSortChange('cantidad')}
+                          className={`text-xs font-medium transition-all duration-200 ${sortBy === 'cantidad' ? 'shadow-md' : ''}`}
+                        >
+                          <span>Cantidad</span>
+                          {sortBy === 'cantidad' && (
+                            <span className="ml-1 text-xs">
+                              {sortOrder === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </Button>
+                        <Button
+                          variant={sortBy === 'precio_unitario' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handleSortChange('precio_unitario')}
+                          className={`text-xs font-medium transition-all duration-200 ${sortBy === 'precio_unitario' ? 'shadow-md' : ''}`}
+                        >
+                          <span>Precio Unitario</span>
+                          {sortBy === 'precio_unitario' && (
+                            <span className="ml-1 text-xs">
+                              {sortOrder === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </Button>
+                        <Button
+                          variant={sortBy === 'costo_total' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handleSortChange('costo_total')}
+                          className={`text-xs font-medium transition-all duration-200 ${sortBy === 'costo_total' ? 'shadow-md' : ''}`}
+                        >
+                          <span>Costo Total</span>
+                          {sortBy === 'costo_total' && (
+                            <span className="ml-1 text-xs">
+                              {sortOrder === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </Button>
+                        <Button
+                          variant={sortBy === 'ganancia' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handleSortChange('ganancia')}
+                          className={`text-xs font-medium transition-all duration-200 ${sortBy === 'ganancia' ? 'shadow-md' : ''}`}
+                        >
+                          <span>Ganancia</span>
+                          {sortBy === 'ganancia' && (
+                            <span className="ml-1 text-xs">
+                              {sortOrder === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
                 </div>
 
                 {/* Bulk Operations Bar */}
@@ -1446,11 +1635,11 @@ const ProductBalancePage: React.FC = () => {
                 )}
                 
                 {/* Desktop Table View */}
-                <div className="hidden lg:block overflow-x-auto" ref={tableRef}>
-                  <table className="w-full text-sm min-w-full table-fixed">
+                <div className="hidden xl:block overflow-x-auto" ref={tableRef}>
+                  <table className="w-full text-sm table-auto">
                     <thead>
                       <tr className="bg-gray-50">
-                        <th className="px-4 py-3 text-center w-12">
+                        <th className="px-2 py-3 text-center w-[3%]">
                           <input
                             type="checkbox"
                             checked={isAllSelected()}
@@ -1461,51 +1650,51 @@ const ProductBalancePage: React.FC = () => {
                             className="rounded border-gray-300"
                           />
                         </th>
-                        <th className="px-4 py-3 text-left min-w-32">Proveedor</th>
-                        <th className="px-4 py-3 text-left min-w-32">Producto</th>
-                        <th className="px-4 py-3 text-right w-20">
+                        <th className="px-2 py-3 text-left w-[10%]">Proveedor</th>
+                        <th className="px-2 py-3 text-left w-[12%]">Producto</th>
+                        <th className="px-2 py-3 text-right w-[6%]">
                           Cantidad
                           {currentBalance.balance_type === 'COMPARISON' && (
                             <div className="text-xs text-orange-600 font-normal">(Controlada arriba)</div>
                           )}
                         </th>
-                        <th className="px-4 py-3 text-center w-16">Unidad</th>
-                        <th className="px-4 py-3 text-center w-20">Tipo Envío</th>
+                        <th className="px-2 py-3 text-center w-[5%]">Unidad</th>
+                        <th className="px-2 py-3 text-center w-[6%]">Tipo Envío</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-4 py-3 text-right min-w-24">Precio Unitario</th>
-                            <th className="px-4 py-3 text-right min-w-24">Importe Total</th>
+                            <th className="px-2 py-3 text-right w-[6%]">Precio Unitario</th>
+                            <th className="px-2 py-3 text-right w-[6%]">Importe Total</th>
                           </>
                         ) : (
-                          <th className="px-4 py-3 text-right min-w-32">Precio Unitario - Importe Total</th>
+                          <th className="px-2 py-3 text-right w-[10%]">Precio</th>
                         )}
-                        <th className="px-4 py-3 text-right min-w-24">Costo Envío Total</th>
+                        <th className="px-2 py-3 text-right w-[5%]">Envio</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-4 py-3 text-right min-w-24">Costo Total U</th>
-                            <th className="px-4 py-3 text-right min-w-24">Costo Total</th>
+                            <th className="px-2 py-3 text-right w-[6%]">Costo Total U</th>
+                            <th className="px-2 py-3 text-right w-[6%]">Costo Total</th>
                           </>
                         ) : (
-                          <th className="px-4 py-3 text-right min-w-32">Costo Total U - Costo Total</th>
+                          <th className="px-2 py-3 text-right w-[10%]">Costo</th>
                         )}
-                        <th className="px-4 py-3 text-center w-20">Ganancia %</th>
+                        <th className="px-2 py-3 text-center w-[5%]">Ganancia %</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-4 py-3 text-right min-w-24">Importe Venta U</th>
-                            <th className="px-4 py-3 text-right min-w-24">Importe Venta</th>
+                            <th className="px-2 py-3 text-right w-[6%]">Importe Venta U</th>
+                            <th className="px-2 py-3 text-right w-[6%]">Importe Venta</th>
                           </>
                         ) : (
-                          <th className="px-4 py-3 text-right min-w-32">Importe Venta</th>
+                          <th className="px-2 py-3 text-right w-[10%]">Importe Venta</th>
                         )}
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-4 py-3 text-right min-w-24">Ganancia U</th>
-                            <th className="px-4 py-3 text-right min-w-24">Ganancia T</th>
+                            <th className="px-2 py-3 text-right w-[6%]">Ganancia U</th>
+                            <th className="px-2 py-3 text-right w-[6%]">Ganancia T</th>
                           </>
                         ) : (
-                          <th className="px-4 py-3 text-right min-w-32">Ganancia U - Ganancia T</th>
+                          <th className="px-2 py-3 text-right w-[10%]">Ganancia</th>
                         )}
-                        <th className="px-4 py-3 text-center w-16">Acciones</th>
+                        <th className="px-2 py-3 text-center w-[4%]">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1535,7 +1724,7 @@ const ProductBalancePage: React.FC = () => {
                         
                         return (
                           <tr key={itemKey} className={rowClass}>
-                            <td className="px-4 py-3 text-center">
+                            <td className="px-2 py-3 text-center">
                               <input
                                 type="checkbox"
                                 checked={selectedItems.has(itemKey)}
@@ -1543,8 +1732,8 @@ const ProductBalancePage: React.FC = () => {
                                 className="rounded border-gray-300"
                               />
                             </td>
-                            <td className="px-4 py-3">{item.supplier_name || `Supplier ${item.supplier_id}`}</td>
-                            <td className="px-4 py-3">
+                            <td className="px-2 py-3">{item.supplier_name || `Supplier ${item.supplier_id}`}</td>
+                            <td className="px-2 py-3">
                               <button
                                 onClick={() => navigateToProduct(item.product_id)}
                                 className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left"
@@ -1552,7 +1741,7 @@ const ProductBalancePage: React.FC = () => {
                                 {item.product_name || `Product ${item.product_id}`}
                               </button>
                             </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-2 py-3 text-right">
                             {currentBalance.balance_type === 'COMPARISON' ? (
                               <div className="w-20 text-right px-3 py-2 bg-gray-100 border border-gray-300 rounded text-gray-600 font-medium">
                                 {item.quantity}
@@ -1567,8 +1756,8 @@ const ProductBalancePage: React.FC = () => {
                             />
                             )}
                           </td>
-                            <td className="px-4 py-3 text-center">{item.unit || 'pcs'}</td>
-                            <td className="px-4 py-3 text-center">
+                            <td className="px-2 py-3 text-center">{item.unit || 'pcs'}</td>
+                            <td className="px-2 py-3 text-center">
                               <select
                                 value={item.shipping_type || 'direct'}
                                 onChange={(e) => updateBalanceItem(originalIndex, { shipping_type: e.target.value as 'direct' | 'ocurre' })}
@@ -1581,25 +1770,25 @@ const ProductBalancePage: React.FC = () => {
                             
                             {hasMultipleQuantity ? (
                               <>
-                          <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price)}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price * item.quantity)}</td>
+                          <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price * item.quantity)}</td>
                               </>
                             ) : (
-                              <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price)}</td>
                             )}
                             
-                            <td className="px-4 py-3 text-right">{formatCurrency(values.effectiveShippingCost * item.quantity)}</td>
+                            <td className="px-2 py-3 text-right">{formatCurrency(values.effectiveShippingCost * item.quantity)}</td>
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(item.total_cost)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(item.total_cost)}</td>
                               </>
                             ) : (
-                              <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
                             )}
                             
-                            <td className="px-4 py-3 text-center">
+                            <td className="px-2 py-3 text-center">
                               <Input
                                 type="number"
                                 min="0"
@@ -1612,23 +1801,23 @@ const ProductBalancePage: React.FC = () => {
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-4 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(values.sellingPriceTotal)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceTotal)}</td>
                               </>
                             ) : (
-                              <td className="px-4 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
                             )}
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-4 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(values.profitTotal)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(values.profitTotal)}</td>
                               </>
                             ) : (
-                              <td className="px-4 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
                             )}
                             
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-2 py-3 text-center">
                             <Button
                               variant="ghost"
                                 onClick={() => removeBalanceItem(originalIndex)}
@@ -1647,54 +1836,54 @@ const ProductBalancePage: React.FC = () => {
                     {currentBalance.balance_type === 'QUOTATION' && (
                       <tfoot>
                         <tr className="bg-gray-100 font-bold">
-                          <td className="px-4 py-3"></td>
-                          <td className="px-4 py-3" colSpan={2}>TOTALES</td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-2 py-3"></td>
+                          <td className="px-2 py-3" colSpan={2}>TOTALES</td>
+                          <td className="px-2 py-3 text-right">
                             {currentBalance.items.reduce((sum, item) => sum + item.quantity, 0)}
                           </td>
-                          <td className="px-4 py-3"></td>
-                          <td className="px-4 py-3"></td>
+                          <td className="px-2 py-3"></td>
+                          <td className="px-2 py-3"></td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.unit_price, 0))}
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0))}
                               </td>
                             </>
                           ) : (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0))}
                             </td>
                           )}
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-2 py-3 text-right">
                             {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.shipping_cost * item.quantity), 0))}
                           </td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price + item.shipping_cost), 0))}
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.total_cost, 0))}
                               </td>
                             </>
                           ) : (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.total_cost, 0))}
                             </td>
                           )}
-                          <td className="px-4 py-3"></td>
+                          <td className="px-2 py-3"></td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                   const values = calculateItemValues(item);
                                   return sum + values.sellingPriceUnit;
                                 }, 0))}
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                   const values = calculateItemValues(item);
                                   return sum + values.sellingPriceTotal;
@@ -1702,7 +1891,7 @@ const ProductBalancePage: React.FC = () => {
                               </td>
                             </>
                           ) : (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                 const values = calculateItemValues(item);
                                 return sum + values.sellingPriceTotal;
@@ -1711,13 +1900,13 @@ const ProductBalancePage: React.FC = () => {
                           )}
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                   const values = calculateItemValues(item);
                                   return sum + values.profitUnit;
                                 }, 0))}
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                   const values = calculateItemValues(item);
                                   return sum + values.profitTotal;
@@ -1725,14 +1914,14 @@ const ProductBalancePage: React.FC = () => {
                               </td>
                             </>
                           ) : (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                 const values = calculateItemValues(item);
                                 return sum + values.profitTotal;
                               }, 0))}
                             </td>
                           )}
-                          <td className="px-4 py-3"></td>
+                          <td className="px-2 py-3"></td>
                         </tr>
                       </tfoot>
                     )}
@@ -1740,7 +1929,7 @@ const ProductBalancePage: React.FC = () => {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="lg:hidden space-y-4">
+                <div className="xl:hidden space-y-4">
                   {getPaginatedItems().map((item, sortedIndex) => {
                     const values = calculateItemValues(item);
                     const hasMultipleQuantity = item.quantity > 1;
@@ -1961,48 +2150,48 @@ const ProductBalancePage: React.FC = () => {
                 </div>
 
                 {/* Hidden export table without actions column */}
-                <div className="hidden" ref={exportTableRef}>
+                <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none bg-white" ref={exportTableRef}>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50">
-                        <th className="px-4 py-3 text-left">Proveedor</th>
-                        <th className="px-4 py-3 text-left">Producto</th>
-                        <th className="px-4 py-3 text-right">Cantidad</th>
-                        <th className="px-4 py-3 text-center">Unidad</th>
-                        <th className="px-4 py-3 text-center">Tipo Envío</th>
+                        <th className="px-2 py-3 text-left">Proveedor</th>
+                        <th className="px-2 py-3 text-left">Producto</th>
+                        <th className="px-2 py-3 text-right">Cantidad</th>
+                        <th className="px-2 py-3 text-center">Unidad</th>
+                        <th className="px-2 py-3 text-center">Tipo Envío</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-4 py-3 text-right">Precio Unitario</th>
-                            <th className="px-4 py-3 text-right">Importe Total</th>
+                            <th className="px-2 py-3 text-right">Precio Unitario</th>
+                            <th className="px-2 py-3 text-right">Importe Total</th>
                           </>
                         ) : (
-                          <th className="px-4 py-3 text-right">Precio Unitario - Importe Total</th>
+                          <th className="px-2 py-3 text-right">Precio</th>
                         )}
-                        <th className="px-4 py-3 text-right">Costo Envío Total</th>
+                        <th className="px-2 py-3 text-right">Envio</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-4 py-3 text-right">Costo Total U</th>
-                            <th className="px-4 py-3 text-right">Costo Total</th>
+                            <th className="px-2 py-3 text-right">Costo Total U</th>
+                            <th className="px-2 py-3 text-right">Costo Total</th>
                           </>
                         ) : (
-                          <th className="px-4 py-3 text-right">Costo Total U - Costo Total</th>
+                          <th className="px-2 py-3 text-right">Costo</th>
                         )}
-                        <th className="px-4 py-3 text-right">Ganancia %</th>
+                        <th className="px-2 py-3 text-right">Ganancia %</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-4 py-3 text-right">Importe Venta U</th>
-                            <th className="px-4 py-3 text-right">Importe Venta</th>
+                            <th className="px-2 py-3 text-right">Importe Venta U</th>
+                            <th className="px-2 py-3 text-right">Importe Venta</th>
                           </>
                         ) : (
-                          <th className="px-4 py-3 text-right">Importe Venta</th>
+                          <th className="px-2 py-3 text-right">Importe Venta</th>
                         )}
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-4 py-3 text-right">Ganancia U</th>
-                            <th className="px-4 py-3 text-right">Ganancia T</th>
+                            <th className="px-2 py-3 text-right">Ganancia U</th>
+                            <th className="px-2 py-3 text-right">Ganancia T</th>
                           </>
                         ) : (
-                          <th className="px-4 py-3 text-right">Ganancia U - Ganancia T</th>
+                          <th className="px-2 py-3 text-right">Ganancia</th>
                         )}
                       </tr>
                     </thead>
@@ -2013,50 +2202,50 @@ const ProductBalancePage: React.FC = () => {
                         
                         return (
                           <tr key={index} className="border-b">
-                            <td className="px-4 py-3">{item.supplier_name || `Supplier ${item.supplier_id}`}</td>
-                            <td className="px-4 py-3">{item.product_name || `Product ${item.product_id}`}</td>
-                            <td className="px-4 py-3 text-right">{item.quantity}</td>
-                            <td className="px-4 py-3 text-center">{item.unit || 'pcs'}</td>
-                            <td className="px-4 py-3 text-center">{item.shipping_type || 'direct'}</td>
+                            <td className="px-2 py-3">{item.supplier_name || `Supplier ${item.supplier_id}`}</td>
+                            <td className="px-2 py-3">{item.product_name || `Product ${item.product_id}`}</td>
+                            <td className="px-2 py-3 text-right">{item.quantity}</td>
+                            <td className="px-2 py-3 text-center">{item.unit || 'pcs'}</td>
+                            <td className="px-2 py-3 text-center">{item.shipping_type || 'direct'}</td>
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price)}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price * item.quantity)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price * item.quantity)}</td>
                               </>
                             ) : (
-                              <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price)}</td>
                             )}
                             
-                            <td className="px-4 py-3 text-right">{formatCurrency(values.effectiveShippingCost * item.quantity)}</td>
+                            <td className="px-2 py-3 text-right">{formatCurrency(values.effectiveShippingCost * item.quantity)}</td>
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(item.total_cost)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(item.total_cost)}</td>
                               </>
                             ) : (
-                              <td className="px-4 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
                             )}
                             
-                            <td className="px-4 py-3 text-right">{values.margin}%</td>
+                            <td className="px-2 py-3 text-right">{values.margin}%</td>
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-4 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(values.sellingPriceTotal)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceTotal)}</td>
                               </>
                             ) : (
-                              <td className="px-4 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
                             )}
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-4 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(values.profitTotal)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency(values.profitTotal)}</td>
                               </>
                             ) : (
-                              <td className="px-4 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
                             )}
                           </tr>
                         );
@@ -2065,52 +2254,52 @@ const ProductBalancePage: React.FC = () => {
                     {currentBalance.balance_type === 'QUOTATION' && (
                       <tfoot>
                         <tr className="bg-gray-100 font-bold">
-                          <td className="px-4 py-3" colSpan={3}>TOTALES</td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-2 py-3" colSpan={3}>TOTALES</td>
+                          <td className="px-2 py-3 text-right">
                             {currentBalance.items.reduce((sum, item) => sum + item.quantity, 0)}
                           </td>
-                          <td className="px-4 py-3"></td>
+                          <td className="px-2 py-3"></td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.unit_price, 0))}
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0))}
                               </td>
                             </>
                           ) : (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0))}
                             </td>
                           )}
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-2 py-3 text-right">
                             {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.shipping_cost * item.quantity), 0))}
                           </td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price + item.shipping_cost), 0))}
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.total_cost, 0))}
                               </td>
                             </>
                           ) : (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.total_cost, 0))}
                             </td>
                           )}
-                          <td className="px-4 py-3"></td>
+                          <td className="px-2 py-3"></td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                   const values = calculateItemValues(item);
                                   return sum + values.sellingPriceUnit;
                                 }, 0))}
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                   const values = calculateItemValues(item);
                                   return sum + values.sellingPriceTotal;
@@ -2118,7 +2307,7 @@ const ProductBalancePage: React.FC = () => {
                               </td>
                             </>
                           ) : (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                 const values = calculateItemValues(item);
                                 return sum + values.sellingPriceTotal;
@@ -2127,13 +2316,13 @@ const ProductBalancePage: React.FC = () => {
                           )}
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                   const values = calculateItemValues(item);
                                   return sum + values.profitUnit;
                                 }, 0))}
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                   const values = calculateItemValues(item);
                                   return sum + values.profitTotal;
@@ -2141,7 +2330,7 @@ const ProductBalancePage: React.FC = () => {
                               </td>
                             </>
                           ) : (
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                 const values = calculateItemValues(item);
                                 return sum + values.profitTotal;
@@ -2388,8 +2577,9 @@ const ProductBalancePage: React.FC = () => {
                       setShowExportModal(false);
                     }}
                     className="bg-green-600 hover:bg-green-700 text-white"
+                    disabled={saving}
                   >
-                    Exportar
+                    {saving ? 'Exportando...' : 'Exportar'}
                   </Button>
                 </div>
               </div>
