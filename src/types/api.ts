@@ -197,7 +197,7 @@ export const API_ENDPOINTS = {
   // Existing endpoints
   PRODUCTS: '/products',
   SUPPLIERS: '/suppliers',
-  SUPPLIER_PRODUCTS: '/supplier-products',
+  SUPPLIER_PRODUCTS: '/products/supplier-products',
   CATEGORIES: '/categories',
 } as const;
 

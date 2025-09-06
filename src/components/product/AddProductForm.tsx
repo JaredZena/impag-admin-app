@@ -91,7 +91,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
         is_active: formData.is_active
       };
 
-      await apiRequest('/supplier-products', {
+      await apiRequest('/products/supplier-products', {
         method: 'POST',
         body: JSON.stringify(submitData)
       });

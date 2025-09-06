@@ -121,7 +121,8 @@ const SupplierProductManagementPage: React.FC = () => {
   };
 
   const handleEditRelationship = (relationshipId: number) => {
-    navigate(`/supplier-product-admin/edit/${relationshipId}`);
+    // Since the edit route no longer exists, navigate to product admin
+    navigate('/product-admin');
   };
 
   if (loading) {
@@ -384,7 +385,7 @@ const SupplierProductManagementPage: React.FC = () => {
                 <Button
                   onClick={() => {
                     setShowAddDialog(false);
-                    navigate('/supplier-product-admin/new');
+                    navigate('/product-admin');
                   }}
                   className="bg-green-600 hover:bg-green-700 text-white flex-1"
                 >

@@ -129,7 +129,7 @@ const SupplierProductFormPage: React.FC = () => {
         });
       }
 
-      navigate('/supplier-product-admin', {
+      navigate('/product-admin', {
         state: { 
           message: isEditing 
             ? 'Relación actualizada exitosamente' 
@@ -339,7 +339,7 @@ const SupplierProductFormPage: React.FC = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/supplier-product-admin')}
+                onClick={() => navigate('/product-admin')}
                 className="flex-1"
               >
                 Cancelar
