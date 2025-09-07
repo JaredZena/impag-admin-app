@@ -511,7 +511,7 @@ const ProductBalancePage: React.FC = () => {
   };
 
   const exportToPDF = async () => {
-    if (!currentBalance || !currentBalance.items.length || !exportTableRef.current) {
+    if (!currentBalance || !currentBalance.items.length || !tableRef.current) {
       setError('No data available for export');
       return;
     }
@@ -520,17 +520,23 @@ const ProductBalancePage: React.FC = () => {
       setSaving(true);
       setError(null);
       
-      // Wait a bit to ensure the table is rendered
+      // Hide action buttons during capture
+      const actionButtons = tableRef.current.querySelectorAll('td:last-child, th:last-child');
+      actionButtons.forEach(btn => (btn as HTMLElement).style.display = 'none');
+      
+      // Wait for rendering
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      const canvas = await html2canvas(exportTableRef.current, {
+      const canvas = await html2canvas(tableRef.current, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
-        width: exportTableRef.current.scrollWidth,
-        height: exportTableRef.current.scrollHeight
+        logging: false
       });
+      
+      // Restore action buttons
+      actionButtons.forEach(btn => (btn as HTMLElement).style.display = '');
       
       // Check if canvas is valid
       if (canvas.width === 0 || canvas.height === 0) {
@@ -567,7 +573,7 @@ const ProductBalancePage: React.FC = () => {
   };
 
   const exportToImage = async () => {
-    if (!currentBalance || !currentBalance.items.length || !exportTableRef.current) {
+    if (!currentBalance || !currentBalance.items.length || !tableRef.current) {
       setError('No data available for export');
       return;
     }
@@ -576,17 +582,23 @@ const ProductBalancePage: React.FC = () => {
       setSaving(true);
       setError(null);
       
-      // Wait a bit to ensure the table is rendered
+      // Hide action buttons during capture
+      const actionButtons = tableRef.current.querySelectorAll('td:last-child, th:last-child');
+      actionButtons.forEach(btn => (btn as HTMLElement).style.display = 'none');
+      
+      // Wait for rendering
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      const canvas = await html2canvas(exportTableRef.current, {
+      const canvas = await html2canvas(tableRef.current, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
-        width: exportTableRef.current.scrollWidth,
-        height: exportTableRef.current.scrollHeight
+        logging: false
       });
+      
+      // Restore action buttons
+      actionButtons.forEach(btn => (btn as HTMLElement).style.display = '');
       
       // Check if canvas is valid
       if (canvas.width === 0 || canvas.height === 0) {
@@ -2150,48 +2162,51 @@ const ProductBalancePage: React.FC = () => {
                 </div>
 
                 {/* Hidden export table without actions column */}
-                <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none bg-white" ref={exportTableRef}>
-                  <table className="w-full text-sm">
+                <div className="absolute left-0 top-0 opacity-0 pointer-events-none bg-white z-[-1]" ref={exportTableRef} style={{ width: '1200px', minHeight: '600px', padding: '20px' }}>
+                  <div style={{ marginBottom: '20px', fontSize: '24px', fontWeight: 'bold', color: '#1f2937' }}>
+                    {currentBalance.name}
+                  </div>
+                  <table className="w-full text-sm" style={{ borderCollapse: 'collapse', border: '1px solid #e5e7eb' }}>
                     <thead>
                       <tr className="bg-gray-50">
-                        <th className="px-2 py-3 text-left">Proveedor</th>
-                        <th className="px-2 py-3 text-left">Producto</th>
-                        <th className="px-2 py-3 text-right">Cantidad</th>
-                        <th className="px-2 py-3 text-center">Unidad</th>
-                        <th className="px-2 py-3 text-center">Tipo Envío</th>
+                        <th className="px-2 py-3 text-left" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Proveedor</th>
+                        <th className="px-2 py-3 text-left" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Producto</th>
+                        <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Cantidad</th>
+                        <th className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Unidad</th>
+                        <th className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Tipo Envío</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-2 py-3 text-right">Precio Unitario</th>
-                            <th className="px-2 py-3 text-right">Importe Total</th>
+                            <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Precio Unitario</th>
+                            <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Importe Total</th>
                           </>
                         ) : (
-                          <th className="px-2 py-3 text-right">Precio</th>
+                          <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Precio</th>
                         )}
-                        <th className="px-2 py-3 text-right">Envio</th>
+                        <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Envio</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-2 py-3 text-right">Costo Total U</th>
-                            <th className="px-2 py-3 text-right">Costo Total</th>
+                            <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Costo Total U</th>
+                            <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Costo Total</th>
                           </>
                         ) : (
-                          <th className="px-2 py-3 text-right">Costo</th>
+                          <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Costo</th>
                         )}
-                        <th className="px-2 py-3 text-right">Ganancia %</th>
+                        <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Ganancia %</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-2 py-3 text-right">Importe Venta U</th>
-                            <th className="px-2 py-3 text-right">Importe Venta</th>
+                            <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Importe Venta U</th>
+                            <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Importe Venta</th>
                           </>
                         ) : (
-                          <th className="px-2 py-3 text-right">Importe Venta</th>
+                          <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Importe Venta</th>
                         )}
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
-                            <th className="px-2 py-3 text-right">Ganancia U</th>
-                            <th className="px-2 py-3 text-right">Ganancia T</th>
+                            <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Ganancia U</th>
+                            <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Ganancia T</th>
                           </>
                         ) : (
-                          <th className="px-2 py-3 text-right">Ganancia</th>
+                          <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Ganancia</th>
                         )}
                       </tr>
                     </thead>
@@ -2202,50 +2217,50 @@ const ProductBalancePage: React.FC = () => {
                         
                         return (
                           <tr key={index} className="border-b">
-                            <td className="px-2 py-3">{item.supplier_name || `Supplier ${item.supplier_id}`}</td>
-                            <td className="px-2 py-3">{item.product_name || `Product ${item.product_id}`}</td>
-                            <td className="px-2 py-3 text-right">{item.quantity}</td>
-                            <td className="px-2 py-3 text-center">{item.unit || 'pcs'}</td>
-                            <td className="px-2 py-3 text-center">{item.shipping_type || 'direct'}</td>
+                            <td className="px-2 py-3" style={{ border: '1px solid #e5e7eb' }}>{item.supplier_name || `Supplier ${item.supplier_id}`}</td>
+                            <td className="px-2 py-3" style={{ border: '1px solid #e5e7eb' }}>{item.product_name || `Product ${item.product_id}`}</td>
+                            <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{item.quantity}</td>
+                            <td className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb' }}>{item.unit || 'pcs'}</td>
+                            <td className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb' }}>{item.shipping_type || 'direct'}</td>
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price)}</td>
-                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price * item.quantity)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price * item.quantity)}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price)}</td>
+                              <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price)}</td>
                             )}
                             
-                            <td className="px-2 py-3 text-right">{formatCurrency(values.effectiveShippingCost * item.quantity)}</td>
+                            <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.effectiveShippingCost * item.quantity)}</td>
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
-                                <td className="px-2 py-3 text-right">{formatCurrency(item.total_cost)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.total_cost)}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                              <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
                             )}
                             
-                            <td className="px-2 py-3 text-right">{values.margin}%</td>
+                            <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{values.margin}%</td>
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
-                                <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceTotal)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.sellingPriceUnit)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.sellingPriceTotal)}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
+                              <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.sellingPriceUnit)}</td>
                             )}
                             
                             {hasMultipleQuantity ? (
                               <>
-                                <td className="px-2 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
-                                <td className="px-2 py-3 text-right">{formatCurrency(values.profitTotal)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.profitUnit)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.profitTotal)}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
+                              <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.profitUnit)}</td>
                             )}
                           </tr>
                         );
