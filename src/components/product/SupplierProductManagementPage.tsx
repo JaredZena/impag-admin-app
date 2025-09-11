@@ -27,11 +27,22 @@ interface SupplierProduct {
   cost?: number;
   stock: number;
   lead_time_days?: number;
+  shipping_method?: string;
+  shipping_cost_direct?: number;
+  shipping_stage1_cost?: number;
+  shipping_stage2_cost?: number;
+  shipping_stage3_cost?: number;
+  shipping_stage4_cost?: number;
+  shipping_notes?: string;
   is_active: boolean;
   notes?: string;
   created_at: string;
   supplier?: Supplier;
   product?: Product;
+  // Flattened fields from API response
+  supplier_name?: string;
+  product_name?: string;
+  product_sku?: string;
 }
 
 const SupplierProductManagementPage: React.FC = () => {

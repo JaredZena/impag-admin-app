@@ -41,15 +41,24 @@ export interface SupplierProduct {
   supplier_id: number;
   product_id: number;
   supplier_sku: string;
-  supplier_price: number;
-  shipping_cost_per_unit?: number;
-  shipping_cost_flat?: number;
-  minimum_order_quantity?: number;
+  cost: number | null;
+  stock: number;
   lead_time_days?: number;
+  shipping_method?: string;
+  shipping_cost_direct?: number;
+  shipping_stage1_cost?: number;
+  shipping_stage2_cost?: number;
+  shipping_stage3_cost?: number;
+  shipping_stage4_cost?: number;
+  shipping_notes?: string;
   notes?: string;
   is_active?: boolean;
   supplier?: Supplier;
   product?: Product;
+  // Flattened fields from API response
+  supplier_name?: string;
+  product_name?: string;
+  product_sku?: string;
   created_at?: string;
   last_updated?: string;
 }

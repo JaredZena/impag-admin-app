@@ -2215,7 +2215,7 @@ const ProductBalancePage: React.FC = () => {
                             <td className="px-2 py-3" style={{ border: '1px solid #e5e7eb' }}>{item.product_name || `Product ${item.product_id}`}</td>
                             <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{item.quantity}</td>
                             <td className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb' }}>{item.unit || 'pcs'}</td>
-                            <td className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb' }}>{item.shipping_type || 'direct'}</td>
+                            <td className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb' }}>{item.shipping_method || 'DIRECT'}</td>
                             
                             {hasMultipleQuantity ? (
                               <>
