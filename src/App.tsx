@@ -7,6 +7,8 @@ import StockManagementPage from './components/product/StockManagementPage';
 import SupplierDetailPage from './components/product/SupplierDetailPage';
 import SupplierManagementPage from './components/product/SupplierManagementPage';
 import SupplierFormPage from './components/product/SupplierFormPage';
+import SupplierProductManagementPage from './components/product/SupplierProductManagementPage';
+import SupplierProductFormPage from './components/product/SupplierProductFormPage';
 import ProductBalancePage from './components/product/ProductBalancePage';
 import QuotationUploadPage from './components/quotation/QuotationUploadPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -71,6 +73,9 @@ const AppContent: React.FC = () => {
           <Route path="/supplier-admin/new" element={<SupplierFormPage />} />
           <Route path="/supplier-admin/edit/:supplierId" element={<SupplierFormPage />} />
           <Route path="/supplier-admin/:supplierId" element={<SupplierDetailPage />} />
+          <Route path="/supplier-products" element={<SupplierProductManagementPage />} />
+          <Route path="/supplier-products/new" element={<SupplierProductFormPage />} />
+          <Route path="/supplier-products/edit/:id" element={<SupplierProductFormPage />} />
           <Route path="/stock" element={<StockManagementPage />} />
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />

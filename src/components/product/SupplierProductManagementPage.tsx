@@ -55,7 +55,7 @@ const SupplierProductManagementPage: React.FC = () => {
     try {
       // Fetch all data in parallel
       const [relationshipsData, suppliersData, productsData, categoriesData] = await Promise.all([
-        apiRequest('/products/supplier-product/'),
+        apiRequest('/products/supplier-products'),
         apiRequest('/suppliers'),
         apiRequest('/products'),
         apiRequest('/categories')
@@ -67,29 +67,9 @@ const SupplierProductManagementPage: React.FC = () => {
         return acc;
       }, {});
 
-      // Enrich relationships with supplier and product data
-      const enrichedRelationships = await Promise.all(
-        (relationshipsData || []).map(async (rel: SupplierProduct) => {
-          try {
-            const [supplierData, productData] = await Promise.all([
-              apiRequest(`/suppliers/${rel.supplier_id}`),
-              apiRequest(`/products/${rel.product_id}`)
-            ]);
-
-            return {
-              ...rel,
-              supplier: supplierData.data,
-              product: {
-                ...productData.data,
-                category_name: categoryMap[productData.data.category_id] || 'Sin categoría'
-              }
-            };
-          } catch (err) {
-            console.error('Error fetching relationship details:', err);
-            return rel;
-          }
-        })
-      );
+      // The API already includes supplier and product data
+      const relationships = relationshipsData?.data?.supplier_products || [];
+      const enrichedRelationships = relationships;
 
       setRelationships(enrichedRelationships);
       setSuppliers(suppliersData.data || []);
@@ -121,8 +101,7 @@ const SupplierProductManagementPage: React.FC = () => {
   };
 
   const handleEditRelationship = (relationshipId: number) => {
-    // Since the edit route no longer exists, navigate to product admin
-    navigate('/product-admin');
+    navigate(`/supplier-products/edit/${relationshipId}`);
   };
 
   if (loading) {
@@ -292,14 +271,14 @@ const SupplierProductManagementPage: React.FC = () => {
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-3 gap-3">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-gray-900 mb-1">
-                          {relationship.supplier?.name} → {relationship.product?.name}
+                          {relationship.supplier_name} → {relationship.product_name}
                         </h4>
                         <div className="flex flex-wrap gap-2 text-xs">
                           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                            Proveedor: {relationship.supplier?.name}
+                            Proveedor: {relationship.supplier_name}
                           </span>
                           <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                            Producto: {relationship.product?.sku}
+                            Producto: {relationship.product_sku}
                           </span>
                           {relationship.supplier_sku && (
                             <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
@@ -353,9 +332,15 @@ const SupplierProductManagementPage: React.FC = () => {
                         </div>
                       </div>
                       <div>
-                        <span className="text-gray-500 block">Categoría:</span>
+                        <span className="text-gray-500 block">Método de Envío:</span>
                         <div className="font-medium text-gray-900">
-                          {relationship.product?.category_name || 'Sin categoría'}
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            relationship.shipping_method === 'DIRECT' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-orange-100 text-orange-800'
+                          }`}>
+                            {relationship.shipping_method === 'DIRECT' ? 'Directo' : 'Ocurre'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -385,7 +370,7 @@ const SupplierProductManagementPage: React.FC = () => {
                 <Button
                   onClick={() => {
                     setShowAddDialog(false);
-                    navigate('/product-admin');
+                    navigate('/supplier-product-admin/new');
                   }}
                   className="bg-green-600 hover:bg-green-700 text-white flex-1"
                 >

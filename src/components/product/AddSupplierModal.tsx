@@ -29,7 +29,13 @@ const AddSupplierModal: React.FC<AddSupplierModalProps> = ({
   const [formData, setFormData] = useState({
     cost: '',
     lead_time_days: '',
-    shipping_cost: '',
+    shipping_method: 'DIRECT',
+    shipping_cost_direct: '',
+    shipping_stage1_cost: '',
+    shipping_stage2_cost: '',
+    shipping_stage3_cost: '',
+    shipping_stage4_cost: '',
+    shipping_notes: '',
     is_active: true
   });
   const [loading, setLoading] = useState(false);
@@ -89,7 +95,13 @@ const AddSupplierModal: React.FC<AddSupplierModalProps> = ({
         supplier_id: selectedSupplierId,
         cost: parseFloat(formData.cost),
         lead_time_days: formData.lead_time_days ? parseInt(formData.lead_time_days) : null,
-        shipping_cost: formData.shipping_cost ? parseFloat(formData.shipping_cost) : null,
+        shipping_method: formData.shipping_method,
+        shipping_cost_direct: formData.shipping_cost_direct ? parseFloat(formData.shipping_cost_direct) : null,
+        shipping_stage1_cost: formData.shipping_stage1_cost ? parseFloat(formData.shipping_stage1_cost) : null,
+        shipping_stage2_cost: formData.shipping_stage2_cost ? parseFloat(formData.shipping_stage2_cost) : null,
+        shipping_stage3_cost: formData.shipping_stage3_cost ? parseFloat(formData.shipping_stage3_cost) : null,
+        shipping_stage4_cost: formData.shipping_stage4_cost ? parseFloat(formData.shipping_stage4_cost) : null,
+        shipping_notes: formData.shipping_notes,
         is_active: formData.is_active
       };
 
@@ -103,7 +115,13 @@ const AddSupplierModal: React.FC<AddSupplierModalProps> = ({
       setFormData({
         cost: '',
         lead_time_days: '',
-        shipping_cost: '',
+        shipping_method: 'DIRECT',
+        shipping_cost_direct: '',
+        shipping_stage1_cost: '',
+        shipping_stage2_cost: '',
+        shipping_stage3_cost: '',
+        shipping_stage4_cost: '',
+        shipping_notes: '',
         is_active: true
       });
       setSearchTerm('');
@@ -123,7 +141,13 @@ const AddSupplierModal: React.FC<AddSupplierModalProps> = ({
     setFormData({
       cost: '',
       lead_time_days: '',
-      shipping_cost: '',
+      shipping_method: 'DIRECT',
+      shipping_cost_direct: '',
+      shipping_stage1_cost: '',
+      shipping_stage2_cost: '',
+      shipping_stage3_cost: '',
+      shipping_stage4_cost: '',
+      shipping_notes: '',
       is_active: true
     });
     setSearchTerm('');
@@ -254,16 +278,107 @@ const AddSupplierModal: React.FC<AddSupplierModalProps> = ({
                 />
               </div>
 
+              {/* Shipping Method */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Costo de Envío
+                  Método de Envío
                 </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.shipping_cost}
-                  onChange={(e) => handleInputChange('shipping_cost', e.target.value)}
+                <select
+                  value={formData.shipping_method}
+                  onChange={(e) => handleInputChange('shipping_method', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value="DIRECT">Direct (Directo a local)</option>
+                  <option value="OCURRE">Ocurre (Vía Durango City)</option>
+                </select>
+              </div>
+
+              {/* Direct Shipping Cost */}
+              {formData.shipping_method === 'DIRECT' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Costo de Envío Directo (por unidad)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.shipping_cost_direct}
+                    onChange={(e) => handleInputChange('shipping_cost_direct', e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+              )}
+
+              {/* Ocurre Shipping Costs */}
+              {formData.shipping_method === 'OCURRE' && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Etapa 1 - Costo
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.shipping_stage1_cost}
+                      onChange={(e) => handleInputChange('shipping_stage1_cost', e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Etapa 2 - Costo
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.shipping_stage2_cost}
+                      onChange={(e) => handleInputChange('shipping_stage2_cost', e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Etapa 3 - Costo
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.shipping_stage3_cost}
+                      onChange={(e) => handleInputChange('shipping_stage3_cost', e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Etapa 4 - Costo
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.shipping_stage4_cost}
+                      onChange={(e) => handleInputChange('shipping_stage4_cost', e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Shipping Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notas de Envío
+                </label>
+                <textarea
+                  value={formData.shipping_notes}
+                  onChange={(e) => handleInputChange('shipping_notes', e.target.value)}
+                  placeholder="Notas sobre logística de envío..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none resize-vertical"
                 />
               </div>
 

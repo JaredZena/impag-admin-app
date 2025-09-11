@@ -57,7 +57,7 @@ interface BalanceItem {
   quantity: number;
   unit_price: number;
   shipping_cost: number;
-  shipping_type?: 'direct' | 'ocurre';
+  shipping_method?: string;  // From supplier product (DIRECT or OCURRE)
   total_cost: number;
   margin_percentage?: number;
   selling_price_unit?: number;
@@ -180,7 +180,7 @@ const ProductBalancePage: React.FC = () => {
       
       const [productsResponse, balancesResponse] = await Promise.all([
         apiRequest('/products?limit=1000'),
-        apiRequest('/balance')
+        apiRequest('/balance/')
       ]);
 
       if (productsResponse.success) {
@@ -220,7 +220,7 @@ const ProductBalancePage: React.FC = () => {
         items: []
       };
 
-      const response = await apiRequest('/balance', {
+      const response = await apiRequest('/balance/', {
         method: 'POST',
         body: JSON.stringify(balanceData)
       });
@@ -294,7 +294,7 @@ const ProductBalancePage: React.FC = () => {
         quantity: itemQuantity,
         unit_price: unitPrice,
         shipping_cost: shippingCost,
-        shipping_type: 'direct', // Default to direct
+        shipping_method: supplier?.shipping_method || 'DIRECT',
         total_cost: (unitPrice + shippingCost) * itemQuantity,
         margin_percentage: defaultMargin
       };
@@ -726,14 +726,8 @@ const ProductBalancePage: React.FC = () => {
   const calculateItemValues = (item: BalanceItem) => {
     const margin = individualMargins[item.product_id] !== undefined ? individualMargins[item.product_id] : defaultMargin;
     
-    // Calculate shipping cost based on type
-    let effectiveShippingCost = item.shipping_cost;
-    if (item.shipping_type === 'ocurre' && currentBalance) {
-      // For ocurre, add all shipping costs from all items
-      effectiveShippingCost = currentBalance.items.reduce((sum, otherItem) => {
-        return sum + (otherItem.shipping_cost * otherItem.quantity);
-      }, 0);
-    }
+    // Use shipping cost directly from supplier product
+    const effectiveShippingCost = item.shipping_cost;
     
     const sellingPriceUnit = calculateSuggestedPrice(item.unit_price, effectiveShippingCost, margin);
     const sellingPriceTotal = sellingPriceUnit * item.quantity;
@@ -1770,14 +1764,13 @@ const ProductBalancePage: React.FC = () => {
                           </td>
                             <td className="px-2 py-3 text-center">{item.unit || 'pcs'}</td>
                             <td className="px-2 py-3 text-center">
-                              <select
-                                value={item.shipping_type || 'direct'}
-                                onChange={(e) => updateBalanceItem(originalIndex, { shipping_type: e.target.value as 'direct' | 'ocurre' })}
-                                className="text-xs border border-gray-300 rounded px-1 py-1"
-                              >
-                                <option value="direct">Direct</option>
-                                <option value="ocurre">Ocurre</option>
-                              </select>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                item.shipping_method === 'DIRECT' 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-orange-100 text-orange-800'
+                              }`}>
+                                {item.shipping_method === 'DIRECT' ? 'Direct' : 'Ocurre'}
+                              </span>
                             </td>
                             
                             {hasMultipleQuantity ? (
@@ -2015,14 +2008,15 @@ const ProductBalancePage: React.FC = () => {
                           </div>
                           <div>
                             <label className="text-xs text-gray-500 uppercase tracking-wide">Tipo Envío</label>
-                            <select
-                              value={item.shipping_type || 'direct'}
-                              onChange={(e) => updateBalanceItem(originalIndex, { shipping_type: e.target.value as 'direct' | 'ocurre' })}
-                              className="text-sm border border-gray-300 rounded px-2 py-1 w-full"
-                            >
-                              <option value="direct">Direct</option>
-                              <option value="ocurre">Ocurre</option>
-                            </select>
+                            <div className="mt-1">
+                              <span className={`text-sm px-3 py-1 rounded-full ${
+                                item.shipping_method === 'DIRECT' 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-orange-100 text-orange-800'
+                              }`}>
+                                {item.shipping_method === 'DIRECT' ? 'Direct' : 'Ocurre'}
+                              </span>
+                            </div>
                           </div>
                         </div>
 

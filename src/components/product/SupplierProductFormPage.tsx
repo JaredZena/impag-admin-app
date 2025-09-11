@@ -26,6 +26,13 @@ interface SupplierProductFormData {
   cost: number | null;
   stock: number;
   lead_time_days: number | null;
+  shipping_method: string;
+  shipping_cost_direct: number | null;
+  shipping_stage1_cost: number | null;
+  shipping_stage2_cost: number | null;
+  shipping_stage3_cost: number | null;
+  shipping_stage4_cost: number | null;
+  shipping_notes: string;
   is_active: boolean;
   notes: string;
 }
@@ -42,6 +49,13 @@ const SupplierProductFormPage: React.FC = () => {
     cost: null,
     stock: 0,
     lead_time_days: null,
+    shipping_method: 'DIRECT',
+    shipping_cost_direct: null,
+    shipping_stage1_cost: null,
+    shipping_stage2_cost: null,
+    shipping_stage3_cost: null,
+    shipping_stage4_cost: null,
+    shipping_notes: '',
     is_active: true,
     notes: ''
   });
@@ -90,6 +104,13 @@ const SupplierProductFormPage: React.FC = () => {
             cost: relationshipData.cost,
             stock: relationshipData.stock || 0,
             lead_time_days: relationshipData.lead_time_days,
+            shipping_method: relationshipData.shipping_method || 'DIRECT',
+            shipping_cost_direct: relationshipData.shipping_cost_direct,
+            shipping_stage1_cost: relationshipData.shipping_stage1_cost,
+            shipping_stage2_cost: relationshipData.shipping_stage2_cost,
+            shipping_stage3_cost: relationshipData.shipping_stage3_cost,
+            shipping_stage4_cost: relationshipData.shipping_stage4_cost,
+            shipping_notes: relationshipData.shipping_notes || '',
             is_active: relationshipData.is_active,
             notes: relationshipData.notes || ''
           });
@@ -112,7 +133,12 @@ const SupplierProductFormPage: React.FC = () => {
       const submitData = {
         ...formData,
         cost: formData.cost === null || formData.cost === 0 ? null : formData.cost,
-        lead_time_days: formData.lead_time_days === null || formData.lead_time_days === 0 ? null : formData.lead_time_days
+        lead_time_days: formData.lead_time_days === null || formData.lead_time_days === 0 ? null : formData.lead_time_days,
+        shipping_cost_direct: formData.shipping_cost_direct === null || formData.shipping_cost_direct === 0 ? null : formData.shipping_cost_direct,
+        shipping_stage1_cost: formData.shipping_stage1_cost === null || formData.shipping_stage1_cost === 0 ? null : formData.shipping_stage1_cost,
+        shipping_stage2_cost: formData.shipping_stage2_cost === null || formData.shipping_stage2_cost === 0 ? null : formData.shipping_stage2_cost,
+        shipping_stage3_cost: formData.shipping_stage3_cost === null || formData.shipping_stage3_cost === 0 ? null : formData.shipping_stage3_cost,
+        shipping_stage4_cost: formData.shipping_stage4_cost === null || formData.shipping_stage4_cost === 0 ? null : formData.shipping_stage4_cost
       };
 
       if (isEditing) {
@@ -129,7 +155,7 @@ const SupplierProductFormPage: React.FC = () => {
         });
       }
 
-      navigate('/product-admin', {
+      navigate('/supplier-products', {
         state: { 
           message: isEditing 
             ? 'Relación actualizada exitosamente' 
@@ -303,6 +329,120 @@ const SupplierProductFormPage: React.FC = () => {
                   onChange={(e) => handleInputChange('lead_time_days', e.target.value ? parseInt(e.target.value) : null)}
                   placeholder="0"
                   className="w-full"
+                />
+              </div>
+            </div>
+
+            {/* Shipping Method Configuration */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">Configuración de Envío</h3>
+              
+              {/* Shipping Method */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Método de Envío
+                </label>
+                <select
+                  value={formData.shipping_method}
+                  onChange={(e) => handleInputChange('shipping_method', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value="DIRECT">Direct (Directo a local)</option>
+                  <option value="OCURRE">Ocurre (Vía Durango City)</option>
+                </select>
+              </div>
+
+              {/* Direct Shipping Cost */}
+              {formData.shipping_method === 'DIRECT' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Costo de Envío Directo (por unidad)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.shipping_cost_direct || ''}
+                    onChange={(e) => handleInputChange('shipping_cost_direct', e.target.value ? parseFloat(e.target.value) : null)}
+                    placeholder="0.00"
+                    className="w-full"
+                  />
+                </div>
+              )}
+
+              {/* Ocurre Shipping Costs */}
+              {formData.shipping_method === 'OCURRE' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Etapa 1 - Costo de Envío
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.shipping_stage1_cost || ''}
+                      onChange={(e) => handleInputChange('shipping_stage1_cost', e.target.value ? parseFloat(e.target.value) : null)}
+                      placeholder="0.00"
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Etapa 2 - Costo de Envío
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.shipping_stage2_cost || ''}
+                      onChange={(e) => handleInputChange('shipping_stage2_cost', e.target.value ? parseFloat(e.target.value) : null)}
+                      placeholder="0.00"
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Etapa 3 - Costo de Envío
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.shipping_stage3_cost || ''}
+                      onChange={(e) => handleInputChange('shipping_stage3_cost', e.target.value ? parseFloat(e.target.value) : null)}
+                      placeholder="0.00"
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Etapa 4 - Costo de Envío
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.shipping_stage4_cost || ''}
+                      onChange={(e) => handleInputChange('shipping_stage4_cost', e.target.value ? parseFloat(e.target.value) : null)}
+                      placeholder="0.00"
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Shipping Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notas de Envío
+                </label>
+                <textarea
+                  value={formData.shipping_notes}
+                  onChange={(e) => handleInputChange('shipping_notes', e.target.value)}
+                  placeholder="Notas sobre logística de envío..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none resize-vertical"
                 />
               </div>
             </div>
