@@ -34,6 +34,9 @@ interface SupplierProduct {
   shipping_stage3_cost?: number;
   shipping_stage4_cost?: number;
   shipping_notes?: string;
+  includes_iva?: boolean;
+  iva_amount?: number;
+  unit_price_with_iva?: number;
   is_active: boolean;
   notes?: string;
   created_at: string;
@@ -320,11 +323,17 @@ const SupplierProductManagementPage: React.FC = () => {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
                       <div>
                         <span className="text-gray-500 block">Precio/Costo:</span>
                         <div className="font-semibold text-gray-900">
                           {relationship.cost !== null ? `$${Number(relationship.cost).toLocaleString()}` : 'No definido'}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">IVA (16%):</span>
+                        <div className="font-semibold text-gray-900">
+                          {relationship.includes_iva ? 'Incluido' : 'No incluido'}
                         </div>
                       </div>
                       <div>

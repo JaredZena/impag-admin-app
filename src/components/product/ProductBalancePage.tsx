@@ -51,6 +51,7 @@ interface BalanceItem {
   id?: number;
   product_id: number;
   supplier_id: number;
+  supplier_product_id?: number;  // ID of the supplier-product relationship
   product_name?: string;
   supplier_name?: string;
   unit?: string;
@@ -58,6 +59,15 @@ interface BalanceItem {
   unit_price: number;
   shipping_cost: number;
   shipping_method?: string;  // From supplier product (DIRECT or OCURRE)
+  shipping_cost_direct?: number;
+  shipping_stage1_cost?: number;
+  shipping_stage2_cost?: number;
+  shipping_stage3_cost?: number;
+  shipping_stage4_cost?: number;
+  shipping_notes?: string;
+  includes_iva?: boolean;   // Whether the supplier price includes IVA (16%)
+  iva_amount?: number;      // Calculated IVA amount (16% of unit_price)
+  unit_price_with_iva?: number;  // Unit price including IVA
   total_cost: number;
   margin_percentage?: number;
   selling_price_unit?: number;
@@ -105,6 +115,64 @@ const ProductBalancePage: React.FC = () => {
   const [balanceType, setBalanceType] = useState('QUOTATION');
   const [quantity, setQuantity] = useState(1);
   const [comparisonQuantity, setComparisonQuantity] = useState(1);
+  
+  // Editing state for shipping info
+  const [editingItem, setEditingItem] = useState<number | null>(null);
+  const [editingShippingMethod, setEditingShippingMethod] = useState<string>('');
+  const [editingShippingCost, setEditingShippingCost] = useState<number>(0);
+  const [editingStageCosts, setEditingStageCosts] = useState<{
+    stage1: number;
+    stage2: number;
+    stage3: number;
+    stage4: number;
+  }>({ stage1: 0, stage2: 0, stage3: 0, stage4: 0 });
+  
+  // Debouncing for cost changes
+  const [debounceTimeouts, setDebounceTimeouts] = useState<{[key: string]: NodeJS.Timeout}>({});
+  
+  // Local input values to prevent conflicts with optimistic updates
+  const [localInputValues, setLocalInputValues] = useState<{[key: string]: number | string}>({});
+  
+  // IVA management
+  const [ivaIncluded, setIvaIncluded] = useState<{[key: number]: boolean}>({});
+
+  const handleIvaChange = (item: BalanceItem, includesIva: boolean) => {
+    // Update IVA inclusion for this item
+    setIvaIncluded(prev => ({
+      ...prev,
+      [item.id || 0]: includesIva
+    }));
+
+    // Update local state with IVA calculations
+    if (currentBalance) {
+      const updatedItems = currentBalance.items.map(balanceItem => {
+        if (balanceItem.id === item.id) {
+          const updatedItem = { ...balanceItem };
+          
+          // Calculate IVA amount and price with IVA (fixed 16% in Mexico)
+          updatedItem.includes_iva = includesIva;
+          if (includesIva) {
+            updatedItem.iva_amount = updatedItem.unit_price * 0.16; // 16% IVA
+            updatedItem.unit_price_with_iva = updatedItem.unit_price + updatedItem.iva_amount;
+          } else {
+            updatedItem.iva_amount = 0;
+            updatedItem.unit_price_with_iva = updatedItem.unit_price;
+          }
+          
+          // Recalculate total cost with IVA
+          updatedItem.total_cost = (updatedItem.unit_price_with_iva + updatedItem.shipping_cost) * updatedItem.quantity;
+          
+          return updatedItem;
+        }
+        return balanceItem;
+      });
+      
+      setCurrentBalance({
+        ...currentBalance,
+        items: updatedItems
+      });
+    }
+  };
   const [defaultMargin, setDefaultMargin] = useState(32);
   const [individualMargins, setIndividualMargins] = useState<{[key: number]: number}>({});
   const [sortBy, setSortBy] = useState<string>('importe_venta');
@@ -120,6 +188,272 @@ const ProductBalancePage: React.FC = () => {
   const [returnToBalance, setReturnToBalance] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const exportTableRef = useRef<HTMLDivElement>(null);
+
+  // Improved shipping editing functions with better UX
+  const handleShippingMethodChange = async (item: BalanceItem, newMethod: string) => {
+    if (!item.supplier_product_id) {
+      // Try to get supplier_product_id from the relationship endpoint
+      try {
+        const relationshipResponse = await apiRequest(`/products/supplier-product/by-relationship/${item.supplier_id}/${item.product_id}`);
+        if (relationshipResponse && relationshipResponse.id) {
+          // Update the item with the supplier_product_id
+          item.supplier_product_id = relationshipResponse.id;
+        } else {
+          setError('No se puede actualizar: falta información del producto del proveedor');
+          return;
+        }
+      } catch (error) {
+        setError('No se puede actualizar: falta información del producto del proveedor');
+        return;
+      }
+    }
+
+    // Optimistic update - update UI immediately
+    if (currentBalance) {
+      const updatedItems = currentBalance.items.map(balanceItem => {
+        if (balanceItem.id === item.id) {
+          return {
+            ...balanceItem,
+            shipping_method: newMethod,
+            shipping_cost_direct: newMethod === 'DIRECT' ? (item.shipping_cost_direct || 0) : 0,
+            shipping_stage1_cost: newMethod === 'OCURRE' ? (item.shipping_stage1_cost || 0) : 0,
+            shipping_stage2_cost: newMethod === 'OCURRE' ? (item.shipping_stage2_cost || 0) : 0,
+            shipping_stage3_cost: newMethod === 'OCURRE' ? (item.shipping_stage3_cost || 0) : 0,
+            shipping_stage4_cost: newMethod === 'OCURRE' ? (item.shipping_stage4_cost || 0) : 0,
+          };
+        }
+        return balanceItem;
+      });
+      
+      setCurrentBalance({
+        ...currentBalance,
+        items: updatedItems
+      });
+    }
+
+    try {
+      setSaving(true);
+      setEditingItem(item.id || null);
+      
+      // Prepare the update data
+      const updateData: any = {
+        shipping_method: newMethod,
+      };
+
+      if (newMethod === 'DIRECT') {
+        updateData.shipping_cost_direct = item.shipping_cost_direct || 0;
+        // Reset stage costs when switching to DIRECT
+        updateData.shipping_stage1_cost = 0;
+        updateData.shipping_stage2_cost = 0;
+        updateData.shipping_stage3_cost = 0;
+        updateData.shipping_stage4_cost = 0;
+      } else if (newMethod === 'OCURRE') {
+        updateData.shipping_cost_direct = 0;
+        updateData.shipping_stage1_cost = item.shipping_stage1_cost || 0;
+        updateData.shipping_stage2_cost = item.shipping_stage2_cost || 0;
+        updateData.shipping_stage3_cost = item.shipping_stage3_cost || 0;
+        updateData.shipping_stage4_cost = item.shipping_stage4_cost || 0;
+      }
+
+      // Update the supplier product
+      await apiRequest(`/products/supplier-product/${item.supplier_product_id}/shipping`, {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      });
+
+      setError(null);
+    } catch (error) {
+      console.error('Error updating shipping method:', error);
+      setError('Error al actualizar el método de envío');
+      
+      // Revert optimistic update on error
+      if (balanceId) {
+        await loadBalance(parseInt(balanceId, 10));
+      }
+    } finally {
+      setSaving(false);
+      setEditingItem(null);
+    }
+  };
+
+  const handleShippingCostChange = (item: BalanceItem, costType: string, newValue: number | string) => {
+    // Update local input value immediately for responsive UI
+    const inputKey = `${item.id}-${costType}`;
+    setLocalInputValues(prev => ({
+      ...prev,
+      [inputKey]: newValue
+    }));
+
+    // Update calculated values immediately for responsive UI
+    if (currentBalance) {
+      const updatedItems = currentBalance.items.map(balanceItem => {
+        if (balanceItem.id === item.id) {
+          const updatedItem = { ...balanceItem };
+          const numericValue = typeof newValue === 'number' ? newValue : parseFloat(newValue as string);
+          
+          if (costType === 'direct') {
+            updatedItem.shipping_cost_direct = numericValue;
+            updatedItem.shipping_stage1_cost = 0;
+            updatedItem.shipping_stage2_cost = 0;
+            updatedItem.shipping_stage3_cost = 0;
+            updatedItem.shipping_stage4_cost = 0;
+            // Update the calculated shipping_cost field
+            updatedItem.shipping_cost = numericValue;
+          } else if (costType.startsWith('stage')) {
+            const stageNumber = costType.replace('stage', '');
+            if (stageNumber === '1') updatedItem.shipping_stage1_cost = numericValue;
+            else if (stageNumber === '2') updatedItem.shipping_stage2_cost = numericValue;
+            else if (stageNumber === '3') updatedItem.shipping_stage3_cost = numericValue;
+            else if (stageNumber === '4') updatedItem.shipping_stage4_cost = numericValue;
+            updatedItem.shipping_cost_direct = 0;
+            // Update the calculated shipping_cost field (sum of all stages)
+            updatedItem.shipping_cost = (updatedItem.shipping_stage1_cost || 0) + 
+                                      (updatedItem.shipping_stage2_cost || 0) + 
+                                      (updatedItem.shipping_stage3_cost || 0) + 
+                                      (updatedItem.shipping_stage4_cost || 0);
+          }
+          
+          // Recalculate total_cost based on new shipping cost
+          updatedItem.total_cost = (updatedItem.unit_price + updatedItem.shipping_cost) * updatedItem.quantity;
+          
+          return updatedItem;
+        }
+        return balanceItem;
+      });
+      
+      setCurrentBalance({
+        ...currentBalance,
+        items: updatedItems
+      });
+    }
+
+    // Clear existing timeout for this item
+    const timeoutKey = `${item.id}-${costType}`;
+    if (debounceTimeouts[timeoutKey]) {
+      clearTimeout(debounceTimeouts[timeoutKey]);
+    }
+
+    // Set new timeout (only if value is a number and greater than 0)
+    const numericValue = typeof newValue === 'number' ? newValue : parseFloat(newValue as string);
+    if (!isNaN(numericValue) && numericValue > 0) {
+      const timeout = setTimeout(async () => {
+        await performShippingCostUpdate(item, costType, numericValue);
+      }, 1000); // 1 second debounce
+
+      setDebounceTimeouts(prev => ({
+        ...prev,
+        [timeoutKey]: timeout
+      }));
+    }
+  };
+
+  const performShippingCostUpdate = async (item: BalanceItem, costType: string, newValue: number) => {
+    if (!item.supplier_product_id) {
+      // Try to get supplier_product_id from the relationship endpoint
+      try {
+        const relationshipResponse = await apiRequest(`/products/supplier-product/by-relationship/${item.supplier_id}/${item.product_id}`);
+        if (relationshipResponse && relationshipResponse.id) {
+          // Update the item with the supplier_product_id
+          item.supplier_product_id = relationshipResponse.id;
+        } else {
+          setError('No se puede actualizar: falta información del producto del proveedor');
+          return;
+        }
+      } catch (error) {
+        setError('No se puede actualizar: falta información del producto del proveedor');
+        return;
+      }
+    }
+
+    try {
+      setSaving(true);
+      setEditingItem(item.id || null);
+      
+      // Prepare the update data
+      const updateData: any = {
+        shipping_method: item.shipping_method || 'DIRECT',
+      };
+
+      if (costType === 'direct') {
+        updateData.shipping_cost_direct = newValue;
+        updateData.shipping_stage1_cost = 0;
+        updateData.shipping_stage2_cost = 0;
+        updateData.shipping_stage3_cost = 0;
+        updateData.shipping_stage4_cost = 0;
+      } else if (costType.startsWith('stage')) {
+        updateData.shipping_cost_direct = 0;
+        updateData.shipping_stage1_cost = item.shipping_stage1_cost || 0;
+        updateData.shipping_stage2_cost = item.shipping_stage2_cost || 0;
+        updateData.shipping_stage3_cost = item.shipping_stage3_cost || 0;
+        updateData.shipping_stage4_cost = item.shipping_stage4_cost || 0;
+        
+        // Update the specific stage cost
+        const stageNumber = costType.replace('stage', '');
+        updateData[`shipping_stage${stageNumber}_cost`] = newValue;
+      }
+
+      // Update the supplier product
+      await apiRequest(`/products/supplier-product/${item.supplier_product_id}/shipping`, {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      });
+
+      // Update local state after successful API call
+      if (currentBalance) {
+        const updatedItems = currentBalance.items.map(balanceItem => {
+          if (balanceItem.id === item.id) {
+            const updatedItem = { ...balanceItem };
+            
+            if (costType === 'direct') {
+              updatedItem.shipping_cost_direct = newValue;
+              updatedItem.shipping_stage1_cost = 0;
+              updatedItem.shipping_stage2_cost = 0;
+              updatedItem.shipping_stage3_cost = 0;
+              updatedItem.shipping_stage4_cost = 0;
+              // Update the calculated shipping_cost field
+              updatedItem.shipping_cost = newValue;
+            } else if (costType.startsWith('stage')) {
+              const stageNumber = costType.replace('stage', '');
+              if (stageNumber === '1') updatedItem.shipping_stage1_cost = newValue;
+              else if (stageNumber === '2') updatedItem.shipping_stage2_cost = newValue;
+              else if (stageNumber === '3') updatedItem.shipping_stage3_cost = newValue;
+              else if (stageNumber === '4') updatedItem.shipping_stage4_cost = newValue;
+              updatedItem.shipping_cost_direct = 0;
+              // Update the calculated shipping_cost field (sum of all stages)
+              updatedItem.shipping_cost = (updatedItem.shipping_stage1_cost || 0) + 
+                                        (updatedItem.shipping_stage2_cost || 0) + 
+                                        (updatedItem.shipping_stage3_cost || 0) + 
+                                        (updatedItem.shipping_stage4_cost || 0);
+            }
+            
+            // Recalculate total_cost based on new shipping cost
+            updatedItem.total_cost = (updatedItem.unit_price + updatedItem.shipping_cost) * updatedItem.quantity;
+            
+            return updatedItem;
+          }
+          return balanceItem;
+        });
+        
+        setCurrentBalance({
+          ...currentBalance,
+          items: updatedItems
+        });
+      }
+
+      setError(null);
+    } catch (error) {
+      console.error('Error updating shipping cost:', error);
+      setError('Error al actualizar el costo de envío');
+      
+      // Revert optimistic update on error
+      if (balanceId) {
+        await loadBalance(parseInt(balanceId, 10));
+      }
+    } finally {
+      setSaving(false);
+      setEditingItem(null);
+    }
+  };
 
   useEffect(() => {
     fetchInitialData();
@@ -148,6 +482,15 @@ const ProductBalancePage: React.FC = () => {
       }
     }
   }, [balanceId]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimeouts).forEach(timeout => {
+        if (timeout) clearTimeout(timeout);
+      });
+    };
+  }, [debounceTimeouts]);
 
   // Set default sorting for comparison balance and initialize comparison quantity
   useEffect(() => {
@@ -244,6 +587,23 @@ const ProductBalancePage: React.FC = () => {
       setError(null);
       
       const response = await apiRequest(`/balance/${balanceId}`);
+      
+      // Set default shipping values for items without shipping information
+      if (response.items) {
+        response.items = response.items.map((item: BalanceItem) => ({
+          ...item,
+          shipping_method: item.shipping_method || 'DIRECT',
+          shipping_cost_direct: item.shipping_cost_direct || 0,
+          shipping_stage1_cost: item.shipping_stage1_cost || 0,
+          shipping_stage2_cost: item.shipping_stage2_cost || 0,
+          shipping_stage3_cost: item.shipping_stage3_cost || 0,
+          shipping_stage4_cost: item.shipping_stage4_cost || 0,
+          includes_iva: item.includes_iva || false,
+          iva_amount: item.iva_amount || 0,
+          unit_price_with_iva: item.unit_price_with_iva || item.unit_price,
+        }));
+      }
+      
       setCurrentBalance(response);
       
       // Update URL to include balance ID
@@ -413,8 +773,7 @@ const ProductBalancePage: React.FC = () => {
       const headers = [
         'Proveedor',
         'Producto',
-        'Cantidad',
-        'Unidad',
+        'Cantidad / Unidad',
         'Precio Unitario',
         'Importe Total',
         'Costo Total U',
@@ -432,11 +791,10 @@ const ProductBalancePage: React.FC = () => {
         return [
           item.supplier_name || `Supplier ${item.supplier_id}`,
           item.product_name || `Product ${item.product_id}`,
-          item.quantity,
-          item.unit || 'pcs',
-          item.unit_price,
-          item.unit_price * item.quantity,
-          item.unit_price + item.shipping_cost,
+          `${item.quantity} ${item.unit || 'pcs'}`,
+          item.unit_price_with_iva || item.unit_price,
+          (item.unit_price_with_iva || item.unit_price) * item.quantity,
+          (item.unit_price_with_iva || item.unit_price) + item.shipping_cost,
           item.total_cost,
           item.shipping_cost * item.quantity,
           values.margin,
@@ -480,7 +838,7 @@ const ProductBalancePage: React.FC = () => {
       setError(null);
 
       const headers = [
-        'Proveedor', 'Producto', 'Cantidad', 'Unidad', 'Precio Unitario',
+        'Proveedor', 'Producto', 'Cantidad / Unidad', 'Precio Unitario',
         'Importe Total', 'Costo Total U', 'Costo Total', 'Costo Envío Total',
         'Ganancia %', 'Importe Venta U', 'Importe Venta', 'Ganancia U', 'Ganancia T'
       ];
@@ -490,8 +848,10 @@ const ProductBalancePage: React.FC = () => {
         return [
           item.supplier_name || `Supplier ${item.supplier_id}`,
           item.product_name || `Product ${item.product_id}`,
-          item.quantity, item.unit || 'pcs', item.unit_price,
-          item.unit_price * item.quantity, item.unit_price + item.shipping_cost,
+          `${item.quantity} ${item.unit || 'pcs'}`,
+          item.unit_price_with_iva || item.unit_price,
+          (item.unit_price_with_iva || item.unit_price) * item.quantity, 
+          (item.unit_price_with_iva || item.unit_price) + item.shipping_cost,
           item.total_cost, item.shipping_cost * item.quantity, values.margin,
           values.sellingPriceUnit, values.sellingPriceTotal, values.profitUnit, values.profitTotal
         ];
@@ -633,12 +993,11 @@ const ProductBalancePage: React.FC = () => {
           children: [
             new TableCell({ children: [new Paragraph(item.supplier_name || `Supplier ${item.supplier_id}`)] }),
             new TableCell({ children: [new Paragraph(item.product_name || `Product ${item.product_id}`)] }),
-            new TableCell({ children: [new Paragraph(item.quantity.toString())] }),
-            new TableCell({ children: [new Paragraph(item.unit || 'pcs')] }),
-            new TableCell({ children: [new Paragraph(item.unit_price.toString())] }),
-            new TableCell({ children: [new Paragraph((item.unit_price * item.quantity).toString())] }),
+            new TableCell({ children: [new Paragraph(`${item.quantity} ${item.unit || 'pcs'}`)] }),
+            new TableCell({ children: [new Paragraph((item.unit_price_with_iva || item.unit_price).toString())] }),
+            new TableCell({ children: [new Paragraph(((item.unit_price_with_iva || item.unit_price) * item.quantity).toString())] }),
             new TableCell({ children: [new Paragraph((item.shipping_cost * item.quantity).toString())] }),
-            new TableCell({ children: [new Paragraph((item.unit_price + item.shipping_cost).toString())] }),
+            new TableCell({ children: [new Paragraph(((item.unit_price_with_iva || item.unit_price) + item.shipping_cost).toString())] }),
             new TableCell({ children: [new Paragraph(item.total_cost.toString())] }),
             new TableCell({ children: [new Paragraph(values.margin.toString())] }),
             new TableCell({ children: [new Paragraph(values.sellingPriceUnit.toString())] }),
@@ -664,8 +1023,7 @@ const ProductBalancePage: React.FC = () => {
                   children: [
                     new TableCell({ children: [new Paragraph('Proveedor')] }),
                     new TableCell({ children: [new Paragraph('Producto')] }),
-                    new TableCell({ children: [new Paragraph('Cantidad')] }),
-                    new TableCell({ children: [new Paragraph('Unidad')] }),
+                    new TableCell({ children: [new Paragraph('Cantidad / Unidad')] }),
                     new TableCell({ children: [new Paragraph('Precio Unitario')] }),
                     new TableCell({ children: [new Paragraph('Importe Total')] }),
                     new TableCell({ children: [new Paragraph('Costo Envío Total')] }),
@@ -729,9 +1087,12 @@ const ProductBalancePage: React.FC = () => {
     // Use shipping cost directly from supplier product
     const effectiveShippingCost = item.shipping_cost;
     
-    const sellingPriceUnit = calculateSuggestedPrice(item.unit_price, effectiveShippingCost, margin);
+    // Use unit price with IVA if available, otherwise use regular unit price
+    const effectiveUnitPrice = item.unit_price_with_iva || item.unit_price;
+    
+    const sellingPriceUnit = calculateSuggestedPrice(effectiveUnitPrice, effectiveShippingCost, margin);
     const sellingPriceTotal = sellingPriceUnit * item.quantity;
-    const profitUnit = sellingPriceUnit - (item.unit_price + effectiveShippingCost);
+    const profitUnit = sellingPriceUnit - (effectiveUnitPrice + effectiveShippingCost);
     const profitTotal = profitUnit * item.quantity;
     
     return {
@@ -740,7 +1101,8 @@ const ProductBalancePage: React.FC = () => {
       sellingPriceTotal,
       profitUnit,
       profitTotal,
-      effectiveShippingCost
+      effectiveShippingCost,
+      effectiveUnitPrice
     };
   };
 
@@ -1081,6 +1443,7 @@ const ProductBalancePage: React.FC = () => {
             </div>
           </div>
         )}
+
 
         {/* Create Balance Modal */}
         {showCreateBalance && (
@@ -1658,13 +2021,12 @@ const ProductBalancePage: React.FC = () => {
                         </th>
                         <th className="px-2 py-3 text-left w-[10%]">Proveedor</th>
                         <th className="px-2 py-3 text-left w-[12%]">Producto</th>
-                        <th className="px-2 py-3 text-right w-[6%]">
-                          Cantidad
+                        <th className="px-2 py-3 text-center w-[8%]">
+                          Cantidad / Unidad
                           {currentBalance.balance_type === 'COMPARISON' && (
                             <div className="text-xs text-orange-600 font-normal">(Controlada arriba)</div>
                           )}
                         </th>
-                        <th className="px-2 py-3 text-center w-[5%]">Unidad</th>
                         <th className="px-2 py-3 text-center w-[6%]">Tipo Envío</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
@@ -1707,6 +2069,7 @@ const ProductBalancePage: React.FC = () => {
                       {getPaginatedItems().map((item, sortedIndex) => {
                         const values = calculateItemValues(item);
                         const hasMultipleQuantity = item.quantity > 1;
+                        const showMultipleColumns = currentBalance.items.some(item => item.quantity > 1);
                         
                         // Find the original index in the unsorted array - simple approach
                         const originalIndex = currentBalance.items.findIndex(originalItem => 
@@ -1747,50 +2110,143 @@ const ProductBalancePage: React.FC = () => {
                                 {item.product_name || `Product ${item.product_id}`}
                               </button>
                             </td>
-                          <td className="px-2 py-3 text-right">
-                            {currentBalance.balance_type === 'COMPARISON' ? (
-                              <div className="w-20 text-right px-3 py-2 bg-gray-100 border border-gray-300 rounded text-gray-600 font-medium">
-                                {item.quantity}
-                              </div>
-                            ) : (
-                            <Input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                                onChange={(e) => updateBalanceItem(originalIndex, { quantity: parseInt(e.target.value) || 1 })}
-                              className="w-20 text-right"
-                            />
-                            )}
-                          </td>
-                            <td className="px-2 py-3 text-center">{item.unit || 'pcs'}</td>
                             <td className="px-2 py-3 text-center">
-                              <span className={`text-xs px-2 py-1 rounded ${
-                                item.shipping_method === 'DIRECT' 
-                                  ? 'bg-blue-100 text-blue-800' 
-                                  : 'bg-orange-100 text-orange-800'
-                              }`}>
-                                {item.shipping_method === 'DIRECT' ? 'Direct' : 'Ocurre'}
-                              </span>
+                              <div className="flex items-center justify-center space-x-2">
+                                {currentBalance.balance_type === 'COMPARISON' ? (
+                                  <div className="text-sm">
+                                    <div className="font-medium">{item.quantity}</div>
+                                    <div className="text-xs text-gray-500">{item.unit || 'pcs'}</div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      value={item.quantity}
+                                      onChange={(e) => updateBalanceItem(originalIndex, { quantity: parseInt(e.target.value) || 1 })}
+                                      className="w-16 text-center text-sm"
+                                    />
+                                    <span className="text-xs text-gray-500">{item.unit || 'pcs'}</span>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-2 py-3 text-center">
+                              <div className="space-y-2">
+                                {/* Shipping Method Selector */}
+                                <div className="flex items-center space-x-2">
+                                  <select
+                                    value={item.shipping_method || 'DIRECT'}
+                                    onChange={(e) => handleShippingMethodChange(item, e.target.value)}
+                                    className="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                    disabled={saving}
+                                  >
+                                    <option value="DIRECT">Direct</option>
+                                    <option value="OCURRE">Ocurre</option>
+                                  </select>
+                                  {saving && editingItem === item.id && (
+                                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                  )}
+                                </div>
+
+                                {/* Shipping Cost Input */}
+                                {item.shipping_method === 'DIRECT' ? (
+                                  <div className="relative">
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={localInputValues[`${item.id}-direct`] !== undefined ? localInputValues[`${item.id}-direct`] : (item.shipping_cost_direct || '')}
+                                      onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (value === '') {
+                                          handleShippingCostChange(item, 'direct', 0);
+                                        } else {
+                                          handleShippingCostChange(item, 'direct', parseFloat(value) || 0);
+                                        }
+                                      }}
+                                      className="w-full text-xs px-2 py-1 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                      placeholder="Costo directo"
+                                      disabled={saving}
+                                    />
+                                    <span className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">$</span>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <div className="text-xs text-gray-600 font-medium mb-1">Costos por etapa:</div>
+                                    {[1, 2, 3, 4].map((stage) => (
+                                      <div key={stage} className="relative">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={localInputValues[`${item.id}-stage${stage}`] !== undefined ? localInputValues[`${item.id}-stage${stage}`] : (item[`shipping_stage${stage}_cost` as keyof BalanceItem] as number || '')}
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          if (value === '') {
+                                            handleShippingCostChange(item, `stage${stage}`, 0);
+                                          } else {
+                                            handleShippingCostChange(item, `stage${stage}`, parseFloat(value) || 0);
+                                          }
+                                        }}
+                                        className="w-full text-xs px-2 py-1 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                        placeholder={`Etapa ${stage}`}
+                                        disabled={saving}
+                                      />
+                                        <span className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">$</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             
-                            {hasMultipleQuantity ? (
+                            {showMultipleColumns ? (
                               <>
-                          <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price)}</td>
-                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price * item.quantity)}</td>
+                          <td className="px-2 py-3 text-right">
+                            <div className="flex items-center justify-end space-x-2">
+                              <span>{formatCurrency(item.unit_price_with_iva || item.unit_price)}</span>
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  checked={ivaIncluded[item.id || 0] || item.includes_iva || false}
+                                  onChange={(e) => handleIvaChange(item, e.target.checked)}
+                                  className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-1"
+                                  disabled={saving}
+                                />
+                                <span className="ml-1 text-xs text-gray-500">IVA</span>
+                              </div>
+                            </div>
+                          </td>
+                                <td className="px-2 py-3 text-right">{formatCurrency((item.unit_price_with_iva || item.unit_price) * item.quantity)}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price)}</td>
+                              <td className="px-2 py-3 text-right">
+                                <div className="flex items-center justify-end space-x-2">
+                                  <span>{formatCurrency(item.unit_price_with_iva || item.unit_price)}</span>
+                                  <div className="flex items-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={ivaIncluded[item.id || 0] || item.includes_iva || false}
+                                      onChange={(e) => handleIvaChange(item, e.target.checked)}
+                                      className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-1"
+                                      disabled={saving}
+                                    />
+                                    <span className="ml-1 text-xs text-gray-500">IVA</span>
+                                  </div>
+                                </div>
+                              </td>
                             )}
                             
                             <td className="px-2 py-3 text-right">{formatCurrency(values.effectiveShippingCost * item.quantity)}</td>
                             
-                            {hasMultipleQuantity ? (
+                            {showMultipleColumns ? (
                               <>
-                                <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                                <td className="px-2 py-3 text-right">{formatCurrency((item.unit_price_with_iva || item.unit_price) + values.effectiveShippingCost)}</td>
                                 <td className="px-2 py-3 text-right">{formatCurrency(item.total_cost)}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-3 text-right">{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                              <td className="px-2 py-3 text-right">{formatCurrency((item.unit_price_with_iva || item.unit_price) + values.effectiveShippingCost)}</td>
                             )}
                             
                             <td className="px-2 py-3 text-center">
@@ -1804,7 +2260,7 @@ const ProductBalancePage: React.FC = () => {
                               />
                             </td>
                             
-                            {hasMultipleQuantity ? (
+                            {showMultipleColumns ? (
                               <>
                                 <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
                                 <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceTotal)}</td>
@@ -1813,7 +2269,7 @@ const ProductBalancePage: React.FC = () => {
                               <td className="px-2 py-3 text-right">{formatCurrency(values.sellingPriceUnit)}</td>
                             )}
                             
-                            {hasMultipleQuantity ? (
+                            {showMultipleColumns ? (
                               <>
                                 <td className="px-2 py-3 text-right">{formatCurrency(values.profitUnit)}</td>
                                 <td className="px-2 py-3 text-right">{formatCurrency(values.profitTotal)}</td>
@@ -1847,28 +2303,33 @@ const ProductBalancePage: React.FC = () => {
                             {currentBalance.items.reduce((sum, item) => sum + item.quantity, 0)}
                           </td>
                           <td className="px-2 py-3"></td>
-                          <td className="px-2 py-3"></td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
                               <td className="px-2 py-3 text-right">
-                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.unit_price, 0))}
+                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price_with_iva || item.unit_price), 0))}
                               </td>
                               <td className="px-2 py-3 text-right">
-                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0))}
+                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + ((item.unit_price_with_iva || item.unit_price) * item.quantity), 0))}
                               </td>
                             </>
                           ) : (
                             <td className="px-2 py-3 text-right">
-                              {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0))}
+                              {formatCurrency(currentBalance.items.reduce((sum, item) => sum + ((item.unit_price_with_iva || item.unit_price) * item.quantity), 0))}
                             </td>
                           )}
                           <td className="px-2 py-3 text-right">
-                            {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.shipping_cost * item.quantity), 0))}
+                            {formatCurrency(currentBalance.items.reduce((sum, item) => {
+                              const values = calculateItemValues(item);
+                              return sum + (values.effectiveShippingCost * item.quantity);
+                            }, 0))}
                           </td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
                               <td className="px-2 py-3 text-right">
-                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price + item.shipping_cost), 0))}
+                                {formatCurrency(currentBalance.items.reduce((sum, item) => {
+                                  const values = calculateItemValues(item);
+                                  return sum + ((item.unit_price_with_iva || item.unit_price) + values.effectiveShippingCost);
+                                }, 0))}
                               </td>
                               <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.total_cost, 0))}
@@ -1876,7 +2337,10 @@ const ProductBalancePage: React.FC = () => {
                             </>
                           ) : (
                             <td className="px-2 py-3 text-right">
-                              {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.total_cost, 0))}
+                              {formatCurrency(currentBalance.items.reduce((sum, item) => {
+                                const values = calculateItemValues(item);
+                                return sum + ((item.unit_price_with_iva || item.unit_price) + values.effectiveShippingCost);
+                              }, 0))}
                             </td>
                           )}
                           <td className="px-2 py-3"></td>
@@ -1899,7 +2363,7 @@ const ProductBalancePage: React.FC = () => {
                             <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                 const values = calculateItemValues(item);
-                                return sum + values.sellingPriceTotal;
+                                return sum + values.sellingPriceUnit;
                               }, 0))}
                             </td>
                           )}
@@ -1922,7 +2386,7 @@ const ProductBalancePage: React.FC = () => {
                             <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                 const values = calculateItemValues(item);
-                                return sum + values.profitTotal;
+                                return sum + values.profitUnit;
                               }, 0))}
                             </td>
                           )}
@@ -2008,14 +2472,89 @@ const ProductBalancePage: React.FC = () => {
                           </div>
                           <div>
                             <label className="text-xs text-gray-500 uppercase tracking-wide">Tipo Envío</label>
-                            <div className="mt-1">
-                              <span className={`text-sm px-3 py-1 rounded-full ${
-                                item.shipping_method === 'DIRECT' 
-                                  ? 'bg-blue-100 text-blue-800' 
-                                  : 'bg-orange-100 text-orange-800'
-                              }`}>
-                                {item.shipping_method === 'DIRECT' ? 'Direct' : 'Ocurre'}
-                              </span>
+                            <div className="mt-1 space-y-2">
+                              {/* Shipping Method Selector */}
+                              <div className="flex items-center space-x-2">
+                                <select
+                                  value={item.shipping_method || 'DIRECT'}
+                                  onChange={(e) => handleShippingMethodChange(item, e.target.value)}
+                                  className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                  disabled={saving}
+                                >
+                                  <option value="DIRECT">Direct</option>
+                                  <option value="OCURRE">Ocurre</option>
+                                </select>
+                                {saving && editingItem === item.id && (
+                                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                )}
+                              </div>
+
+                              {/* Shipping Cost Input */}
+                              {item.shipping_method === 'DIRECT' ? (
+                                <div className="relative">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={localInputValues[`${item.id}-direct`] !== undefined ? localInputValues[`${item.id}-direct`] : (item.shipping_cost_direct || '')}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      if (value === '') {
+                                        handleShippingCostChange(item, 'direct', 0);
+                                      } else {
+                                        handleShippingCostChange(item, 'direct', parseFloat(value) || 0);
+                                      }
+                                    }}
+                                    className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                    placeholder="Costo directo"
+                                    disabled={saving}
+                                  />
+                                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">$</span>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <div className="text-xs text-gray-600 font-medium">Costos por etapa:</div>
+                                  {[1, 2, 3, 4].map((stage) => (
+                                    <div key={stage} className="relative">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={localInputValues[`${item.id}-stage${stage}`] !== undefined ? localInputValues[`${item.id}-stage${stage}`] : (item[`shipping_stage${stage}_cost` as keyof BalanceItem] as number || '')}
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          if (value === '') {
+                                            handleShippingCostChange(item, `stage${stage}`, 0);
+                                          } else {
+                                            handleShippingCostChange(item, `stage${stage}`, parseFloat(value) || 0);
+                                          }
+                                        }}
+                                        className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                        placeholder={`Etapa ${stage}`}
+                                        disabled={saving}
+                                      />
+                                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">$</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* IVA Information */}
+                        <div className="mb-4">
+                          <label className="text-xs text-gray-500 uppercase tracking-wide">IVA (16%)</label>
+                          <div className="mt-1">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={ivaIncluded[item.id || 0] || item.includes_iva || false}
+                                onChange={(e) => handleIvaChange(item, e.target.checked)}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                disabled={saving}
+                              />
+                              <span className="text-sm text-gray-700">Incluye IVA (16%)</span>
                             </div>
                           </div>
                         </div>
@@ -2024,12 +2563,12 @@ const ProductBalancePage: React.FC = () => {
                         <div className="grid grid-cols-1 gap-3 mb-4">
                           <div className="flex justify-between items-center py-2 border-b border-gray-100">
                             <span className="text-sm text-gray-600">Precio Unitario:</span>
-                            <span className="font-medium">{formatCurrency(item.unit_price)}</span>
+                            <span className="font-medium">{formatCurrency(item.unit_price_with_iva || item.unit_price)}</span>
                           </div>
                           {hasMultipleQuantity && (
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                               <span className="text-sm text-gray-600">Importe Total:</span>
-                              <span className="font-medium">{formatCurrency(item.unit_price * item.quantity)}</span>
+                              <span className="font-medium">{formatCurrency((item.unit_price_with_iva || item.unit_price) * item.quantity)}</span>
                             </div>
                           )}
                           <div className="flex justify-between items-center py-2 border-b border-gray-100">
@@ -2165,8 +2704,7 @@ const ProductBalancePage: React.FC = () => {
                       <tr className="bg-gray-50">
                         <th className="px-2 py-3 text-left" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Proveedor</th>
                         <th className="px-2 py-3 text-left" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Producto</th>
-                        <th className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Cantidad</th>
-                        <th className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Unidad</th>
+                        <th className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Cantidad / Unidad</th>
                         <th className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Tipo Envío</th>
                         {currentBalance.items.some(item => item.quantity > 1) ? (
                           <>
@@ -2208,38 +2746,49 @@ const ProductBalancePage: React.FC = () => {
                       {sortItems(currentBalance.items).map((item, index) => {
                         const values = calculateItemValues(item);
                         const hasMultipleQuantity = item.quantity > 1;
+                        const showMultipleColumns = currentBalance.items.some(item => item.quantity > 1);
                         
                         return (
                           <tr key={index} className="border-b">
                             <td className="px-2 py-3" style={{ border: '1px solid #e5e7eb' }}>{item.supplier_name || `Supplier ${item.supplier_id}`}</td>
                             <td className="px-2 py-3" style={{ border: '1px solid #e5e7eb' }}>{item.product_name || `Product ${item.product_id}`}</td>
-                            <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{item.quantity}</td>
-                            <td className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb' }}>{item.unit || 'pcs'}</td>
+                            <td className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb' }}>
+                              <div style={{ fontSize: '12px' }}>
+                                <div style={{ fontWeight: 'bold' }}>{item.quantity}</div>
+                                <div style={{ color: '#6b7280' }}>{item.unit || 'pcs'}</div>
+                              </div>
+                            </td>
                             <td className="px-2 py-3 text-center" style={{ border: '1px solid #e5e7eb' }}>{item.shipping_method || 'DIRECT'}</td>
                             
-                            {hasMultipleQuantity ? (
+                            {showMultipleColumns ? (
                               <>
-                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price)}</td>
-                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price * item.quantity)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>
+                                  {formatCurrency(item.unit_price_with_iva || item.unit_price)}
+                                  {item.includes_iva && <span className="ml-1 text-xs text-gray-500">(IVA)</span>}
+                                </td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency((item.unit_price_with_iva || item.unit_price) * item.quantity)}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price)}</td>
+                              <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>
+                                {formatCurrency(item.unit_price_with_iva || item.unit_price)}
+                                {item.includes_iva && <span className="ml-1 text-xs text-gray-500">(IVA)</span>}
+                              </td>
                             )}
                             
                             <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.effectiveShippingCost * item.quantity)}</td>
                             
-                            {hasMultipleQuantity ? (
+                            {showMultipleColumns ? (
                               <>
-                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                                <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency((item.unit_price_with_iva || item.unit_price) + values.effectiveShippingCost)}</td>
                                 <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.total_cost)}</td>
                               </>
                             ) : (
-                              <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(item.unit_price + values.effectiveShippingCost)}</td>
+                              <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency((item.unit_price_with_iva || item.unit_price) + values.effectiveShippingCost)}</td>
                             )}
                             
                             <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{values.margin}%</td>
                             
-                            {hasMultipleQuantity ? (
+                            {showMultipleColumns ? (
                               <>
                                 <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.sellingPriceUnit)}</td>
                                 <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.sellingPriceTotal)}</td>
@@ -2248,7 +2797,7 @@ const ProductBalancePage: React.FC = () => {
                               <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.sellingPriceUnit)}</td>
                             )}
                             
-                            {hasMultipleQuantity ? (
+                            {showMultipleColumns ? (
                               <>
                                 <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.profitUnit)}</td>
                                 <td className="px-2 py-3 text-right" style={{ border: '1px solid #e5e7eb' }}>{formatCurrency(values.profitTotal)}</td>
@@ -2271,24 +2820,30 @@ const ProductBalancePage: React.FC = () => {
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
                               <td className="px-2 py-3 text-right">
-                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.unit_price, 0))}
+                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price_with_iva || item.unit_price), 0))}
                               </td>
                               <td className="px-2 py-3 text-right">
-                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0))}
+                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + ((item.unit_price_with_iva || item.unit_price) * item.quantity), 0))}
                               </td>
                             </>
                           ) : (
                             <td className="px-2 py-3 text-right">
-                              {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0))}
+                              {formatCurrency(currentBalance.items.reduce((sum, item) => sum + ((item.unit_price_with_iva || item.unit_price) * item.quantity), 0))}
                             </td>
                           )}
                           <td className="px-2 py-3 text-right">
-                            {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.shipping_cost * item.quantity), 0))}
+                            {formatCurrency(currentBalance.items.reduce((sum, item) => {
+                              const values = calculateItemValues(item);
+                              return sum + (values.effectiveShippingCost * item.quantity);
+                            }, 0))}
                           </td>
                           {currentBalance.items.some(item => item.quantity > 1) ? (
                             <>
                               <td className="px-2 py-3 text-right">
-                                {formatCurrency(currentBalance.items.reduce((sum, item) => sum + (item.unit_price + item.shipping_cost), 0))}
+                                {formatCurrency(currentBalance.items.reduce((sum, item) => {
+                                  const values = calculateItemValues(item);
+                                  return sum + ((item.unit_price_with_iva || item.unit_price) + values.effectiveShippingCost);
+                                }, 0))}
                               </td>
                               <td className="px-2 py-3 text-right">
                                 {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.total_cost, 0))}
@@ -2296,7 +2851,10 @@ const ProductBalancePage: React.FC = () => {
                             </>
                           ) : (
                             <td className="px-2 py-3 text-right">
-                              {formatCurrency(currentBalance.items.reduce((sum, item) => sum + item.total_cost, 0))}
+                              {formatCurrency(currentBalance.items.reduce((sum, item) => {
+                                const values = calculateItemValues(item);
+                                return sum + ((item.unit_price_with_iva || item.unit_price) + values.effectiveShippingCost);
+                              }, 0))}
                             </td>
                           )}
                           <td className="px-2 py-3"></td>
@@ -2319,7 +2877,7 @@ const ProductBalancePage: React.FC = () => {
                             <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                 const values = calculateItemValues(item);
-                                return sum + values.sellingPriceTotal;
+                                return sum + values.sellingPriceUnit;
                               }, 0))}
                             </td>
                           )}
@@ -2342,7 +2900,7 @@ const ProductBalancePage: React.FC = () => {
                             <td className="px-2 py-3 text-right">
                               {formatCurrency(currentBalance.items.reduce((sum, item) => {
                                 const values = calculateItemValues(item);
-                                return sum + values.profitTotal;
+                                return sum + values.profitUnit;
                               }, 0))}
                             </td>
                           )}
