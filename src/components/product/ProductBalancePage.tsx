@@ -632,6 +632,30 @@ const ProductBalancePage: React.FC = () => {
     }
   };
 
+  // Utility function to deduplicate balance items
+  const deduplicateItems = (items: BalanceItem[]): BalanceItem[] => {
+    const itemMap = new Map<string, BalanceItem>();
+    
+    items.forEach(item => {
+      const key = `${item.product_id}-${item.supplier_id}`;
+      const existing = itemMap.get(key);
+      
+      if (existing) {
+        // Merge quantities and recalculate total cost
+        const mergedItem: BalanceItem = {
+          ...existing,
+          quantity: existing.quantity + item.quantity,
+          total_cost: (existing.unit_price + existing.shipping_cost) * (existing.quantity + item.quantity)
+        };
+        itemMap.set(key, mergedItem);
+      } else {
+        itemMap.set(key, { ...item });
+      }
+    });
+    
+    return Array.from(itemMap.values());
+  };
+
   const addProductToBalance = async (supplierId: number, unitPrice: number, shippingCost: number) => {
     if (!currentBalance || !selectedProduct) return;
 
@@ -639,27 +663,53 @@ const ProductBalancePage: React.FC = () => {
       setSaving(true);
       setError(null);
 
-      // Find supplier name from the comparison data
-      const supplier = productComparison?.suppliers.find(s => s.supplier_id === supplierId);
+      // Check if this product-supplier combination already exists
+      const existingItemIndex = currentBalance.items?.findIndex(item => 
+        item.product_id === selectedProduct.id && item.supplier_id === supplierId
+      ) ?? -1;
 
       // Use comparison quantity for comparison balances, regular quantity for quotations
       const itemQuantity = currentBalance.balance_type === 'COMPARISON' ? comparisonQuantity : quantity;
 
-      const newItem: BalanceItem = {
-        product_id: selectedProduct.id,
-        supplier_id: supplierId,
-        product_name: selectedProduct.name,
-        supplier_name: supplier?.supplier_name || `Supplier ${supplierId}`,
-        unit: selectedProduct.unit,
-        quantity: itemQuantity,
-        unit_price: unitPrice,
-        shipping_cost: shippingCost,
-        shipping_method: supplier?.shipping_method || 'DIRECT',
-        total_cost: (unitPrice + shippingCost) * itemQuantity,
-        margin_percentage: defaultMargin
-      };
+      let updatedItems: BalanceItem[];
 
-      const updatedItems = [...(currentBalance.items || []), newItem];
+      if (existingItemIndex >= 0) {
+        // Update existing item by increasing quantity
+        const existingItem = currentBalance.items[existingItemIndex];
+        const updatedItem: BalanceItem = {
+          ...existingItem,
+          quantity: existingItem.quantity + itemQuantity,
+          unit_price: unitPrice, // Update to new price
+          shipping_cost: shippingCost, // Update to new shipping cost
+          total_cost: (unitPrice + shippingCost) * (existingItem.quantity + itemQuantity)
+        };
+        
+        updatedItems = currentBalance.items.map((item, index) => 
+          index === existingItemIndex ? updatedItem : item
+        );
+      } else {
+        // Find supplier name from the comparison data
+        const supplier = productComparison?.suppliers.find(s => s.supplier_id === supplierId);
+
+        const newItem: BalanceItem = {
+          product_id: selectedProduct.id,
+          supplier_id: supplierId,
+          product_name: selectedProduct.name,
+          supplier_name: supplier?.supplier_name || `Supplier ${supplierId}`,
+          unit: selectedProduct.unit,
+          quantity: itemQuantity,
+          unit_price: unitPrice,
+          shipping_cost: shippingCost,
+          shipping_method: supplier?.shipping_method || 'DIRECT',
+          total_cost: (unitPrice + shippingCost) * itemQuantity,
+          margin_percentage: defaultMargin
+        };
+
+        updatedItems = [...(currentBalance.items || []), newItem];
+      }
+
+      // Apply deduplication as a safety measure
+      updatedItems = deduplicateItems(updatedItems);
 
       const updateData = {
         items: updatedItems
@@ -683,6 +733,56 @@ const ProductBalancePage: React.FC = () => {
     } catch (err: any) {
       console.error('Error adding product:', err);
       setError(err.message || 'Error adding product to balance');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deduplicateBalance = async () => {
+    if (!currentBalance) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      const deduplicatedItems = deduplicateItems(currentBalance.items);
+      
+      // Check if deduplication actually changed anything
+      if (deduplicatedItems.length === currentBalance.items.length) {
+        setError('No duplicates found to merge.');
+        return;
+      }
+
+      const updateData = {
+        items: deduplicatedItems
+      };
+
+      const response = await apiRequest(`/balance/${currentBalance.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+      });
+
+      setCurrentBalance(response);
+      
+      // Clear selections since items may have changed
+      setSelectedItems(new Set());
+      setShowBulkOperations(false);
+      
+      // Update the balance in the list
+      setBalances(prev => 
+        prev.map(b => b.id === currentBalance.id ? response : b)
+      );
+
+      // Show success message
+      const duplicatesRemoved = currentBalance.items.length - deduplicatedItems.length;
+      setError(`Successfully merged ${duplicatesRemoved} duplicate entries.`);
+      
+      // Clear the message after 3 seconds
+      setTimeout(() => setError(null), 3000);
+      
+    } catch (err: any) {
+      console.error('Error deduplicating balance:', err);
+      setError(err.message || 'Error deduplicating balance');
     } finally {
       setSaving(false);
     }
@@ -1221,6 +1321,18 @@ const ProductBalancePage: React.FC = () => {
 
   const totalPages = Math.ceil((currentBalance?.items?.length || 0) / itemsPerPage);
 
+  // Check for duplicates in current balance
+  const hasDuplicates = () => {
+    if (!currentBalance?.items) return false;
+    const seen = new Set<string>();
+    return currentBalance.items.some(item => {
+      const key = `${item.product_id}-${item.supplier_id}`;
+      if (seen.has(key)) return true;
+      seen.add(key);
+      return false;
+    });
+  };
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     // Clear selections when changing pages
@@ -1236,8 +1348,22 @@ const ProductBalancePage: React.FC = () => {
     setShowBulkOperations(false);
   };
 
-  // Simple bulk operations functions - using simple index-based keys
-  const getItemKey = (item: BalanceItem) => `${item.product_id}-${item.supplier_id}`;
+  // Simple bulk operations functions - using unique IDs or fallback to index
+  const getItemKey = (item: BalanceItem, index?: number) => {
+    // Use the item's unique ID if available, otherwise fallback to a combination that includes index
+    if (item.id) {
+      return `item-${item.id}`;
+    }
+    // If no ID, use index to ensure uniqueness
+    if (index !== undefined) {
+      return `${item.product_id}-${item.supplier_id}-${index}`;
+    }
+    // Last resort - find the index in the current balance
+    const currentIndex = currentBalance?.items?.findIndex(balanceItem => 
+      balanceItem === item
+    ) ?? 0;
+    return `${item.product_id}-${item.supplier_id}-${currentIndex}`;
+  };
 
   const handleItemSelection = (itemKey: string, isSelected: boolean) => {
     const newSelectedItems = new Set(selectedItems);
@@ -1252,7 +1378,7 @@ const ProductBalancePage: React.FC = () => {
 
   const handleSelectAll = (isSelected: boolean) => {
     if (isSelected) {
-      const allItemKeys = new Set(getPaginatedItems().map(item => getItemKey(item)));
+      const allItemKeys = new Set(getPaginatedItems().map((item, index) => getItemKey(item, index)));
       setSelectedItems(allItemKeys);
     } else {
       setSelectedItems(new Set());
@@ -1262,12 +1388,12 @@ const ProductBalancePage: React.FC = () => {
 
   const isAllSelected = () => {
     const paginatedItems = getPaginatedItems();
-    return paginatedItems.length > 0 && paginatedItems.every(item => selectedItems.has(getItemKey(item)));
+    return paginatedItems.length > 0 && paginatedItems.every((item, index) => selectedItems.has(getItemKey(item, index)));
   };
 
   const isIndeterminate = () => {
     const paginatedItems = getPaginatedItems();
-    const selectedCount = paginatedItems.filter(item => selectedItems.has(getItemKey(item))).length;
+    const selectedCount = paginatedItems.filter((item, index) => selectedItems.has(getItemKey(item, index))).length;
     return selectedCount > 0 && selectedCount < paginatedItems.length;
   };
 
@@ -1278,7 +1404,7 @@ const ProductBalancePage: React.FC = () => {
       setSaving(true);
       setError(null);
 
-      const updatedItems = currentBalance.items.filter(item => !selectedItems.has(getItemKey(item)));
+      const updatedItems = currentBalance.items.filter((item, index) => !selectedItems.has(getItemKey(item, index)));
 
       const updateData = {
         items: updatedItems
@@ -1312,8 +1438,8 @@ const ProductBalancePage: React.FC = () => {
       setSaving(true);
       setError(null);
 
-      const updatedItems = currentBalance.items.map(item => {
-        if (selectedItems.has(getItemKey(item))) {
+      const updatedItems = currentBalance.items.map((item, index) => {
+        if (selectedItems.has(getItemKey(item, index))) {
           return { ...item, margin_percentage: bulkMargin };
         }
         return item;
@@ -1334,8 +1460,8 @@ const ProductBalancePage: React.FC = () => {
       
       // Update individual margins state
       const newIndividualMargins = { ...individualMargins };
-      currentBalance.items.forEach(item => {
-        if (selectedItems.has(getItemKey(item))) {
+      currentBalance.items.forEach((item, index) => {
+        if (selectedItems.has(getItemKey(item, index))) {
           newIndividualMargins[item.product_id] = bulkMargin;
         }
       });
@@ -1620,19 +1746,51 @@ const ProductBalancePage: React.FC = () => {
                     Agregar Producto
                   </Button>
                   {currentBalance.items?.length > 0 && (
-                    <Button 
-                        onClick={() => setShowExportModal(true)}
-                      variant="outline"
-                      className="border-green-300 text-green-700 hover:bg-green-50"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                        Exportar
-                    </Button>
+                    <>
+                      <Button 
+                          onClick={() => setShowExportModal(true)}
+                        variant="outline"
+                        className="border-green-300 text-green-700 hover:bg-green-50"
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                          Exportar
+                      </Button>
+                      <Button 
+                        onClick={deduplicateBalance}
+                        variant="outline"
+                        className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                        disabled={saving}
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        {saving ? 'Consolidando...' : 'Consolidar Duplicados'}
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
+
+              {/* Duplicate Warning */}
+              {hasDuplicates() && (
+                <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-yellow-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <div>
+                      <h3 className="text-sm font-medium text-yellow-800">
+                        Productos Duplicados Detectados
+                      </h3>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        Este balance contiene productos duplicados del mismo proveedor. Usa el botón "Consolidar Duplicados" para combinar las cantidades automáticamente.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Balance Summary */}
               <div className={`mt-6 grid grid-cols-1 gap-4 ${
@@ -2071,11 +2229,15 @@ const ProductBalancePage: React.FC = () => {
                         const hasMultipleQuantity = item.quantity > 1;
                         const showMultipleColumns = currentBalance.items.some(item => item.quantity > 1);
                         
-                        // Find the original index in the unsorted array - simple approach
-                        const originalIndex = currentBalance.items.findIndex(originalItem => 
-                          originalItem.product_id === item.product_id && 
-                          originalItem.supplier_id === item.supplier_id
-                        );
+                        // Find the original index in the unsorted array using unique identification
+                        const originalIndex = currentBalance.items.findIndex(originalItem => {
+                          // If items have IDs, use them for exact matching
+                          if (originalItem.id && item.id) {
+                            return originalItem.id === item.id;
+                          }
+                          // Fallback to object reference equality (most reliable for sorted items)
+                          return originalItem === item;
+                        });
                         
                         // Color mapping for comparison balance
                         const isComparison = currentBalance.balance_type === 'COMPARISON';
@@ -2089,7 +2251,7 @@ const ProductBalancePage: React.FC = () => {
                           rowClass += " bg-yellow-50 border-yellow-200";
                         }
                         
-                        const itemKey = getItemKey(item);
+                        const itemKey = getItemKey(item, originalIndex);
                         
                         return (
                           <tr key={itemKey} className={rowClass}>
@@ -2403,11 +2565,15 @@ const ProductBalancePage: React.FC = () => {
                     const values = calculateItemValues(item);
                     const hasMultipleQuantity = item.quantity > 1;
                     
-                    // Find the original index in the unsorted array
-                    const originalIndex = currentBalance.items.findIndex(originalItem => 
-                      originalItem.product_id === item.product_id && 
-                      originalItem.supplier_id === item.supplier_id
-                    );
+                    // Find the original index in the unsorted array using unique identification
+                    const originalIndex = currentBalance.items.findIndex(originalItem => {
+                      // If items have IDs, use them for exact matching
+                      if (originalItem.id && item.id) {
+                        return originalItem.id === item.id;
+                      }
+                      // Fallback to object reference equality (most reliable for sorted items)
+                      return originalItem === item;
+                    });
                     
                     // Color mapping for comparison balance
                     const isComparison = currentBalance.balance_type === 'COMPARISON';
@@ -2421,7 +2587,7 @@ const ProductBalancePage: React.FC = () => {
                       cardClass += " border-yellow-300 bg-yellow-50";
                     }
                     
-                    const itemKey = getItemKey(item);
+                    const itemKey = getItemKey(item, originalIndex);
                     
                     return (
                       <div key={itemKey} className={cardClass}>
