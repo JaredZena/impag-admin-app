@@ -1794,7 +1794,8 @@ const ProductBalancePage: React.FC = () => {
 
               {/* Balance Summary */}
               <div className={`mt-6 grid grid-cols-1 gap-4 ${
-                currentBalance.balance_type === 'COMPARISON' ? 'md:grid-cols-4' : 'md:grid-cols-5'
+                currentBalance.balance_type === 'COMPARISON' ? 'md:grid-cols-4' : 
+                currentBalance.balance_type === 'QUOTATION' ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-5'
               }`}>
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <p className="text-sm text-blue-600">Total de Productos</p>
@@ -1805,6 +1806,30 @@ const ProductBalancePage: React.FC = () => {
                 <div className="bg-green-50 p-4 rounded-lg">
                   <p className="text-sm text-green-600">Monto Total</p>
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(currentBalance.total_amount)}</p>
+                </div>
+                )}
+                {/* Show Final Sale Amount for QUOTATION balances */}
+                {currentBalance.balance_type === 'QUOTATION' && (
+                <div className="bg-emerald-50 p-4 rounded-lg">
+                  <p className="text-sm text-emerald-600">Importe Final de Venta</p>
+                  <p className="text-2xl font-bold text-emerald-700">
+                    {formatCurrency(currentBalance.items?.reduce((sum, item) => {
+                      const values = calculateItemValues(item);
+                      return sum + values.sellingPriceTotal;
+                    }, 0) || 0)}
+                  </p>
+                </div>
+                )}
+                {/* Show Total Profit for QUOTATION balances */}
+                {currentBalance.balance_type === 'QUOTATION' && (
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <p className="text-sm text-yellow-600">Ganancia Total</p>
+                  <p className="text-2xl font-bold text-yellow-700">
+                    {formatCurrency(currentBalance.items?.reduce((sum, item) => {
+                      const values = calculateItemValues(item);
+                      return sum + values.profitTotal;
+                    }, 0) || 0)}
+                  </p>
                 </div>
                 )}
                 <div className="bg-purple-50 p-4 rounded-lg">

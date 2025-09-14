@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
@@ -61,4 +62,13 @@ export default defineConfig(({ mode }) => ({
   build: {
     sourcemap: true,
   },
+  test: {
+    globals: true,
+    environment: 'happy-dom',
+    setupFiles: ['./src/test/setup.ts'],
+    coverage: {
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules/', 'src/test/', 'src/assets/', 'src/lib/']
+    }
+  }
 }));
