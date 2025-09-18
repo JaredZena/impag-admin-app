@@ -523,7 +523,7 @@ const ProductBalancePage: React.FC = () => {
       
       const [productsResponse, balancesResponse] = await Promise.all([
         apiRequest('/products?limit=1000'),
-        apiRequest('/balance')
+        apiRequest('/balance/')
       ]);
 
       if (productsResponse.success) {
