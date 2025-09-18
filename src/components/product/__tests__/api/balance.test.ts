@@ -210,7 +210,7 @@ describe('Balance API Integration Tests', () => {
 
   describe('Error Handling', () => {
     test('should handle 404 errors for non-existent balance', async () => {
-      const error = new Error('Balance not found');
+      const error = new Error('Balance not found') as any;
       error.status = 404;
       mockApiRequest.mockRejectedValueOnce(error);
 
@@ -231,7 +231,7 @@ describe('Balance API Integration Tests', () => {
         ]
       };
 
-      const error = new Error('Product 999 not found');
+      const error = new Error('Product 999 not found') as any;
       error.status = 400;
       mockApiRequest.mockRejectedValueOnce(error);
 
@@ -241,7 +241,7 @@ describe('Balance API Integration Tests', () => {
     });
 
     test('should handle network timeout errors', async () => {
-      const timeoutError = new Error('Network timeout');
+      const timeoutError = new Error('Network timeout') as any;
       timeoutError.code = 'ETIMEDOUT';
       mockApiRequest.mockRejectedValueOnce(timeoutError);
 
@@ -249,7 +249,7 @@ describe('Balance API Integration Tests', () => {
     });
 
     test('should handle server errors (500)', async () => {
-      const serverError = new Error('Internal server error');
+      const serverError = new Error('Internal server error') as any;
       serverError.status = 500;
       mockApiRequest.mockRejectedValueOnce(serverError);
 
@@ -257,7 +257,7 @@ describe('Balance API Integration Tests', () => {
     });
 
     test('should handle shipping update errors', async () => {
-      const shippingError = new Error('Supplier product not found');
+      const shippingError = new Error('Supplier product not found') as any;
       shippingError.status = 404;
       mockApiRequest.mockRejectedValueOnce(shippingError);
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { vi } from 'vitest';
+import { vi, expect } from 'vitest';
 
 // Mock API module
 export const mockApiRequest = vi.fn();

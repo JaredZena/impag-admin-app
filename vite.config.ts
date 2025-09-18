@@ -66,6 +66,9 @@ export default defineConfig(({ mode }) => ({
     globals: true,
     environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],
+    typecheck: {
+      tsconfig: './tsconfig.json'
+    },
     coverage: {
       reporter: ['text', 'json', 'html'],
       exclude: ['node_modules/', 'src/test/', 'src/assets/', 'src/lib/']

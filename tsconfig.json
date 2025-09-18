@@ -11,6 +11,9 @@
     "resolveJsonModule": true,
     "strict": true,
     "jsx": "react-jsx",
-    "types": ["node"],
-  }
+    "noEmit": true,
+    "types": ["node", "vitest/globals"],
+    "skipLibCheck": true
+  },
+  "exclude": ["node_modules/@testing-library/jest-dom/types"]
 }
