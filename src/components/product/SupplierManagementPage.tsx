@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { apiRequest } from '@/utils/api';
@@ -24,13 +24,20 @@ interface Supplier {
 
 const SupplierManagementPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Initialize state from URL parameters
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ name: '', contact: '', email: '' });
-  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'last_updated'>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [filters, setFilters] = useState({ 
+    name: searchParams.get('name') || '', 
+    contact: searchParams.get('contact') || '', 
+    email: searchParams.get('email') || '' 
+  });
+  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'last_updated'>((searchParams.get('sortBy') as any) || 'name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>((searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc');
 
   // Sorting handlers
   const handleSortChange = (field: 'name' | 'created_at' | 'last_updated') => {
@@ -77,9 +84,22 @@ const SupplierManagementPage: React.FC = () => {
     }
   }, [sortBy, sortOrder]);
 
+  // Update URL parameters when filters or sorting change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    if (filters.name) params.set('name', filters.name);
+    if (filters.contact) params.set('contact', filters.contact);
+    if (filters.email) params.set('email', filters.email);
+    if (sortBy !== 'name') params.set('sortBy', sortBy);
+    if (sortOrder !== 'asc') params.set('sortOrder', sortOrder);
+    
+    setSearchParams(params, { replace: true });
+  }, [filters, sortBy, sortOrder, setSearchParams]);
+
   // Initial load
   useEffect(() => {
-    fetchSuppliers({ name: '', contact: '', email: '' }, true);
+    fetchSuppliers(filters, true);
   }, [fetchSuppliers]);
 
   // Search when filters or sorting change

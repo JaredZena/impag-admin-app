@@ -8,6 +8,7 @@ export interface Supplier {
   id: string | number;
   name: string;
   price: number;
+  currency?: string; // Currency of the price (MXN or USD)
   shipping_cost?: number | null;
   contact_name: string | null;
   phone: string | null;
@@ -77,6 +78,11 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupp
                       <span className="font-semibold text-gray-900 text-sm">
                         {supplier.price != null ? `$${Number(supplier.price).toLocaleString()}` : 'N/A'}
                       </span>
+                      {supplier.currency && (
+                        <span className="ml-1 text-xs text-gray-600 font-medium">
+                          {supplier.currency}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium self-start sm:self-auto ${
@@ -104,6 +110,11 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupp
                     <span className="text-gray-500 block sm:inline">Precio:</span>
                     <div className="font-semibold text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
                       {supplier.price != null ? `$${Number(supplier.price).toLocaleString()}` : 'N/A'}
+                      {supplier.currency && (
+                        <span className="ml-1 text-xs text-gray-600 font-medium">
+                          {supplier.currency}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div>

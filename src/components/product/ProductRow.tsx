@@ -20,6 +20,7 @@ export interface ProductRowProps {
   createdAt?: string;
   categoryId?: number;
   categoryOptions?: { value: string; label: string }[];
+  currency?: string;
   onUpdate?: (updatedData: any) => void;
   // Add more fields as needed
 }
@@ -38,6 +39,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
   createdAt, 
   categoryId,
   categoryOptions = [],
+  currency,
   onUpdate
 }) => {
   const navigate = useNavigate();
@@ -170,6 +172,12 @@ const ProductRow: React.FC<ProductRowProps> = ({
         <div className="text-sm sm:text-base font-semibold text-gray-900">
           {price != null ? `$${Number(price).toLocaleString()}` : 'N/A'}
         </div>
+        {/* Currency indicator - products can have multiple currencies from different suppliers */}
+        {currency && (
+          <div className="text-xs text-gray-500 mt-1">
+            {currency}
+          </div>
+        )}
       </td>
 
       {/* Stock - Always visible with inline editing */}
@@ -209,7 +217,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
               {stock?.toLocaleString() || '0'}
             </span>
             <svg className="w-3 h-3 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
           </div>
         )}
@@ -261,7 +269,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
           >
             {category}
             <svg className="w-3 h-3 ml-1 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
           </span>
         )}

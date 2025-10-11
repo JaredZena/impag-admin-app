@@ -67,11 +67,10 @@ const SupplierProductManagementPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch all data in parallel
-      const [relationshipsData, suppliersData, productsData, categoriesData] = await Promise.all([
+      // Only fetch essential data for the main table
+      const [relationshipsData, suppliersData, categoriesData] = await Promise.all([
         apiRequest('/products/supplier-products'),
         apiRequest('/suppliers'),
-        apiRequest('/products'),
         apiRequest('/categories')
       ]);
 
@@ -87,10 +86,8 @@ const SupplierProductManagementPage: React.FC = () => {
 
       setRelationships(enrichedRelationships);
       setSuppliers(suppliersData.data || []);
-      setProducts((productsData.data || []).map((p: any) => ({
-        ...p,
-        category_name: categoryMap[p.category_id] || 'Sin categoría'
-      })));
+      // Don't load all products upfront - they'll be loaded on-demand when needed
+      setProducts([]);
     } catch (err: any) {
       setError(err.message || 'Error al cargar los datos');
       console.error('Error fetching data:', err);

@@ -42,6 +42,7 @@ export interface SupplierProduct {
   product_id: number;
   supplier_sku: string;
   cost: number | null;
+  currency: string; // Added currency field
   stock: number;
   lead_time_days?: number;
   shipping_method?: string;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ProductSearchBar from './ProductSearchBar';
 import ProductTable from './ProductTable';
 import { ProductRowProps } from './ProductRow';
@@ -12,9 +12,12 @@ const PAGE_SIZE = 50;
 
 const ProductManagementPage: React.FC = () => {
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState('');
-  const [supplier, setSupplier] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Initialize state from URL parameters
+  const [name, setName] = useState(searchParams.get('name') || '');
+  const [category, setCategory] = useState(searchParams.get('category') || '');
+  const [supplier, setSupplier] = useState(searchParams.get('supplier') || '');
   const [products, setProducts] = useState<(ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<{ value: string; label: string }[]>([]);
@@ -23,15 +26,20 @@ const ProductManagementPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [skip, setSkip] = useState(0);
-  const [filters, setFilters] = useState({ name: '', category: '', supplier: '', stockFilter: '' });
+  const [filters, setFilters] = useState({ 
+    name: searchParams.get('name') || '', 
+    category: searchParams.get('category') || '', 
+    supplier: searchParams.get('supplier') || '', 
+    stockFilter: searchParams.get('stockFilter') || ''
+  });
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'last_updated' | 'category_name'>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'last_updated' | 'category_name' | 'price'>((searchParams.get('sortBy') as any) || 'name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>((searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Sorting handlers
-  const handleSortChange = (field: 'name' | 'created_at' | 'last_updated' | 'category_name') => {
+  const handleSortChange = (field: 'name' | 'created_at' | 'last_updated' | 'category_name' | 'price') => {
     if (sortBy === field) {
       // If clicking the same field, toggle order
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -120,6 +128,8 @@ const ProductManagementPage: React.FC = () => {
         createdAt: p.created_at || '',
         categoryId: p.category_id,
         categoryOptions: categoryOpts,
+        // Note: Products don't have a single currency - they can have different currencies from different suppliers
+        // currency: p.currency || 'MXN', // Removed since products don't have a single currency
         onUpdate: (updatedData: any) => {
           // Update only the specific product in the list without full rerender
           setProducts(prev => prev.map(product => 
@@ -129,6 +139,20 @@ const ProductManagementPage: React.FC = () => {
       };
     });
   }, []);
+
+  // Update URL parameters when filters or sorting change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    if (filters.name) params.set('name', filters.name);
+    if (filters.category) params.set('category', filters.category);
+    if (filters.supplier) params.set('supplier', filters.supplier);
+    if (filters.stockFilter) params.set('stockFilter', filters.stockFilter);
+    if (sortBy !== 'name') params.set('sortBy', sortBy);
+    if (sortOrder !== 'asc') params.set('sortOrder', sortOrder);
+    
+    setSearchParams(params, { replace: true });
+  }, [filters, sortBy, sortOrder, setSearchParams]);
 
   // Reset products and pagination when filters or sorting change
   useEffect(() => {
@@ -145,9 +169,6 @@ const ProductManagementPage: React.FC = () => {
         // Only wait for options to load on initial page load with no filters
         return;
       }
-
-      console.log('🔍 Fetching products with filters:', filters);
-      console.log('📋 Available supplier options:', supplierOptions);
       
       setLoading(true);
       setError(null);
@@ -178,13 +199,10 @@ const ProductManagementPage: React.FC = () => {
         params.append('sort_order', sortOrder);
         
         const url = `/products?${params.toString()}`;
-        console.log('🌐 API URL:', url);
         
         const data = await apiRequest(url);
-        console.log('📦 API Response:', data);
         
         const mapped = mapProducts(data.data || [], categoryOptions);
-        console.log('🗺️ Mapped products:', mapped);
         
         setProducts(mapped);
         setHasMore((data.data || []).length === PAGE_SIZE);
@@ -356,6 +374,19 @@ const ProductManagementPage: React.FC = () => {
               >
                 <span>Categoría</span>
                 {sortBy === 'category_name' && (
+                  <span className="ml-1 text-xs">
+                    {sortOrder === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant={sortBy === 'price' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleSortChange('price')}
+                className={`text-xs font-medium transition-all duration-200 ${sortBy === 'price' ? 'shadow-md' : ''}`}
+              >
+                <span>Precio</span>
+                {sortBy === 'price' && (
                   <span className="ml-1 text-xs">
                     {sortOrder === 'asc' ? '↑' : '↓'}
                   </span>

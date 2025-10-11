@@ -35,28 +35,36 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [productsLoading, setProductsLoading] = useState(false);
 
-  // Fetch products when component mounts
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  // Search products on-demand instead of loading all upfront
+  const searchProducts = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setProducts([]);
+      return;
+    }
 
-  const fetchProducts = async () => {
     setProductsLoading(true);
     try {
-      const response = await apiRequest('/products?limit=1000');
+      const response = await apiRequest(`/products?name=${encodeURIComponent(searchTerm)}&limit=50`);
       setProducts(response.data || []);
     } catch (err: any) {
-      console.error('Error fetching products:', err);
-      setError('Error al cargar productos');
+      console.error('Error searching products:', err);
+      setError('Error al buscar productos');
     } finally {
       setProductsLoading(false);
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    (product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (product.base_sku && product.base_sku.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Debounced search effect
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      searchProducts(searchTerm);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeout);
+  }, [searchTerm]);
+
+  // Products are already filtered by API search
+  const filteredProducts = products;
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -147,6 +155,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full"
+              disabled={productsLoading}
             />
             <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -158,11 +167,11 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
             {productsLoading ? (
               <div className="p-4 text-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto"></div>
-                <p className="text-sm text-gray-600 mt-2">Cargando productos...</p>
+                <p className="text-sm text-gray-600 mt-2">Buscando productos...</p>
               </div>
             ) : filteredProducts.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm">
-                {searchTerm ? 'No se encontraron productos' : 'No hay productos disponibles'}
+                {searchTerm ? 'No se encontraron productos' : 'Escribe para buscar productos'}
               </div>
             ) : (
               filteredProducts.slice(0, 10).map((product) => (

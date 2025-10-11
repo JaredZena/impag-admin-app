@@ -103,6 +103,7 @@ const ProductBalancePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [showCreateBalance, setShowCreateBalance] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -521,16 +522,8 @@ const ProductBalancePage: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const [productsResponse, balancesResponse] = await Promise.all([
-        apiRequest('/products?limit=1000'),
-        apiRequest('/balance/')
-      ]);
-
-      if (productsResponse.success) {
-        setProducts(productsResponse.data || []);
-      } else {
-        throw new Error('Failed to load products');
-      }
+      // Only fetch balances initially, products will be loaded on-demand when searching
+      const balancesResponse = await apiRequest('/balance/');
 
       if (Array.isArray(balancesResponse)) {
         setBalances(balancesResponse);
@@ -542,6 +535,24 @@ const ProductBalancePage: React.FC = () => {
       setError(err.message || 'Error loading data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Search products on-demand instead of loading all upfront
+  const searchProducts = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setProducts([]);
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/products?name=${encodeURIComponent(searchTerm)}&limit=50`);
+      if (response.success) {
+        setProducts(response.data || []);
+      }
+    } catch (err: any) {
+      console.error('Error searching products:', err);
+      setError('Error searching products');
     }
   };
 
@@ -1170,10 +1181,34 @@ const ProductBalancePage: React.FC = () => {
     }).format(amount);
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Debounced search effect
+  useEffect(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      searchProducts(searchTerm);
+    }, 300); // 300ms debounce
+
+    setSearchTimeout(timeout);
+
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [searchTerm]);
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
+  }, [searchTimeout]);
+
+  // Filter products based on search term (now products are already filtered by API)
+  const filteredProducts = products;
 
   const calculateSuggestedPrice = (unitCost: number, shippingCost: number, margin?: number) => {
     const totalCost = unitCost + shippingCost;
@@ -1900,6 +1935,7 @@ const ProductBalancePage: React.FC = () => {
                       placeholder="Buscar productos..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
+                      disabled={loading}
                     />
                     <div className="mt-4 max-h-64 overflow-y-auto space-y-2">
                       {filteredProducts.length === 0 ? (

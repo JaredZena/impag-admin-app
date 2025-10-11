@@ -115,6 +115,7 @@ const ProductDetailPage: React.FC = () => {
               id: supplier.id,
               name: supplier.name || 'Proveedor Desconocido',
               price: sp.cost || 0,
+              currency: sp.currency || 'MXN', // Include currency from supplier-product relationship
               shipping_cost: sp.shipping_cost || null,
               contact_name: supplier.contact_name || null,
               phone: supplier.phone || null,

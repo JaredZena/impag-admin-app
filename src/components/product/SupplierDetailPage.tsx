@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import AddProductForm from './AddProductForm';
@@ -27,14 +27,17 @@ interface SupplierProduct {
   category: string;
   unit: string;
   price: number;
+  currency?: string; // Currency of the price (MXN or USD)
   lead_time_days: number;
   is_active: boolean;
+  created_at?: string;
   last_updated: string;
 }
 
 const SupplierDetailPage: React.FC = () => {
   const { supplierId } = useParams<{ supplierId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [supplier, setSupplier] = useState<SupplierDetail | null>(null);
   const [products, setProducts] = useState<SupplierProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,22 @@ const SupplierDetailPage: React.FC = () => {
     nextId?: number;
   }>({ hasPrevious: false, hasNext: false });
   const [showAddProductForm, setShowAddProductForm] = useState(false);
+  
+  // Sorting state - initialize from URL parameters
+  const [sortBy, setSortBy] = useState<'name' | 'category' | 'created' | 'updated' | 'price'>(
+    (searchParams.get('sort_by') as 'name' | 'category' | 'created' | 'updated' | 'price') || 'name'
+  );
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(
+    (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc'
+  );
+
+  // Update URL parameters when sorting changes
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    params.set('sort_by', sortBy);
+    params.set('sort_order', sortOrder);
+    setSearchParams(params, { replace: true });
+  }, [sortBy, sortOrder]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -125,8 +144,10 @@ const SupplierDetailPage: React.FC = () => {
               category: categoriesMap[productData.category_id] || 'Sin categoría',
               unit: productData.unit || 'N/A',
               price: productData.cost || 0,
+              currency: productData.currency || 'MXN', // Include currency from supplier-product relationship
               lead_time_days: productData.lead_time_days || 0,
               is_active: productData.supplier_is_active !== false,
+              created_at: productData.supplier_relationship_created_at,
               last_updated: productData.supplier_relationship_last_updated || productData.supplier_relationship_created_at
             }));
             
@@ -203,8 +224,10 @@ const SupplierDetailPage: React.FC = () => {
             category: categoriesMap[productData.category_id] || 'Sin categoría',
             unit: productData.unit || 'N/A',
             price: productData.cost || 0,
+            currency: productData.currency || 'MXN',
             lead_time_days: productData.lead_time_days || 0,
             is_active: productData.supplier_is_active !== false,
+            created_at: productData.supplier_relationship_created_at,
             last_updated: productData.supplier_relationship_last_updated || productData.supplier_relationship_created_at
           }));
           
@@ -225,6 +248,46 @@ const SupplierDetailPage: React.FC = () => {
     setShowAddProductForm(false);
     refreshProducts();
   };
+
+  // Handle sorting
+  const handleSort = (field: 'name' | 'category' | 'created' | 'updated' | 'price') => {
+    if (sortBy === field) {
+      // Toggle sort order if clicking the same field
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field and default to ascending
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
+  // Sort products based on current sorting state
+  const sortedProducts = [...products].sort((a, b) => {
+    let compareValue = 0;
+
+    switch (sortBy) {
+      case 'name':
+        compareValue = a.name.localeCompare(b.name);
+        break;
+      case 'category':
+        compareValue = a.category.localeCompare(b.category);
+        break;
+      case 'price':
+        compareValue = (a.price || 0) - (b.price || 0);
+        break;
+      case 'created':
+        // Sort by created_at if available, otherwise use last_updated
+        const aCreated = a.created_at || a.last_updated;
+        const bCreated = b.created_at || b.last_updated;
+        compareValue = new Date(aCreated).getTime() - new Date(bCreated).getTime();
+        break;
+      case 'updated':
+        compareValue = new Date(a.last_updated).getTime() - new Date(b.last_updated).getTime();
+        break;
+    }
+
+    return sortOrder === 'asc' ? compareValue : -compareValue;
+  });
 
   if (loading) {
     return (
@@ -465,6 +528,70 @@ const SupplierDetailPage: React.FC = () => {
                   />
                 </div>
               )}
+
+              {/* Sorting Controls */}
+              {products.length > 0 && (
+                <div className="p-3 sm:p-4 border-b border-gray-100 bg-gray-50/30">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs sm:text-sm font-medium text-gray-600 flex items-center mr-2">
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                      </svg>
+                      Ordenar por:
+                    </span>
+                    <button
+                      onClick={() => handleSort('name')}
+                      className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
+                        sortBy === 'name'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      Nombre {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </button>
+                    <button
+                      onClick={() => handleSort('category')}
+                      className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
+                        sortBy === 'category'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      Categoría {sortBy === 'category' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </button>
+                    <button
+                      onClick={() => handleSort('price')}
+                      className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
+                        sortBy === 'price'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      Precio {sortBy === 'price' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </button>
+                    <button
+                      onClick={() => handleSort('created')}
+                      className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
+                        sortBy === 'created'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      Creado {sortBy === 'created' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </button>
+                    <button
+                      onClick={() => handleSort('updated')}
+                      className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
+                        sortBy === 'updated'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      Actualizado {sortBy === 'updated' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    </button>
+                  </div>
+                </div>
+              )}
               
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse">
@@ -475,7 +602,7 @@ const SupplierDetailPage: React.FC = () => {
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Categoría</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Unidad</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Precio</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Tiempo de Entrega</th>
+                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Creado</th>
                       <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Estado</th>
                     </tr>
                   </thead>
@@ -495,7 +622,7 @@ const SupplierDetailPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      products.map((product, index) => (
+                      sortedProducts.map((product, index) => (
                         <tr 
                           key={product.id} 
                           className={`border-b border-gray-100 hover:bg-gradient-to-r hover:from-green-50/30 hover:to-emerald-50/30 transition-all duration-200 cursor-pointer ${
@@ -527,12 +654,17 @@ const SupplierDetailPage: React.FC = () => {
                           <td className="px-2 sm:px-4 py-3 sm:py-4">
                             <span className={`text-sm sm:text-base ${product.price !== null ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
                               {product.price !== null ? `$${Number(product.price).toLocaleString()}` : 'N/A'}
+                              {product.currency && (
+                                <span className="ml-1 text-xs text-gray-600 font-medium">
+                                  {product.currency}
+                                </span>
+                              )}
                             </span>
                           </td>
 
                           <td className="hidden xl:table-cell px-2 sm:px-4 py-3 sm:py-4">
-                            <span className={`text-xs sm:text-sm ${product.lead_time_days !== null ? 'text-gray-900' : 'text-gray-500'}`}>
-                              {product.lead_time_days !== null ? `${product.lead_time_days} días` : 'N/A'}
+                            <span className="text-xs sm:text-sm text-gray-700">
+                              {product.created_at ? formatReadableDate(product.created_at) : 'N/A'}
                             </span>
                           </td>
                           <td className="px-2 sm:px-4 py-3 sm:py-4">
