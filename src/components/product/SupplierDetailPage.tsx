@@ -147,8 +147,8 @@ const SupplierDetailPage: React.FC = () => {
               currency: productData.currency || 'MXN', // Include currency from supplier-product relationship
               lead_time_days: productData.lead_time_days || 0,
               is_active: productData.supplier_is_active !== false,
-              created_at: productData.supplier_relationship_created_at,
-              last_updated: productData.supplier_relationship_last_updated || productData.supplier_relationship_created_at
+              created_at: productData.created_at, // Use the alias from backend
+              last_updated: productData.last_updated || productData.created_at // Use the alias from backend
             }));
             
             setProducts(transformedProducts);

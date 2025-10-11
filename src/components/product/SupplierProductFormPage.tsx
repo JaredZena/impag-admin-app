@@ -24,6 +24,7 @@ interface SupplierProductFormData {
   product_id: number;
   supplier_sku: string;
   cost: number | null;
+  currency: string;
   stock: number;
   lead_time_days: number | null;
   shipping_method: string;
@@ -47,6 +48,7 @@ const SupplierProductFormPage: React.FC = () => {
     product_id: 0,
     supplier_sku: '',
     cost: null,
+    currency: 'MXN',
     stock: 0,
     lead_time_days: null,
     shipping_method: 'DIRECT',
@@ -102,6 +104,7 @@ const SupplierProductFormPage: React.FC = () => {
             product_id: relationshipData.product_id,
             supplier_sku: relationshipData.supplier_sku || '',
             cost: relationshipData.cost,
+            currency: relationshipData.currency || 'MXN',
             stock: relationshipData.stock || 0,
             lead_time_days: relationshipData.lead_time_days,
             shipping_method: relationshipData.shipping_method || 'DIRECT',
@@ -270,8 +273,8 @@ const SupplierProductFormPage: React.FC = () => {
               </div>
             </div>
 
-            {/* SKU and Cost */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* SKU, Cost, and Currency */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   SKU del Proveedor
@@ -298,6 +301,20 @@ const SupplierProductFormPage: React.FC = () => {
                   placeholder="0.00"
                   className="w-full"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Moneda
+                </label>
+                <select
+                  value={formData.currency}
+                  onChange={(e) => handleInputChange('currency', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
+                >
+                  <option value="MXN">MXN (Pesos Mexicanos)</option>
+                  <option value="USD">USD (Dólares)</option>
+                </select>
               </div>
             </div>
 
