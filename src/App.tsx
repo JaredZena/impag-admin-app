@@ -11,6 +11,7 @@ import SupplierProductManagementPage from './components/product/SupplierProductM
 import SupplierProductFormPage from './components/product/SupplierProductFormPage';
 import ProductBalancePage from './components/product/ProductBalancePage';
 import QuotationUploadPage from './components/quotation/QuotationUploadPage';
+import QuotationChatPage from './components/quotation/QuotationChatPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
@@ -79,6 +80,7 @@ const AppContent: React.FC = () => {
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
+          <Route path="/quotation-chat" element={<QuotationChatPage />} />
           <Route path="*" element={<Navigate to="/supplier-products" replace />} />
         </Routes>
       </ProtectedRoute>
