@@ -202,13 +202,14 @@ const ProductFormPage: React.FC = () => {
 
 
 
+      let response;
       if (isEditing) {
         await apiRequest(`/products/${productId}`, {
           method: 'PUT',
           body: JSON.stringify(submitData),
         });
       } else {
-        await apiRequest('/products', {
+        response = await apiRequest('/products', {
           method: 'POST',
           body: JSON.stringify(submitData),
         });

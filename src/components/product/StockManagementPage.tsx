@@ -155,11 +155,12 @@ const StockManagementPage: React.FC = () => {
     product.sku.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const formatCurrency = (amount: number | null) => {
+  const formatCurrency = (amount: number | null, currency: string | null | undefined = 'MXN') => {
     if (amount === null) return '-';
+    const validCurrency = currency || 'MXN';
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
-      currency: 'MXN'
+      currency: validCurrency
     }).format(amount);
   };
 
