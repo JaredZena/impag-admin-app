@@ -2,6 +2,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatReadableDate } from '@/utils/dateUtils';
+import { formatCurrency } from '@/utils/currencyUtils';
 import { useNavigate } from 'react-router-dom';
 
 export interface Supplier {
@@ -76,13 +77,13 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupp
                     {/* Mobile: Show price next to name */}
                     <div className="sm:hidden">
                       <span className="font-semibold text-gray-900 text-sm">
-                        {supplier.price != null ? `$${Number(supplier.price).toLocaleString()}` : 'N/A'}
+                        {supplier.price != null ? formatCurrency(supplier.price, supplier.currency) : 'N/A'}
+                        {supplier.currency && (
+                          <span className="ml-1 text-xs text-gray-600 font-medium">
+                            {supplier.currency}
+                          </span>
+                        )}
                       </span>
-                      {supplier.currency && (
-                        <span className="ml-1 text-xs text-gray-600 font-medium">
-                          {supplier.currency}
-                        </span>
-                      )}
                     </div>
                   </div>
                   <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium self-start sm:self-auto ${
@@ -109,7 +110,7 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupp
                   <div>
                     <span className="text-gray-500 block sm:inline">Precio:</span>
                     <div className="font-semibold text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
-                      {supplier.price != null ? `$${Number(supplier.price).toLocaleString()}` : 'N/A'}
+                      {supplier.price != null ? formatCurrency(supplier.price, supplier.currency) : 'N/A'}
                       {supplier.currency && (
                         <span className="ml-1 text-xs text-gray-600 font-medium">
                           {supplier.currency}
@@ -120,7 +121,7 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupp
                   <div>
                     <span className="text-gray-500 block sm:inline">Costo de Envío:</span>
                     <div className="font-medium text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
-                      {supplier.shipping_cost != null ? `$${Number(supplier.shipping_cost).toLocaleString()}` : 'N/A'}
+                      {supplier.shipping_cost != null ? formatCurrency(supplier.shipping_cost, supplier.currency) : 'N/A'}
                     </div>
                   </div>
                   <div>

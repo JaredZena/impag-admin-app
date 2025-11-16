@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import AddProductForm from './AddProductForm';
 import { apiRequest } from '@/utils/api';
 import { formatReadableDate } from '@/utils/dateUtils';
+import { formatCurrency } from '@/utils/currencyUtils';
 
 interface SupplierDetail {
   id: number;
@@ -138,7 +139,7 @@ const SupplierDetailPage: React.FC = () => {
           
           if (supplierProductsData.success && supplierProductsData.data && supplierProductsData.data.length > 0) {
             const transformedProducts = supplierProductsData.data.map((productData: any) => ({
-              id: productData.product_id,
+              id: productData.id,  // Use supplier_product.id instead of product_id
               name: productData.product_name || 'N/A',
               sku: productData.sku || productData.base_sku || 'N/A',
               category: categoriesMap[productData.category_id] || 'Sin categoría',
@@ -218,7 +219,7 @@ const SupplierDetailPage: React.FC = () => {
         
         if (supplierProductsData.success && supplierProductsData.data && supplierProductsData.data.length > 0) {
           const transformedProducts = supplierProductsData.data.map((productData: any) => ({
-            id: productData.product_id,
+            id: productData.id,  // Use supplier_product.id instead of product_id
             name: productData.product_name || 'N/A',
             sku: productData.sku || productData.base_sku || 'N/A',
             category: categoriesMap[productData.category_id] || 'Sin categoría',
@@ -628,7 +629,7 @@ const SupplierDetailPage: React.FC = () => {
                           className={`border-b border-gray-100 hover:bg-gradient-to-r hover:from-green-50/30 hover:to-emerald-50/30 transition-all duration-200 cursor-pointer ${
                             index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
                           }`}
-                          onClick={() => navigate(`/product-admin/${product.id}`)}
+                          onClick={() => navigate(`/supplier-products/edit/${product.id}`)}
                         >
                           <td className="px-2 sm:px-4 py-3 sm:py-4">
                             <div className="font-medium text-gray-900 text-sm sm:text-base break-words">{product.name}</div>
@@ -653,7 +654,7 @@ const SupplierDetailPage: React.FC = () => {
                           </td>
                           <td className="px-2 sm:px-4 py-3 sm:py-4">
                             <span className={`text-sm sm:text-base ${product.price !== null ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
-                              {product.price !== null ? `$${Number(product.price).toLocaleString()}` : 'N/A'}
+                              {product.price !== null ? formatCurrency(product.price, product.currency) : 'N/A'}
                               {product.currency && (
                                 <span className="ml-1 text-xs text-gray-600 font-medium">
                                   {product.currency}

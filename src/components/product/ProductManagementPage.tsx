@@ -30,7 +30,8 @@ const ProductManagementPage: React.FC = () => {
     name: searchParams.get('name') || '', 
     category: searchParams.get('category') || '', 
     supplier: searchParams.get('supplier') || '', 
-    stockFilter: searchParams.get('stockFilter') || ''
+    stockFilter: searchParams.get('stockFilter') || '',
+    currencyFilter: searchParams.get('currencyFilter') || ''
   });
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -128,8 +129,8 @@ const ProductManagementPage: React.FC = () => {
         createdAt: p.created_at || '',
         categoryId: p.category_id,
         categoryOptions: categoryOpts,
-        // Note: Products don't have a single currency - they can have different currencies from different suppliers
-        // currency: p.currency || 'MXN', // Removed since products don't have a single currency
+        // Use the currency from the API response (for calculated prices) or default to MXN
+        currency: p.currency || 'MXN',
         onUpdate: (updatedData: any) => {
           // Update only the specific product in the list without full rerender
           setProducts(prev => prev.map(product => 
@@ -148,6 +149,7 @@ const ProductManagementPage: React.FC = () => {
     if (filters.category) params.set('category', filters.category);
     if (filters.supplier) params.set('supplier', filters.supplier);
     if (filters.stockFilter) params.set('stockFilter', filters.stockFilter);
+    if (filters.currencyFilter) params.set('currencyFilter', filters.currencyFilter);
     if (sortBy !== 'name') params.set('sortBy', sortBy);
     if (sortOrder !== 'asc') params.set('sortOrder', sortOrder);
     
@@ -165,7 +167,7 @@ const ProductManagementPage: React.FC = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       // Allow search to happen immediately if user is searching/filtering
-      if (!optionsLoaded && filters.name === '' && filters.category === '' && filters.supplier === '' && filters.stockFilter === '') {
+      if (!optionsLoaded && filters.name === '' && filters.category === '' && filters.supplier === '' && filters.stockFilter === '' && filters.currencyFilter === '') {
         // Only wait for options to load on initial page load with no filters
         return;
       }
@@ -177,6 +179,7 @@ const ProductManagementPage: React.FC = () => {
         if (filters.name) params.append('name', filters.name);
         if (filters.category) params.append('category_id', filters.category);
         if (filters.supplier) params.append('supplier_id', filters.supplier);
+        if (filters.currencyFilter) params.append('currency', filters.currencyFilter);
         
         // Handle stock filter
         if (filters.stockFilter) {
@@ -273,6 +276,7 @@ const ProductManagementPage: React.FC = () => {
     } catch (err: any) {
       console.error('❌ Error loading more products:', err);
       setError(err.message || 'Unknown error');
+      setHasMore(false);  // Stop infinite scroll on error
     } finally {
       setLoadingMore(false);
     }
@@ -294,6 +298,10 @@ const ProductManagementPage: React.FC = () => {
   const handleStockFilterChange = (v: string) => {
     console.log('📦 Stock filter changed to:', v);
     setFilters(f => ({ ...f, stockFilter: v }));
+  };
+  const handleCurrencyFilterChange = (v: string) => {
+    console.log('💰 Currency filter changed to:', v);
+    setFilters(f => ({ ...f, currencyFilter: v }));
   };
 
   return (
@@ -334,10 +342,12 @@ const ProductManagementPage: React.FC = () => {
             category={filters.category}
             supplier={filters.supplier}
             stockFilter={filters.stockFilter}
+            currencyFilter={filters.currencyFilter}
             onNameChange={handleNameChange}
             onCategoryChange={handleCategoryChange}
             onSupplierChange={handleSupplierChange}
             onStockFilterChange={handleStockFilterChange}
+            onCurrencyFilterChange={handleCurrencyFilterChange}
             categoryOptions={categoryOptions}
             supplierOptions={supplierOptions}
           />

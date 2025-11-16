@@ -21,7 +21,21 @@ interface Product {
 
 interface SupplierProductFormData {
   supplier_id: number;
-  product_id: number;
+  product_id: number;  // Keep for now (legacy field)
+  
+  // Product fields (NEW - SupplierProduct is now standalone)
+  name: string;
+  description: string;
+  base_sku: string;
+  sku: string;
+  category_id: number | null;
+  unit: string;
+  package_size: number | null;
+  iva: boolean;
+  specifications: any;
+  default_margin: number | null;
+  
+  // Supplier-specific fields
   supplier_sku: string;
   cost: number | null;
   currency: string;
@@ -45,7 +59,21 @@ const SupplierProductFormPage: React.FC = () => {
 
   const [formData, setFormData] = useState<SupplierProductFormData>({
     supplier_id: 0,
-    product_id: 0,
+    product_id: 0,  // Legacy field, will be removed in Phase 2
+    
+    // Product fields
+    name: '',
+    description: '',
+    base_sku: '',
+    sku: '',
+    category_id: null,
+    unit: 'PIEZA',
+    package_size: null,
+    iva: true,
+    specifications: {},
+    default_margin: null,
+    
+    // Supplier-specific fields
     supplier_sku: '',
     cost: null,
     currency: 'MXN',
@@ -63,7 +91,7 @@ const SupplierProductFormPage: React.FC = () => {
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,32 +104,36 @@ const SupplierProductFormPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch suppliers, products, and categories in parallel
-      const [suppliersData, productsData, categoriesData] = await Promise.all([
+      // Fetch suppliers and categories
+      const [suppliersData, categoriesData] = await Promise.all([
         apiRequest('/suppliers'),
-        apiRequest('/products'),
         apiRequest('/categories')
       ]);
 
-      // Create category lookup
-      const categoryMap = (categoriesData.data || []).reduce((acc: any, cat: any) => {
-        acc[cat.id] = cat.name;
-        return acc;
-      }, {});
-
       setSuppliers(suppliersData.data || []);
-      setProducts((productsData.data || []).map((p: any) => ({
-        ...p,
-        category_name: categoryMap[p.category_id] || 'Sin categoría'
-      })));
+      setCategories(categoriesData.data || []);
 
-      // If editing, fetch the existing relationship
+      // If editing, fetch the existing supplier product
       if (isEditing) {
         const relationshipData = await apiRequest(`/products/supplier-product/${id}`);
         if (relationshipData) {
           setFormData({
             supplier_id: relationshipData.supplier_id,
-            product_id: relationshipData.product_id,
+            product_id: relationshipData.product_id || 0,  // Legacy field
+            
+            // Product fields (NEW - from SupplierProduct directly)
+            name: relationshipData.name || '',
+            description: relationshipData.description || '',
+            base_sku: relationshipData.base_sku || '',
+            sku: relationshipData.sku || '',
+            category_id: relationshipData.category_id,
+            unit: relationshipData.unit || 'PIEZA',
+            package_size: relationshipData.package_size,
+            iva: relationshipData.iva !== undefined ? relationshipData.iva : true,
+            specifications: relationshipData.specifications || {},
+            default_margin: relationshipData.default_margin,
+            
+            // Supplier-specific fields
             supplier_sku: relationshipData.supplier_sku || '',
             cost: relationshipData.cost,
             currency: relationshipData.currency || 'MXN',
@@ -232,53 +264,153 @@ const SupplierProductFormPage: React.FC = () => {
         {/* Form */}
         <Card className="p-6 shadow-lg border-0 rounded-xl">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Supplier and Product Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Proveedor *
-                </label>
-                <select
-                  value={formData.supplier_id}
-                  onChange={(e) => handleInputChange('supplier_id', parseInt(e.target.value))}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
-                >
-                  <option value={0}>Seleccionar proveedor...</option>
-                  {suppliers.map(supplier => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </option>
-                  ))}
-                </select>
+            {/* Supplier Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Proveedor *
+              </label>
+              <select
+                value={formData.supplier_id}
+                onChange={async (e) => {
+                  const newSupplierId = parseInt(e.target.value);
+                  // Update local state
+                  handleInputChange('supplier_id', newSupplierId);
+                  
+                  // Auto-save to database if editing
+                  if (isEditing && id) {
+                    try {
+                      await apiRequest(`/products/supplier-product/${id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ supplier_id: newSupplierId })
+                      });
+                    } catch (err) {
+                      console.error('Error updating supplier:', err);
+                      setError('Error al actualizar proveedor');
+                    }
+                  }
+                }}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
+              >
+                <option value={0}>Seleccionar proveedor...</option>
+                {suppliers.map(supplier => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Product Information */}
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Información del Producto</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre del Producto *
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    required
+                    placeholder="Nombre del producto"
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    SKU *
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.sku}
+                    onChange={(e) => handleInputChange('sku', e.target.value)}
+                    required
+                    placeholder="SKU del producto"
+                    className="w-full"
+                  />
+                </div>
               </div>
 
-              <div>
+              <div className="mt-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Producto *
+                  Descripción
                 </label>
-                <select
-                  value={formData.product_id}
-                  onChange={(e) => handleInputChange('product_id', parseInt(e.target.value))}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
-                >
-                  <option value={0}>Seleccionar producto...</option>
-                  {products.map(product => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} ({product.sku}) - {product.category_name}
-                    </option>
-                  ))}
-                </select>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  placeholder="Descripción del producto..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Categoría
+                  </label>
+                  <select
+                    value={formData.category_id || ''}
+                    onChange={(e) => handleInputChange('category_id', e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    <option value="">Sin categoría</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Unidad
+                  </label>
+                  <select
+                    value={formData.unit}
+                    onChange={(e) => handleInputChange('unit', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    <option value="PIEZA">Pieza</option>
+                    <option value="KG">Kilogramo</option>
+                    <option value="LITRO">Litro</option>
+                    <option value="METRO">Metro</option>
+                    <option value="CAJA">Caja</option>
+                    <option value="PAQUETE">Paquete</option>
+                    <option value="ROLLO">Rollo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    IVA
+                  </label>
+                  <select
+                    value={formData.iva ? 'true' : 'false'}
+                    onChange={(e) => handleInputChange('iva', e.target.value === 'true')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    <option value="true">Sí</option>
+                    <option value="false">No</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* SKU, Cost, and Currency */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  SKU del Proveedor
-                </label>
+            {/* Supplier-Specific Information */}
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Información del Proveedor</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    SKU del Proveedor
+                  </label>
                 <Input
                   type="text"
                   value={formData.supplier_sku}
@@ -489,6 +621,7 @@ const SupplierProductFormPage: React.FC = () => {
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none resize-vertical"
               />
+            </div>
             </div>
 
             {/* Action Buttons */}

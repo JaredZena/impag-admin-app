@@ -9,9 +9,12 @@ interface StockProduct {
   id: number;
   name: string;
   sku: string;
+  supplier_id: number;
+  supplier_name: string;
   unit: string;
   stock: number;
   price: number | null;
+  currency: string;
   total_value: number | null;
   last_updated: string | null;
 }
@@ -305,6 +308,9 @@ const StockManagementPage: React.FC = () => {
                   <SortableHeader column="name">
                     Producto
                   </SortableHeader>
+                  <SortableHeader column="supplier">
+                    Proveedor
+                  </SortableHeader>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Unidad
                   </th>
@@ -312,7 +318,7 @@ const StockManagementPage: React.FC = () => {
                     Stock
                   </SortableHeader>
                   <SortableHeader column="price">
-                    Precio Unitario
+                    Costo Unitario
                   </SortableHeader>
                   <SortableHeader column="total_value">
                     Valor Total
@@ -339,6 +345,9 @@ const StockManagementPage: React.FC = () => {
                           {formatDate(product.last_updated)}
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-700">
+                      {product.supplier_name}
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-900">
                       {product.unit}
@@ -384,12 +393,12 @@ const StockManagementPage: React.FC = () => {
                         />
                       ) : (
                         <span className="text-sm text-gray-900">
-                          {formatCurrency(product.price)}
+                          {formatCurrency(product.price, product.currency)}
                         </span>
                       )}
                     </td>
                     <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                      {formatCurrency(product.total_value)}
+                      {formatCurrency(product.total_value, product.currency)}
                     </td>
                     <td className="hidden md:table-cell px-4 py-4 text-sm text-gray-500">
                       {formatDate(product.last_updated)}

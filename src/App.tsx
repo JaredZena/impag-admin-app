@@ -65,7 +65,6 @@ const AppContent: React.FC = () => {
     <>
       <ProtectedRoute>
         <Routes>
-          <Route path="/product-admin" element={<ProductManagementPage />} />
           <Route path="/product-admin/new" element={<ProductFormPage />} />
           <Route path="/product-admin/edit/:productId" element={<ProductFormPage />} />
           <Route path="/product-admin/:productId" element={<ProductDetailPage />} />
@@ -80,7 +79,7 @@ const AppContent: React.FC = () => {
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
-          <Route path="*" element={<Navigate to="/product-admin" replace />} />
+          <Route path="*" element={<Navigate to="/supplier-products" replace />} />
         </Routes>
       </ProtectedRoute>
 

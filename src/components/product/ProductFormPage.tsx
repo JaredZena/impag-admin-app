@@ -214,11 +214,17 @@ const ProductFormPage: React.FC = () => {
         });
       }
 
-      // Navigate back to product list or detail page
+      // Navigate back to product detail page or supplier-products list
       if (isEditing) {
         navigate(`/product-admin/${productId}`);
       } else {
-        navigate('/product-admin');
+        // After creating a new product, go to its detail page to add suppliers
+        navigate(`/product-admin/${response.data.id}`, {
+          state: { 
+            message: 'Producto creado exitosamente. Ahora puedes agregar proveedores y precios.',
+            showSupplierMessage: true
+          }
+        });
       }
     } catch (err: any) {
       setError(err.message || 'Error al guardar el producto');
@@ -232,7 +238,7 @@ const ProductFormPage: React.FC = () => {
     if (isEditing) {
       navigate(`/product-admin/${productId}`);
     } else {
-      navigate('/product-admin');
+      navigate('/supplier-products');
     }
   };
 
@@ -247,8 +253,8 @@ const ProductFormPage: React.FC = () => {
         method: 'PATCH',
       });
 
-      // Navigate back to product list after successful archive
-      navigate('/product-admin', { 
+      // Navigate back to supplier-products list after successful archive
+      navigate('/supplier-products', { 
         state: { message: 'Producto eliminado exitosamente' }
       });
     } catch (err: any) {
@@ -405,6 +411,7 @@ const ProductFormPage: React.FC = () => {
                 />
                 {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
               </div>
+
 
               {/* Stock */}
               <div>

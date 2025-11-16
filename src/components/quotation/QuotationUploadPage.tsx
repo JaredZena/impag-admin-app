@@ -35,6 +35,7 @@ interface ProcessingResult {
   suppliers: { [key: string]: SupplierInfo };
   products_processed: number;
   supplier_products_created: number;
+  supplier_product_ids: number[];  // List of created supplier product IDs for reassignment
   supplier_detection: MultiSupplierDetectionInfo;
   skus_generated: Array<{
     product_name: string;
@@ -202,14 +203,18 @@ const QuotationUploadPage: React.FC = () => {
     try {
       setIsProcessing(true);
       
-      // For now, we'll need to fetch all supplier-product relationships for this supplier
-      // and then reassign them. This would require additional API endpoints.
-      // For simplicity, we'll just show a success message for now.
+      // Use the supplier product IDs from the upload response
+      const supplierProductIds = result.supplier_product_ids || [];
+      
+      if (supplierProductIds.length === 0) {
+        setError('No se encontraron productos para reasignar');
+        return;
+      }
       
       await apiRequest('/quotations/reassign-supplier', {
         method: 'POST',
         body: JSON.stringify({
-          supplier_product_ids: [], // We would need to track these from the upload response
+          supplier_product_ids: supplierProductIds,
           new_supplier_id: parseInt(selectedSupplierId)
         }),
         headers: {
@@ -218,7 +223,11 @@ const QuotationUploadPage: React.FC = () => {
       });
       
       setShowSupplierWarning(false);
-      // Optionally refresh the result or show a success message
+      setResult(null); // Clear the result to prevent re-upload
+      setError(null);
+      
+      // Show success message
+      alert(`Proveedor reasignado exitosamente. ${supplierProductIds.length} productos fueron actualizados.`);
       
     } catch (err: any) {
       console.error('Supplier reassignment failed:', err);
@@ -753,17 +762,28 @@ Ejemplos válidos:
               </>
             )}
 
-            {/* Action Button */}
+            {/* Action Buttons */}
             <div className="text-center pt-6 border-t border-gray-200">
-              <Button 
-                onClick={handleReset}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-3 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Procesar Otro Contenido
-              </Button>
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <Button 
+                  onClick={() => navigate('/supplier-products')}
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-3 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  Ver Productos
+                </Button>
+                <Button 
+                  onClick={handleReset}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-3 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Procesar Otro Contenido
+                </Button>
+              </div>
             </div>
           </Card>
         )}

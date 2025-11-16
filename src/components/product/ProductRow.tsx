@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '@/utils/dateUtils';
 import { apiRequest } from '@/utils/api';
+import { formatCurrency } from '@/utils/currencyUtils';
 
 export interface ProductRowProps {
   id: string | number;
@@ -170,9 +171,9 @@ const ProductRow: React.FC<ProductRowProps> = ({
       {/* Price - Always visible */}
       <td className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
         <div className="text-sm sm:text-base font-semibold text-gray-900">
-          {price != null ? `$${Number(price).toLocaleString()}` : 'N/A'}
+          {price != null ? formatCurrency(price, currency) : 'N/A'}
         </div>
-        {/* Currency indicator - products can have multiple currencies from different suppliers */}
+        {/* Currency indicator - shows currency for calculated prices */}
         {currency && (
           <div className="text-xs text-gray-500 mt-1">
             {currency}

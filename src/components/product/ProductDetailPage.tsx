@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import SuppliersTable, { Supplier } from './SuppliersTable';
 import AddSupplierModal from './AddSupplierModal';
 import { apiRequest } from '@/utils/api';
 import { formatReadableDate } from '@/utils/dateUtils';
+import { formatCurrency } from '@/utils/currencyUtils';
 
 interface Product {
   id: number;
@@ -27,11 +28,16 @@ interface Product {
   is_active: boolean;
   created_at: string;
   last_updated: string;
+  // Currency information
+  currency?: string;
+  calculated_price?: number | null;
+  is_calculated_price?: boolean;
 }
 
 const ProductDetailPage: React.FC = () => {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [product, setProduct] = useState<Product | null>(null);
   const [editedProduct, setEditedProduct] = useState<Product | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -48,8 +54,14 @@ const ProductDetailPage: React.FC = () => {
     nextId?: number;
   }>({ hasPrevious: false, hasNext: false });
   const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false);
+  const [showSupplierMessage, setShowSupplierMessage] = useState(false);
 
   useEffect(() => {
+    // Check if we came from product creation with supplier message
+    if (location.state?.showSupplierMessage) {
+      setShowSupplierMessage(true);
+    }
+
     const fetchData = async () => {
       setLoading(true);
       setError(null);
@@ -70,23 +82,7 @@ const ProductDetailPage: React.FC = () => {
           setEditedProduct(productWithCategory);
         }
 
-        // Simple navigation: just check if prev/next IDs exist
-        try {
-          const currentId = parseInt(productId!);
-          const [prevCheck, nextCheck] = await Promise.all([
-            apiRequest(`/products/${currentId - 1}`).catch(() => null),
-            apiRequest(`/products/${currentId + 1}`).catch(() => null)
-          ]);
-          
-          setNavigationInfo({
-            hasPrevious: prevCheck?.success === true,
-            hasNext: nextCheck?.success === true,
-            previousId: prevCheck?.success ? currentId - 1 : undefined,
-            nextId: nextCheck?.success ? currentId + 1 : undefined,
-          });
-        } catch (navError) {
-          setNavigationInfo({ hasPrevious: false, hasNext: false });
-        }
+        // No longer need navigation info since we removed prev/next buttons
 
         // Fetch suppliers through supplier-product relationships
         try {
@@ -141,20 +137,10 @@ const ProductDetailPage: React.FC = () => {
   }, [productId]);
 
   const handleBack = () => {
-    navigate('/product-admin');
+    navigate('/supplier-products');
   };
 
-  const handlePreviousProduct = () => {
-    if (navigationInfo.previousId) {
-      navigate(`/product-admin/${navigationInfo.previousId}`);
-    }
-  };
-
-  const handleNextProduct = () => {
-    if (navigationInfo.nextId) {
-      navigate(`/product-admin/${navigationInfo.nextId}`);
-    }
-  };
+  // Removed previous/next navigation functions since there's no product list page anymore
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -430,32 +416,40 @@ const ProductDetailPage: React.FC = () => {
           </h1>
           <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">ID del Producto: {productId}</p>
           
+          {/* Supplier Message */}
+          {showSupplierMessage && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">
+                    Producto creado exitosamente
+                  </h3>
+                  <div className="mt-2 text-sm text-blue-700">
+                    <p>Ahora puedes agregar proveedores y precios para este producto. Usa el botón "Agregar Proveedor" abajo para comenzar.</p>
+                  </div>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowSupplierMessage(false)}
+                      className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-md hover:bg-blue-200 transition-colors"
+                    >
+                      Entendido
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Navigation and Action Buttons */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handlePreviousProduct}
-                disabled={!navigationInfo.hasPrevious}
-                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full sm:w-auto"
-              >
-                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                <span>Producto Anterior</span>
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                onClick={handleNextProduct}
-                disabled={!navigationInfo.hasNext}
-                className="flex items-center space-x-2 border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm w-full sm:w-auto"
-              >
-                <span>Producto Siguiente</span>
-                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Button>
+              {/* Removed previous/next navigation buttons */}
             </div>
             
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -549,44 +543,8 @@ const ProductDetailPage: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs sm:text-sm font-medium text-gray-500">Precio</label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={editedProduct.price || ''}
-                      onChange={(e) => handleInputChange('price', e.target.value ? parseFloat(e.target.value) : null)}
-                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
-                      placeholder="0.00"
-                    />
-                  ) : (
-                    <p className="text-sm sm:text-lg font-semibold text-gray-900">
-                      {product.price != null ? `$${Number(product.price).toLocaleString()}` : 'N/A'}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs sm:text-sm font-medium text-gray-500">Stock</label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editedProduct.stock || 0}
-                      onChange={(e) => handleInputChange('stock', e.target.value ? parseInt(e.target.value) : 0)}
-                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
-                    />
-                  ) : (
-                    <div className="flex items-center">
-                      <span className={`text-sm font-medium ${
-                        (product.stock || 0) > 50 ? 'text-green-600' : 
-                        (product.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'
-                      }`}>
-                        {product.stock != null ? product.stock : 0}
-                      </span>
-                      <span className="text-xs text-gray-500 ml-1">unidades</span>
-                    </div>
-                  )}
-                </div>
+                {/* Removed price display - prices are shown in supplier table below */}
+                {/* Removed stock display - stock is shown per supplier in supplier table below */}
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Margen por Defecto</label>
                   {isEditing ? (

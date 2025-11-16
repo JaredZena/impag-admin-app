@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/utils/api';
+import { formatCurrency } from '@/utils/currencyUtils';
+import { formatDate } from '@/utils/dateUtils';
 
 interface Supplier {
   id: number;
@@ -25,6 +27,7 @@ interface SupplierProduct {
   product_id: number;
   supplier_sku?: string;
   cost?: number;
+  currency?: string;
   stock: number;
   lead_time_days?: number;
   shipping_method?: string;
@@ -40,24 +43,112 @@ interface SupplierProduct {
   is_active: boolean;
   notes?: string;
   created_at: string;
+  last_updated?: string;
   supplier?: Supplier;
   product?: Product;
   // Flattened fields from API response
   supplier_name?: string;
   product_name?: string;
   product_sku?: string;
+  category_id?: number;
+  category_name?: string;
 }
 
 const SupplierProductManagementPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
   const [relationships, setRelationships] = useState<SupplierProduct[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterSupplier, setFilterSupplier] = useState('');
+  const [categories, setCategories] = useState<{id: number; name: string}[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  
+  // Get state from URL params with defaults
+  const searchTerm = searchParams.get('search') || '';
+  const filterSupplier = searchParams.get('supplier') || '';
+  const filterCategory = searchParams.get('category') || '';
+  const filterCurrency = searchParams.get('currency') || '';
+  const filterPriceMin = searchParams.get('priceMin') || '';
+  const filterPriceMax = searchParams.get('priceMax') || '';
+  const sortBy = (searchParams.get('sortBy') || 'product_name') as 'product_name' | 'supplier_name' | 'cost' | 'created_at' | 'last_updated';
+  const sortOrder = (searchParams.get('sortOrder') || 'asc') as 'asc' | 'desc';
+
+  // Helper function to update URL params
+  const updateSearchParams = (updates: Record<string, string>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) {
+        newParams.set(key, value);
+      } else {
+        newParams.delete(key);
+      }
+    });
+    setSearchParams(newParams);
+  };
+
+  // Wrapper functions for state updates
+  const setSearchTerm = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set('search', value);
+    } else {
+      newParams.delete('search');
+    }
+    setSearchParams(newParams);
+  };
+  
+  const setFilterSupplier = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set('supplier', value);
+    } else {
+      newParams.delete('supplier');
+    }
+    setSearchParams(newParams);
+  };
+  
+  const setFilterCategory = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set('category', value);
+    } else {
+      newParams.delete('category');
+    }
+    setSearchParams(newParams);
+  };
+  
+  const setFilterCurrency = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set('currency', value);
+    } else {
+      newParams.delete('currency');
+    }
+    setSearchParams(newParams);
+  };
+  
+  const setFilterPriceMin = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set('priceMin', value);
+    } else {
+      newParams.delete('priceMin');
+    }
+    setSearchParams(newParams);
+  };
+  
+  const setFilterPriceMax = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set('priceMax', value);
+    } else {
+      newParams.delete('priceMax');
+    }
+    setSearchParams(newParams);
+  };
 
   useEffect(() => {
     fetchData();
@@ -82,10 +173,14 @@ const SupplierProductManagementPage: React.FC = () => {
 
       // The API already includes supplier and product data
       const relationships = relationshipsData?.data?.supplier_products || [];
-      const enrichedRelationships = relationships;
+      const enrichedRelationships = relationships.map((rel: any) => ({
+        ...rel,
+        category_name: categoryMap[rel.category_id] || 'Sin categoría'
+      }));
 
       setRelationships(enrichedRelationships);
       setSuppliers(suppliersData.data || []);
+      setCategories(categoriesData.data || []);
       // Don't load all products upfront - they'll be loaded on-demand when needed
       setProducts([]);
     } catch (err: any) {
@@ -99,12 +194,63 @@ const SupplierProductManagementPage: React.FC = () => {
   const filteredRelationships = relationships.filter(rel => {
     const matchesSearch = !searchTerm || 
       rel.supplier?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rel.product?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rel.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rel.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rel.product_sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       rel.supplier_sku?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesSupplier = !filterSupplier || rel.supplier_id.toString() === filterSupplier;
+    const matchesCategory = !filterCategory || rel.category_id?.toString() === filterCategory;
+    const matchesCurrency = !filterCurrency || rel.currency === filterCurrency;
     
-    return matchesSearch && matchesSupplier;
+    // Price range filtering
+    const matchesPriceRange = (() => {
+      if (!filterPriceMin && !filterPriceMax) return true;
+      if (rel.cost === null || rel.cost === undefined) return false;
+      
+      const price = Number(rel.cost);
+      const minPrice = filterPriceMin ? Number(filterPriceMin) : 0;
+      const maxPrice = filterPriceMax ? Number(filterPriceMax) : Infinity;
+      
+      return price >= minPrice && price <= maxPrice;
+    })();
+    
+    return matchesSearch && matchesSupplier && matchesCategory && matchesCurrency && matchesPriceRange;
+  });
+
+  // Sort the filtered relationships
+  const sortedRelationships = [...filteredRelationships].sort((a, b) => {
+    let aValue: any, bValue: any;
+    
+    switch (sortBy) {
+      case 'product_name':
+        aValue = a.product_name || '';
+        bValue = b.product_name || '';
+        break;
+      case 'supplier_name':
+        aValue = a.supplier_name || '';
+        bValue = b.supplier_name || '';
+        break;
+      case 'cost':
+        aValue = a.cost || 0;
+        bValue = b.cost || 0;
+        break;
+      case 'created_at':
+        aValue = new Date(a.created_at);
+        bValue = new Date(b.created_at);
+        break;
+      case 'last_updated':
+        aValue = a.last_updated ? new Date(a.last_updated) : new Date(0);
+        bValue = b.last_updated ? new Date(b.last_updated) : new Date(0);
+        break;
+      default:
+        aValue = a.product_name || '';
+        bValue = b.product_name || '';
+    }
+    
+    if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
   });
 
   const handleAddRelationship = () => {
@@ -113,6 +259,22 @@ const SupplierProductManagementPage: React.FC = () => {
 
   const handleEditRelationship = (relationshipId: number) => {
     navigate(`/supplier-products/edit/${relationshipId}`);
+  };
+
+  const handleProductClick = (supplierProductId: number) => {
+    // Navigate to supplier-product edit page instead of old product detail page
+    navigate(`/supplier-products/edit/${supplierProductId}`);
+  };
+
+  const handleSort = (field: 'product_name' | 'supplier_name' | 'cost' | 'created_at' | 'last_updated') => {
+    if (sortBy === field) {
+      // Toggle order if same field
+      const newOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+      updateSearchParams({ sortBy: field, sortOrder: newOrder });
+    } else {
+      // New field, start with asc
+      updateSearchParams({ sortBy: field, sortOrder: 'asc' });
+    }
   };
 
   if (loading) {
@@ -164,52 +326,52 @@ const SupplierProductManagementPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent mb-2">
-                Relaciones Proveedor-Producto
+                Productos
               </h1>
-              <p className="text-gray-600">Gestiona las relaciones entre proveedores y productos con precios específicos</p>
-            </div>
-            <div className="flex gap-3">
-              <Button 
-                variant="outline"
-                onClick={() => navigate('/product-admin')}
-                className="border-green-200 text-green-700 hover:bg-green-50"
-              >
-                Ver Productos
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => navigate('/suppliers')}
-                className="border-blue-200 text-blue-700 hover:bg-blue-50"
-              >
-                Ver Proveedores
-              </Button>
+              <p className="text-gray-600">Gestiona productos y sus relaciones con proveedores, precios y stock</p>
             </div>
           </div>
 
           {/* Search and Filters */}
           <Card className="p-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
+            {/* Main Search Bar and Add Button */}
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Buscar
                 </label>
                 <Input
-                  placeholder="Buscar por proveedor, producto o SKU..."
+                  placeholder="Producto, proveedor o SKU..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full"
+                  className="w-full text-base"
                 />
               </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={handleAddRelationship}
+                  className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap px-4 py-2"
+                >
+                  <svg className="w-4 h-4 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  <span>Agregar Nuevo Producto</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Filter Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Filtrar por Proveedor
+                  Proveedor
                 </label>
                 <select
                   value={filterSupplier}
                   onChange={(e) => setFilterSupplier(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none bg-white"
                 >
-                  <option value="">Todos los proveedores</option>
+                  <option value="">Todos</option>
                   {suppliers.map(supplier => (
                     <option key={supplier.id} value={supplier.id}>
                       {supplier.name}
@@ -217,20 +379,141 @@ const SupplierProductManagementPage: React.FC = () => {
                   ))}
                 </select>
               </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={handleAddRelationship}
-                  className="bg-green-600 hover:bg-green-700 text-white w-full"
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Categoría
+                </label>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none bg-white"
                 >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Agregar Relación
-                </Button>
+                  <option value="">Todas</option>
+                  {categories.map(category => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Moneda
+                </label>
+                <select
+                  value={filterCurrency}
+                  onChange={(e) => setFilterCurrency(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none bg-white"
+                >
+                  <option value="">Todas</option>
+                  <option value="MXN">MXN</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rango de Precio
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Min"
+                    value={filterPriceMin}
+                    onChange={(e) => setFilterPriceMin(e.target.value)}
+                    className="w-full"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Max"
+                    value={filterPriceMax}
+                    onChange={(e) => setFilterPriceMax(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
               </div>
             </div>
           </Card>
         </div>
+
+        {/* Sorting Controls */}
+        <Card className="p-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+                <label className="text-sm font-medium text-gray-700">Ordenar por:</label>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleSort('product_name')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    sortBy === 'product_name'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Nombre
+                  {sortBy === 'product_name' && (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortOrder === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSort('cost')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    sortBy === 'cost'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Precio
+                  {sortBy === 'cost' && (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortOrder === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSort('created_at')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    sortBy === 'created_at'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Creado
+                  {sortBy === 'created_at' && (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortOrder === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSort('last_updated')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    sortBy === 'last_updated'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Actualizado
+                  {sortBy === 'last_updated' && (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortOrder === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="text-sm text-gray-500">
+              {sortedRelationships.length} resultado{sortedRelationships.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+        </Card>
 
         {/* Results */}
         <Card className="shadow-lg border-0 rounded-xl overflow-hidden">
@@ -239,13 +522,13 @@ const SupplierProductManagementPage: React.FC = () => {
               <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              Relaciones Activas
-              <span className="ml-2 text-sm font-normal text-gray-500">({filteredRelationships.length})</span>
+              Productos con Proveedores
+              <span className="ml-2 text-sm font-normal text-gray-500">({sortedRelationships.length})</span>
             </h3>
           </div>
 
           <div className="p-4">
-            {filteredRelationships.length === 0 ? (
+            {sortedRelationships.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <div className="flex flex-col items-center justify-center">
                   <div className="w-16 h-16 mb-4 bg-gray-100 rounded-full flex items-center justify-center">
@@ -267,104 +550,111 @@ const SupplierProductManagementPage: React.FC = () => {
                       onClick={handleAddRelationship}
                       className="mt-4 bg-green-600 hover:bg-green-700 text-white"
                     >
-                      Agregar Primera Relación
+                      Agregar Primer Producto
                     </Button>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredRelationships.map((relationship) => (
+              <div className="space-y-3">
+                {sortedRelationships.map((relationship) => (
                   <div 
                     key={relationship.id}
-                    className="p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-cyan-50/30 transition-all duration-200"
+                    onClick={() => handleProductClick(relationship.id)}
+                    className="p-5 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-50/40 hover:to-cyan-50/40 transition-all duration-200 cursor-pointer group shadow-sm hover:shadow-md"
                   >
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-3 gap-3">
+                    {/* Header: Title and Status */}
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-gray-900 mb-1">
-                          {relationship.supplier_name} → {relationship.product_name}
-                        </h4>
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                            Proveedor: {relationship.supplier_name}
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-semibold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
+                            {relationship.product_name}
+                          </h4>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+                            relationship.is_active 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {relationship.is_active ? 'Activo' : 'Inactivo'}
                           </span>
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                            Producto: {relationship.product_sku}
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full font-medium">
+                            {relationship.supplier_name}
+                          </span>
+                          <span className="bg-green-100 text-green-800 px-2.5 py-1 rounded-full font-medium">
+                            SKU: {relationship.product_sku}
+                          </span>
+                          <span className="bg-purple-100 text-purple-800 px-2.5 py-1 rounded-full font-medium">
+                            {relationship.category_name}
                           </span>
                           {relationship.supplier_sku && (
-                            <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">
-                              SKU Proveedor: {relationship.supplier_sku}
+                            <span className="bg-gray-100 text-gray-800 px-2.5 py-1 rounded-full font-medium">
+                              SKU Prov: {relationship.supplier_sku}
                             </span>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          relationship.is_active 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {relationship.is_active ? 'Activo' : 'Inactivo'}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditRelationship(relationship.id)}
-                          className="border-blue-200 text-blue-700 hover:bg-blue-50"
-                        >
-                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Editar
-                        </Button>
+                      <div className="ml-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500 block">Precio/Costo:</span>
-                        <div className="font-semibold text-gray-900">
-                          {relationship.cost !== null ? `$${Number(relationship.cost).toLocaleString()}` : 'No definido'}
+                    {/* Main Info Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Precio/Costo</span>
+                        <div className="font-semibold text-gray-900 text-lg">
+                          {relationship.cost !== null && relationship.cost !== undefined ? formatCurrency(relationship.cost, relationship.currency) : 'No definido'}
                         </div>
+                        {relationship.currency && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {relationship.currency}
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <span className="text-gray-500 block">IVA (16%):</span>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">IVA (16%)</span>
                         <div className="font-semibold text-gray-900">
                           {relationship.includes_iva ? 'Incluido' : 'No incluido'}
                         </div>
                       </div>
-                      <div>
-                        <span className="text-gray-500 block">Stock:</span>
-                        <div className={`font-medium ${
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Stock</span>
+                        <div className={`font-semibold text-lg ${
                           (relationship.stock || 0) > 50 ? 'text-green-600' : 
                           (relationship.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'
                         }`}>
                           {relationship.stock || 0} unidades
                         </div>
                       </div>
-                      <div>
-                        <span className="text-gray-500 block">Tiempo de Entrega:</span>
-                        <div className="font-medium text-gray-900">
-                          {relationship.lead_time_days !== null ? `${relationship.lead_time_days} días` : 'No especificado'}
-                        </div>
+                    </div>
+                    
+                    {/* Date Information - Compact */}
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-1.5">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="font-medium">Creado:</span>
+                        <span>{formatDate(relationship.created_at, 'DD MMM YYYY HH:mm')}</span>
                       </div>
-                      <div>
-                        <span className="text-gray-500 block">Método de Envío:</span>
-                        <div className="font-medium text-gray-900">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            relationship.shipping_method === 'DIRECT' 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-orange-100 text-orange-800'
-                          }`}>
-                            {relationship.shipping_method === 'DIRECT' ? 'Directo' : 'Ocurre'}
-                          </span>
+                      {relationship.last_updated && (
+                        <div className="flex items-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          <span className="font-medium">Actualizado:</span>
+                          <span>{formatDate(relationship.last_updated, 'DD MMM YYYY HH:mm')}</span>
                         </div>
-                      </div>
+                      )}
                     </div>
                     
                     {relationship.notes && (
                       <div className="mt-3 pt-3 border-t border-gray-100">
-                        <span className="text-gray-500 text-sm block mb-1">Notas:</span>
+                        <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Notas</span>
                         <p className="text-sm text-gray-700">{relationship.notes}</p>
                       </div>
                     )}
@@ -379,9 +669,9 @@ const SupplierProductManagementPage: React.FC = () => {
         {showAddDialog && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg p-6 max-w-md w-full">
-              <h3 className="text-lg font-semibold mb-4">Agregar Nueva Relación</h3>
+              <h3 className="text-lg font-semibold mb-4">Agregar Nuevo Producto</h3>
               <p className="text-gray-600 mb-4">
-                Para agregar una nueva relación proveedor-producto, utiliza el formulario de edición completo.
+                Para agregar un nuevo producto, utiliza el formulario de edición completo.
               </p>
               <div className="flex gap-3">
                 <Button
