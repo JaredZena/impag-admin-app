@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/utils/api';
 import { formatCurrency } from '@/utils/currencyUtils';
 import { formatDate } from '@/utils/dateUtils';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 
 interface Supplier {
   id: number;
@@ -52,7 +53,11 @@ interface SupplierProduct {
   product_sku?: string;
   category_id?: number;
   category_name?: string;
+  description?: string;
+  unit?: string;
 }
+
+const PAGE_SIZE = 50;
 
 const SupplierProductManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -62,9 +67,14 @@ const SupplierProductManagementPage: React.FC = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<{id: number; name: string}[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [skip, setSkip] = useState(0);
+  const [categoryMap, setCategoryMap] = useState<Record<number, string>>({});
+  const initialLoadComplete = useRef(false);
   
   // Get state from URL params with defaults
   const searchTerm = searchParams.get('search') || '';
@@ -150,55 +160,134 @@ const SupplierProductManagementPage: React.FC = () => {
     setSearchParams(newParams);
   };
 
+  // Initial load - fetch suppliers and categories, then first page of relationships
   useEffect(() => {
-    fetchData();
+    const initialLoad = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch suppliers and categories first
+        const [suppliersData, categoriesData] = await Promise.all([
+          apiRequest('/suppliers'),
+          apiRequest('/categories')
+        ]);
+
+        // Create category lookup
+        const catMap = (categoriesData.data || []).reduce((acc: any, cat: any) => {
+          acc[cat.id] = cat.name;
+          return acc;
+        }, {});
+
+        setCategoryMap(catMap);
+        setSuppliers(suppliersData.data || []);
+        setCategories(categoriesData.data || []);
+
+        // Fetch first page of relationships with the category map we just created
+        await fetchRelationshipsPage(0, true, catMap);
+        initialLoadComplete.current = true;
+      } catch (err: any) {
+        setError(err.message || 'Error al cargar los datos');
+        console.error('Error fetching data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initialLoad();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
+  // Fetch a page of relationships
+  const fetchRelationshipsPage = useCallback(async (pageSkip: number, isInitialLoad = false, catMap?: Record<number, string>) => {
     try {
-      // Only fetch essential data for the main table
-      const [relationshipsData, suppliersData, categoriesData] = await Promise.all([
-        apiRequest('/products/supplier-products'),
-        apiRequest('/suppliers'),
-        apiRequest('/categories')
-      ]);
+      const params = new URLSearchParams();
+      params.append('skip', pageSkip.toString());
+      params.append('limit', PAGE_SIZE.toString());
+      
+      // Apply backend-supported filters
+      if (filterSupplier) {
+        params.append('supplier_id', filterSupplier);
+      }
+      
+      // Add search parameter if search term exists
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
 
-      // Create category lookup
-      const categoryMap = (categoriesData.data || []).reduce((acc: any, cat: any) => {
-        acc[cat.id] = cat.name;
-        return acc;
-      }, {});
-
-      // The API already includes supplier and product data
+      const url = `/products/supplier-products?${params.toString()}`;
+      const relationshipsData = await apiRequest(url);
+      
       const relationships = relationshipsData?.data?.supplier_products || [];
+      // Use provided catMap or fall back to state categoryMap
+      const mapToUse = catMap || categoryMap;
       const enrichedRelationships = relationships.map((rel: any) => ({
         ...rel,
-        category_name: categoryMap[rel.category_id] || 'Sin categoría'
+        category_name: mapToUse[rel.category_id] || 'Sin categoría'
       }));
 
-      setRelationships(enrichedRelationships);
-      setSuppliers(suppliersData.data || []);
-      setCategories(categoriesData.data || []);
-      // Don't load all products upfront - they'll be loaded on-demand when needed
-      setProducts([]);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar los datos');
-      console.error('Error fetching data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (isInitialLoad) {
+        setRelationships(enrichedRelationships);
+      } else {
+        // Deduplicate to prevent duplicate keys
+        setRelationships(prev => {
+          const existingIds = new Set(prev.map(r => r.id));
+          const newRelationships = enrichedRelationships.filter((r: SupplierProduct) => !existingIds.has(r.id));
+          return [...prev, ...newRelationships];
+        });
+      }
 
-  const filteredRelationships = relationships.filter(rel => {
-    const matchesSearch = !searchTerm || 
-      rel.supplier?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rel.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rel.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rel.product_sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rel.supplier_sku?.toLowerCase().includes(searchTerm.toLowerCase());
+      setHasMore(relationships.length === PAGE_SIZE);
+      setSkip(pageSkip + PAGE_SIZE);
+    } catch (err: any) {
+      console.error('Error fetching relationships page:', err);
+      setHasMore(false);
+      throw err;
+    }
+  }, [filterSupplier, searchTerm, categoryMap]);
+
+  // Load more relationships (infinite scroll)
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
     
+    setLoadingMore(true);
+    try {
+      await fetchRelationshipsPage(skip, false);
+    } catch (err: any) {
+      console.error('Error loading more relationships:', err);
+      setError(err.message || 'Error al cargar más datos');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [skip, hasMore, loadingMore, fetchRelationshipsPage]);
+
+  // Reset and reload when backend filters change (supplier filter and search term)
+  useEffect(() => {
+    // Skip if initial load hasn't completed yet
+    if (!initialLoadComplete.current) return;
+    
+    setRelationships([]);
+    setSkip(0);
+    setHasMore(true);
+    
+    fetchRelationshipsPage(0, true).catch((err: any) => {
+      console.error('Error reloading relationships:', err);
+      setError(err.message || 'Error al recargar los datos');
+    });
+  }, [filterSupplier, searchTerm, fetchRelationshipsPage]); // Reset on supplier filter or search term change
+
+  // Update category names when categoryMap changes
+  useEffect(() => {
+    if (Object.keys(categoryMap).length > 0 && relationships.length > 0) {
+      setRelationships(prev => prev.map(rel => ({
+        ...rel,
+        category_name: categoryMap[rel.category_id || 0] || 'Sin categoría'
+      })));
+    }
+  }, [categoryMap]);
+
+  // Client-side filtering (only for filters not supported by backend)
+  // Note: search and supplier filter are now handled by backend
+  const filteredRelationships = relationships.filter(rel => {
+    // Supplier filter is handled by backend, but we keep this for consistency
     const matchesSupplier = !filterSupplier || rel.supplier_id.toString() === filterSupplier;
     const matchesCategory = !filterCategory || rel.category_id?.toString() === filterCategory;
     const matchesCurrency = !filterCurrency || rel.currency === filterCurrency;
@@ -215,7 +304,7 @@ const SupplierProductManagementPage: React.FC = () => {
       return price >= minPrice && price <= maxPrice;
     })();
     
-    return matchesSearch && matchesSupplier && matchesCategory && matchesCurrency && matchesPriceRange;
+    return matchesSupplier && matchesCategory && matchesCurrency && matchesPriceRange;
   });
 
   // Sort the filtered relationships
@@ -277,6 +366,13 @@ const SupplierProductManagementPage: React.FC = () => {
     }
   };
 
+  // Infinite scroll sentinel ref
+  const sentinelRef = useInfiniteScroll({
+    hasMore,
+    loading: loadingMore,
+    onLoadMore: loadMore,
+  });
+
   if (loading) {
     return (
       <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
@@ -309,7 +405,19 @@ const SupplierProductManagementPage: React.FC = () => {
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Error al Cargar Datos</h2>
             <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={fetchData} className="bg-green-600 hover:bg-green-700 text-white">
+            <Button 
+              onClick={() => {
+                setRelationships([]);
+                setSkip(0);
+                setHasMore(true);
+                setError(null);
+                fetchRelationshipsPage(0, true).catch((err: any) => {
+                  console.error('Error retrying fetch:', err);
+                  setError(err.message || 'Error al cargar los datos');
+                });
+              }} 
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
               Intentar de Nuevo
             </Button>
           </Card>
@@ -556,111 +664,140 @@ const SupplierProductManagementPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                {sortedRelationships.map((relationship) => (
-                  <div 
-                    key={relationship.id}
-                    onClick={() => handleProductClick(relationship.id)}
-                    className="p-5 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-50/40 hover:to-cyan-50/40 transition-all duration-200 cursor-pointer group shadow-sm hover:shadow-md"
-                  >
-                    {/* Header: Title and Status */}
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
-                            {relationship.product_name}
-                          </h4>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
-                            relationship.is_active 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {relationship.is_active ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          <span className="bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full font-medium">
-                            {relationship.supplier_name}
-                          </span>
-                          <span className="bg-green-100 text-green-800 px-2.5 py-1 rounded-full font-medium">
-                            SKU: {relationship.product_sku}
-                          </span>
-                          <span className="bg-purple-100 text-purple-800 px-2.5 py-1 rounded-full font-medium">
-                            {relationship.category_name}
-                          </span>
-                          {relationship.supplier_sku && (
-                            <span className="bg-gray-100 text-gray-800 px-2.5 py-1 rounded-full font-medium">
-                              SKU Prov: {relationship.supplier_sku}
+              <>
+                <div className="space-y-3">
+                  {sortedRelationships.map((relationship) => (
+                    <div 
+                      key={relationship.id}
+                      onClick={() => handleProductClick(relationship.id)}
+                      className="p-5 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-50/40 hover:to-cyan-50/40 transition-all duration-200 cursor-pointer group shadow-sm hover:shadow-md"
+                    >
+                      {/* Header: Title and Status */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-semibold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
+                              {relationship.product_name}
+                            </h4>
+                          </div>
+                          {/* Description with ellipsis */}
+                          {relationship.description && (
+                            <p className="text-sm text-gray-600 mb-2 overflow-hidden text-ellipsis" style={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              maxHeight: '2.5rem',
+                              lineHeight: '1.25rem'
+                            }}>
+                              {relationship.description}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full font-medium">
+                              {relationship.supplier_name}
                             </span>
+                            <span className="bg-purple-100 text-purple-800 px-2.5 py-1 rounded-full font-medium">
+                              {relationship.category_name}
+                            </span>
+                            {relationship.supplier_sku && (
+                              <span className="bg-gray-100 text-gray-800 px-2.5 py-1 rounded-full font-medium">
+                                SKU Prov: {relationship.supplier_sku}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="ml-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      
+                      {/* Main Info Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Precio/Costo</span>
+                          <div className="font-semibold text-gray-900 text-lg">
+                            {relationship.cost !== null && relationship.cost !== undefined ? formatCurrency(relationship.cost, relationship.currency) : 'No definido'}
+                          </div>
+                          {relationship.currency && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              {relationship.currency}
+                            </div>
                           )}
                         </div>
-                      </div>
-                      <div className="ml-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                    
-                    {/* Main Info Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Precio/Costo</span>
-                        <div className="font-semibold text-gray-900 text-lg">
-                          {relationship.cost !== null && relationship.cost !== undefined ? formatCurrency(relationship.cost, relationship.currency) : 'No definido'}
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Stock</span>
+                          <div className={`font-semibold text-lg ${
+                            (relationship.stock || 0) > 50 ? 'text-green-600' : 
+                            (relationship.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {relationship.stock || 0}
+                          </div>
                         </div>
-                        {relationship.currency && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {relationship.currency}
+                        <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                          <span className="text-xs text-gray-500 uppercase tracking-wide block mb-0.5 sm:mb-1">Unidad</span>
+                          <div className="font-semibold text-gray-900 text-sm sm:text-base">
+                            {relationship.unit || 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Date Information - Compact */}
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-100">
+                        <div className="flex items-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span className="font-medium">Creado:</span>
+                          <span>{formatDate(relationship.created_at, 'DD MMM YYYY HH:mm')}</span>
+                        </div>
+                        {relationship.last_updated && (
+                          <div className="flex items-center gap-1.5">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span className="font-medium">Actualizado:</span>
+                            <span>{formatDate(relationship.last_updated, 'DD MMM YYYY HH:mm')}</span>
                           </div>
                         )}
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">IVA (16%)</span>
-                        <div className="font-semibold text-gray-900">
-                          {relationship.includes_iva ? 'Incluido' : 'No incluido'}
-                        </div>
-                      </div>
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Stock</span>
-                        <div className={`font-semibold text-lg ${
-                          (relationship.stock || 0) > 50 ? 'text-green-600' : 
-                          (relationship.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {relationship.stock || 0} unidades
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Date Information - Compact */}
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-100">
-                      <div className="flex items-center gap-1.5">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="font-medium">Creado:</span>
-                        <span>{formatDate(relationship.created_at, 'DD MMM YYYY HH:mm')}</span>
-                      </div>
-                      {relationship.last_updated && (
-                        <div className="flex items-center gap-1.5">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          <span className="font-medium">Actualizado:</span>
-                          <span>{formatDate(relationship.last_updated, 'DD MMM YYYY HH:mm')}</span>
+                      
+                      {relationship.notes && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Notas</span>
+                          <p className="text-sm text-gray-700">{relationship.notes}</p>
                         </div>
                       )}
                     </div>
-                    
-                    {relationship.notes && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Notas</span>
-                        <p className="text-sm text-gray-700">{relationship.notes}</p>
-                      </div>
-                    )}
+                  ))}
+                </div>
+
+                {/* Loading more indicator */}
+                {loadingMore && (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                      <span className="text-sm text-gray-600 font-medium">Cargando más productos...</span>
+                    </div>
                   </div>
-                ))}
-              </div>
+                )}
+
+                {/* End of results indicator */}
+                {!hasMore && relationships.length > 0 && (
+                  <div className="text-center py-6">
+                    <div className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>No hay más productos para mostrar</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Infinite scroll sentinel */}
+                <div ref={sentinelRef} style={{ height: '1px' }} />
+              </>
             )}
           </div>
         </Card>

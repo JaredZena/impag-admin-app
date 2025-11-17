@@ -110,49 +110,82 @@ const SupplierProductFormPage: React.FC = () => {
         apiRequest('/categories')
       ]);
 
-      setSuppliers(suppliersData.data || []);
-      setCategories(categoriesData.data || []);
+      setSuppliers(suppliersData.data || suppliersData || []);
+      setCategories(categoriesData.data || categoriesData || []);
 
       // If editing, fetch the existing supplier product
-      if (isEditing) {
-        const relationshipData = await apiRequest(`/products/supplier-product/${id}`);
-        if (relationshipData) {
-          setFormData({
-            supplier_id: relationshipData.supplier_id,
-            product_id: relationshipData.product_id || 0,  // Legacy field
-            
-            // Product fields (NEW - from SupplierProduct directly)
-            name: relationshipData.name || '',
-            description: relationshipData.description || '',
-            base_sku: relationshipData.base_sku || '',
-            sku: relationshipData.sku || '',
-            category_id: relationshipData.category_id,
-            unit: relationshipData.unit || 'PIEZA',
-            package_size: relationshipData.package_size,
-            iva: relationshipData.iva !== undefined ? relationshipData.iva : true,
-            specifications: relationshipData.specifications || {},
-            default_margin: relationshipData.default_margin,
-            
-            // Supplier-specific fields
-            supplier_sku: relationshipData.supplier_sku || '',
-            cost: relationshipData.cost,
-            currency: relationshipData.currency || 'MXN',
-            stock: relationshipData.stock || 0,
-            lead_time_days: relationshipData.lead_time_days,
-            shipping_method: relationshipData.shipping_method || 'DIRECT',
-            shipping_cost_direct: relationshipData.shipping_cost_direct,
-            shipping_stage1_cost: relationshipData.shipping_stage1_cost,
-            shipping_stage2_cost: relationshipData.shipping_stage2_cost,
-            shipping_stage3_cost: relationshipData.shipping_stage3_cost,
-            shipping_stage4_cost: relationshipData.shipping_stage4_cost,
-            shipping_notes: relationshipData.shipping_notes || '',
-            is_active: relationshipData.is_active,
-            notes: relationshipData.notes || ''
-          });
+      if (isEditing && id) {
+        try {
+          const relationshipData = await apiRequest(`/products/supplier-product/${id}`);
+          
+          // Handle both wrapped and unwrapped responses
+          const data = relationshipData.data || relationshipData;
+          
+          if (data) {
+            setFormData({
+              supplier_id: data.supplier_id || 0,
+              product_id: data.product_id || 0,  // Legacy field
+              
+              // Product fields (NEW - from SupplierProduct directly)
+              name: data.name || '',
+              description: data.description || '',
+              base_sku: data.base_sku || '',
+              sku: data.sku || '',
+              category_id: data.category_id || null,
+              unit: data.unit || 'PIEZA',
+              package_size: data.package_size || null,
+              iva: data.iva !== undefined ? data.iva : true,
+              specifications: data.specifications || {},
+              default_margin: data.default_margin || null,
+              
+              // Supplier-specific fields
+              supplier_sku: data.supplier_sku || '',
+              cost: data.cost || null,
+              currency: data.currency || 'MXN',
+              stock: data.stock || 0,
+              lead_time_days: data.lead_time_days || null,
+              shipping_method: data.shipping_method || 'DIRECT',
+              shipping_cost_direct: data.shipping_cost_direct || null,
+              shipping_stage1_cost: data.shipping_stage1_cost || null,
+              shipping_stage2_cost: data.shipping_stage2_cost || null,
+              shipping_stage3_cost: data.shipping_stage3_cost || null,
+              shipping_stage4_cost: data.shipping_stage4_cost || null,
+              shipping_notes: data.shipping_notes || '',
+              is_active: data.is_active !== undefined ? data.is_active : true,
+              notes: data.notes || ''
+            });
+          } else {
+            throw new Error('No se encontraron datos del producto');
+          }
+        } catch (fetchError: any) {
+          // Handle specific error for supplier product fetch
+          let errorMessage = 'Error al cargar el producto del proveedor';
+          if (fetchError.message) {
+            if (typeof fetchError.message === 'string') {
+              errorMessage = fetchError.message;
+            } else if (typeof fetchError.message === 'object') {
+              errorMessage = JSON.stringify(fetchError.message);
+            }
+          }
+          setError(errorMessage);
+          console.error('Error fetching supplier product:', fetchError);
         }
       }
     } catch (err: any) {
-      setError(err.message || 'Error al cargar los datos');
+      // Better error message handling
+      let errorMessage = 'Error al cargar los datos';
+      if (err.message) {
+        if (typeof err.message === 'string') {
+          errorMessage = err.message;
+        } else if (typeof err.message === 'object') {
+          errorMessage = JSON.stringify(err.message);
+        }
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (typeof err === 'object') {
+        errorMessage = JSON.stringify(err);
+      }
+      setError(errorMessage);
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
@@ -241,10 +274,10 @@ const SupplierProductFormPage: React.FC = () => {
         <div className="mb-8">
           <div className="mb-6">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent mb-2">
-              {isEditing ? 'Editar Relación' : 'Nueva Relación'} Proveedor-Producto
+              {isEditing ? 'Editar ' : 'Nuevo '} Producto
             </h1>
             <p className="text-gray-600">
-              {isEditing ? 'Modifica la información de la relación' : 'Configura una nueva relación entre proveedor y producto'}
+              {isEditing ? 'Modifica la información del producto' : 'Crea un nuevo producto'}
             </p>
           </div>
         </div>
@@ -252,11 +285,14 @@ const SupplierProductFormPage: React.FC = () => {
         {/* Error Display */}
         {error && (
           <Card className="mb-6 p-4 bg-red-50 border-red-200">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-red-700">{error}</span>
+              <div className="flex-1">
+                <span className="text-red-700 text-sm font-medium block mb-1">Error</span>
+                <span className="text-red-600 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</span>
+              </div>
             </div>
           </Card>
         )}
@@ -617,7 +653,7 @@ const SupplierProductFormPage: React.FC = () => {
               <textarea
                 value={formData.notes}
                 onChange={(e) => handleInputChange('notes', e.target.value)}
-                placeholder="Notas adicionales sobre esta relación proveedor-producto..."
+                placeholder="Notas adicionales sobre este producto..."
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none resize-vertical"
               />
@@ -636,7 +672,7 @@ const SupplierProductFormPage: React.FC = () => {
               </Button>
               <Button
                 type="submit"
-                disabled={saving || formData.supplier_id === 0 || formData.product_id === 0}
+                disabled={saving || formData.supplier_id === 0}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {saving ? (

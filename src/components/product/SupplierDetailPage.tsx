@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import AddProductForm from './AddProductForm';
 import { apiRequest } from '@/utils/api';
-import { formatReadableDate } from '@/utils/dateUtils';
+import { formatReadableDate, formatDate } from '@/utils/dateUtils';
 import { formatCurrency } from '@/utils/currencyUtils';
 
 interface SupplierDetail {
@@ -33,6 +34,9 @@ interface SupplierProduct {
   is_active: boolean;
   created_at?: string;
   last_updated: string;
+  description?: string;
+  stock?: number;
+  supplier_sku?: string;
 }
 
 const SupplierDetailPage: React.FC = () => {
@@ -51,6 +55,7 @@ const SupplierDetailPage: React.FC = () => {
     nextId?: number;
   }>({ hasPrevious: false, hasNext: false });
   const [showAddProductForm, setShowAddProductForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   
   // Sorting state - initialize from URL parameters
   const [sortBy, setSortBy] = useState<'name' | 'category' | 'created' | 'updated' | 'price'>(
@@ -60,13 +65,18 @@ const SupplierDetailPage: React.FC = () => {
     (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc'
   );
 
-  // Update URL parameters when sorting changes
+  // Update URL parameters when sorting or search changes
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
     params.set('sort_by', sortBy);
     params.set('sort_order', sortOrder);
+    if (searchTerm) {
+      params.set('search', searchTerm);
+    } else {
+      params.delete('search');
+    }
     setSearchParams(params, { replace: true });
-  }, [sortBy, sortOrder]);
+  }, [sortBy, sortOrder, searchTerm]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -139,7 +149,7 @@ const SupplierDetailPage: React.FC = () => {
           
           if (supplierProductsData.success && supplierProductsData.data && supplierProductsData.data.length > 0) {
             const transformedProducts = supplierProductsData.data.map((productData: any) => ({
-              id: productData.id,  // Use supplier_product.id instead of product_id
+              id: productData.supplier_product_id || productData.id,  // Use supplier_product_id from backend
               name: productData.product_name || 'N/A',
               sku: productData.sku || productData.base_sku || 'N/A',
               category: categoriesMap[productData.category_id] || 'Sin categoría',
@@ -149,7 +159,10 @@ const SupplierDetailPage: React.FC = () => {
               lead_time_days: productData.lead_time_days || 0,
               is_active: productData.supplier_is_active !== false,
               created_at: productData.created_at, // Use the alias from backend
-              last_updated: productData.last_updated || productData.created_at // Use the alias from backend
+              last_updated: productData.last_updated || productData.created_at, // Use the alias from backend
+              description: productData.product_description || '',
+              stock: productData.stock || 0,
+              supplier_sku: productData.supplier_sku || ''
             }));
             
             setProducts(transformedProducts);
@@ -219,18 +232,21 @@ const SupplierDetailPage: React.FC = () => {
         
         if (supplierProductsData.success && supplierProductsData.data && supplierProductsData.data.length > 0) {
           const transformedProducts = supplierProductsData.data.map((productData: any) => ({
-            id: productData.id,  // Use supplier_product.id instead of product_id
-            name: productData.product_name || 'N/A',
-            sku: productData.sku || productData.base_sku || 'N/A',
-            category: categoriesMap[productData.category_id] || 'Sin categoría',
-            unit: productData.unit || 'N/A',
-            price: productData.cost || 0,
-            currency: productData.currency || 'MXN',
-            lead_time_days: productData.lead_time_days || 0,
-            is_active: productData.supplier_is_active !== false,
-            created_at: productData.supplier_relationship_created_at,
-            last_updated: productData.supplier_relationship_last_updated || productData.supplier_relationship_created_at
-          }));
+              id: productData.supplier_product_id || productData.id,  // Use supplier_product_id from backend
+              name: productData.product_name || 'N/A',
+              sku: productData.sku || productData.base_sku || 'N/A',
+              category: categoriesMap[productData.category_id] || 'Sin categoría',
+              unit: productData.unit || 'N/A',
+              price: productData.cost || 0,
+              currency: productData.currency || 'MXN',
+              lead_time_days: productData.lead_time_days || 0,
+              is_active: productData.supplier_is_active !== false,
+              created_at: productData.supplier_relationship_created_at,
+              last_updated: productData.supplier_relationship_last_updated || productData.supplier_relationship_created_at,
+              description: productData.product_description || '',
+              stock: productData.stock || 0,
+              supplier_sku: productData.supplier_sku || ''
+            }));
           
           setProducts(transformedProducts);
         } else {
@@ -262,8 +278,21 @@ const SupplierDetailPage: React.FC = () => {
     }
   };
 
+  // Filter products based on search term
+  const filteredProducts = products.filter(product => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      product.name.toLowerCase().includes(searchLower) ||
+      product.sku.toLowerCase().includes(searchLower) ||
+      product.category.toLowerCase().includes(searchLower) ||
+      (product.description && product.description.toLowerCase().includes(searchLower)) ||
+      (product.supplier_sku && product.supplier_sku.toLowerCase().includes(searchLower))
+    );
+  });
+
   // Sort products based on current sorting state
-  const sortedProducts = [...products].sort((a, b) => {
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
     let compareValue = 0;
 
     switch (sortBy) {
@@ -530,10 +559,23 @@ const SupplierDetailPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Sorting Controls */}
-              {products.length > 0 && (
-                <div className="p-3 sm:p-4 border-b border-gray-100 bg-gray-50/30">
-                  <div className="flex flex-wrap items-center gap-2">
+              {/* Search and Sorting Controls */}
+              <div className="p-3 sm:p-4 border-b border-gray-100 bg-gray-50/30">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-3 sm:mb-0">
+                  <div className="flex-1">
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                      Buscar Productos
+                    </label>
+                    <Input
+                      placeholder="Buscar por nombre, SKU, categoría..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full text-sm sm:text-base"
+                    />
+                  </div>
+                </div>
+                {products.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-0">
                     <span className="text-xs sm:text-sm font-medium text-gray-600 flex items-center mr-2">
                       <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
@@ -591,99 +633,140 @@ const SupplierDetailPage: React.FC = () => {
                       Actualizado {sortBy === 'updated' && (sortOrder === 'asc' ? '↑' : '↓')}
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
               
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50/50">
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Producto</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden sm:table-cell">SKU</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Categoría</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Unidad</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Precio</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Creado</th>
-                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="text-center py-8 sm:py-12 text-gray-500">
-                          <div className="flex flex-col items-center justify-center">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 mb-3 sm:mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                              <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
-                              </svg>
+              {/* Products List - Card Layout */}
+              <div className="p-4">
+                {sortedProducts.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
+                        </svg>
+                      </div>
+                      <p className="font-medium">
+                        {searchTerm ? 'No se encontraron productos' : 'No hay productos registrados'}
+                      </p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        {searchTerm 
+                          ? 'Intenta ajustar los términos de búsqueda' 
+                          : 'Este proveedor no tiene productos registrados'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {sortedProducts.map((product) => (
+                      <div 
+                        key={product.id}
+                        onClick={() => navigate(`/supplier-products/edit/${product.id}`)}
+                        className="p-5 rounded-lg border border-gray-200 hover:border-green-400 hover:bg-gradient-to-r hover:from-green-50/40 hover:to-emerald-50/40 transition-all duration-200 cursor-pointer group shadow-sm hover:shadow-md"
+                      >
+                        {/* Header: Title */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold text-lg text-gray-900 group-hover:text-green-600 transition-colors">
+                                {product.name}
+                              </h4>
                             </div>
-                            <p className="font-medium text-sm sm:text-base">No se encontraron productos</p>
-                            <p className="text-xs sm:text-sm text-gray-400 mt-1">Este proveedor no tiene productos registrados</p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      sortedProducts.map((product, index) => (
-                        <tr 
-                          key={product.id} 
-                          className={`border-b border-gray-100 hover:bg-gradient-to-r hover:from-green-50/30 hover:to-emerald-50/30 transition-all duration-200 cursor-pointer ${
-                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
-                          }`}
-                          onClick={() => navigate(`/supplier-products/edit/${product.id}`)}
-                        >
-                          <td className="px-2 sm:px-4 py-3 sm:py-4">
-                            <div className="font-medium text-gray-900 text-sm sm:text-base break-words">{product.name}</div>
-                            <div className="sm:hidden text-xs text-gray-500 mt-1">
-                              SKU: {product.sku}
-                            </div>
-                          </td>
-                          <td className="hidden sm:table-cell px-2 sm:px-4 py-3 sm:py-4">
-                            <span className="font-mono text-xs sm:text-sm text-gray-700 bg-gray-100 px-1 sm:px-2 py-1 rounded break-all">
-                              {product.sku}
-                            </span>
-                          </td>
-                          <td className="hidden md:table-cell px-2 sm:px-4 py-3 sm:py-4">
-                            <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {product.category}
-                            </span>
-                          </td>
-                          <td className="hidden lg:table-cell px-2 sm:px-4 py-3 sm:py-4">
-                            <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                              {product.unit}
-                            </span>
-                          </td>
-                          <td className="px-2 sm:px-4 py-3 sm:py-4">
-                            <span className={`text-sm sm:text-base ${product.price !== null ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>
-                              {product.price !== null ? formatCurrency(product.price, product.currency) : 'N/A'}
-                              {product.currency && (
-                                <span className="ml-1 text-xs text-gray-600 font-medium">
-                                  {product.currency}
+                            {/* Description with ellipsis */}
+                            {product.description && (
+                              <p className="text-sm text-gray-600 mb-2 overflow-hidden text-ellipsis" style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                maxHeight: '2.5rem',
+                                lineHeight: '1.25rem'
+                              }}>
+                                {product.description}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              <span className="bg-purple-100 text-purple-800 px-2.5 py-1 rounded-full font-medium">
+                                {product.category}
+                              </span>
+                              {product.supplier_sku && (
+                                <span className="bg-gray-100 text-gray-800 px-2.5 py-1 rounded-full font-medium">
+                                  SKU Prov: {product.supplier_sku}
                                 </span>
                               )}
-                            </span>
-                          </td>
-
-                          <td className="hidden xl:table-cell px-2 sm:px-4 py-3 sm:py-4">
-                            <span className="text-xs sm:text-sm text-gray-700">
-                              {product.created_at ? formatReadableDate(product.created_at) : 'N/A'}
-                            </span>
-                          </td>
-                          <td className="px-2 sm:px-4 py-3 sm:py-4">
-                            <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              product.is_active 
-                                ? 'bg-green-100 text-green-800' 
-                                : product.price !== null 
-                                  ? 'bg-gray-100 text-gray-800'
-                                  : 'bg-blue-100 text-blue-800'
+                            </div>
+                          </div>
+                          <div className="ml-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </div>
+                        
+                        {/* Main Info Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Precio/Costo</span>
+                            <div className="font-semibold text-gray-900 text-lg">
+                              {product.price !== null && product.price !== undefined ? formatCurrency(product.price, product.currency) : 'No definido'}
+                            </div>
+                            {product.currency && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {product.currency}
+                              </div>
+                            )}
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <span className="text-xs text-gray-500 uppercase tracking-wide block mb-1">Stock</span>
+                            <div className={`font-semibold text-lg ${
+                              (product.stock || 0) > 50 ? 'text-green-600' : 
+                              (product.stock || 0) > 10 ? 'text-yellow-600' : 'text-red-600'
                             }`}>
-                              {product.is_active ? 'Activo' : product.price !== null ? 'Inactivo' : 'En Catálogo'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                              {product.stock || 0}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                            <span className="text-xs text-gray-500 uppercase tracking-wide block mb-0.5 sm:mb-1">Unidad</span>
+                            <div className="font-semibold text-gray-900 text-sm sm:text-base">
+                              {product.unit || 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Date Information - Compact */}
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-3 border-t border-gray-100">
+                          {product.created_at && (
+                            <div className="flex items-center gap-1.5">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span className="font-medium">Creado:</span>
+                              <span>{formatDate(product.created_at, 'DD MMM YYYY HH:mm')}</span>
+                            </div>
+                          )}
+                          {product.last_updated && (
+                            <div className="flex items-center gap-1.5">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              <span className="font-medium">Actualizado:</span>
+                              <span>{formatDate(product.last_updated, 'DD MMM YYYY HH:mm')}</span>
+                            </div>
+                          )}
+                          {product.lead_time_days > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="font-medium">Tiempo de entrega:</span>
+                              <span>{product.lead_time_days} días</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </Card>
           </>
