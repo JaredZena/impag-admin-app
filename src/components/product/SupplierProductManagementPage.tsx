@@ -74,6 +74,7 @@ const SupplierProductManagementPage: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [skip, setSkip] = useState(0);
   const [categoryMap, setCategoryMap] = useState<Record<number, string>>({});
+  const [totalCount, setTotalCount] = useState<number>(0);
   const initialLoadComplete = useRef(false);
   
   // Get state from URL params with defaults
@@ -217,6 +218,8 @@ const SupplierProductManagementPage: React.FC = () => {
       const relationshipsData = await apiRequest(url);
       
       const relationships = relationshipsData?.data?.supplier_products || [];
+      const total = relationshipsData?.data?.total || 0;
+      
       // Use provided catMap or fall back to state categoryMap
       const mapToUse = catMap || categoryMap;
       const enrichedRelationships = relationships.map((rel: any) => ({
@@ -226,6 +229,7 @@ const SupplierProductManagementPage: React.FC = () => {
 
       if (isInitialLoad) {
         setRelationships(enrichedRelationships);
+        setTotalCount(total);
       } else {
         // Deduplicate to prevent duplicate keys
         setRelationships(prev => {
@@ -267,6 +271,7 @@ const SupplierProductManagementPage: React.FC = () => {
     setRelationships([]);
     setSkip(0);
     setHasMore(true);
+    setTotalCount(0);
     
     fetchRelationshipsPage(0, true).catch((err: any) => {
       console.error('Error reloading relationships:', err);
@@ -306,6 +311,12 @@ const SupplierProductManagementPage: React.FC = () => {
     
     return matchesSupplier && matchesCategory && matchesCurrency && matchesPriceRange;
   });
+
+  // Check if client-side filters are applied
+  const hasClientSideFilters = !!(filterCategory || filterCurrency || filterPriceMin || filterPriceMax);
+  
+  // Use filtered count if client-side filters are applied, otherwise use backend total
+  const displayCount = hasClientSideFilters ? filteredRelationships.length : totalCount;
 
   // Sort the filtered relationships
   const sortedRelationships = [...filteredRelationships].sort((a, b) => {
@@ -410,6 +421,7 @@ const SupplierProductManagementPage: React.FC = () => {
                 setRelationships([]);
                 setSkip(0);
                 setHasMore(true);
+                setTotalCount(0);
                 setError(null);
                 fetchRelationshipsPage(0, true).catch((err: any) => {
                   console.error('Error retrying fetch:', err);
@@ -618,7 +630,7 @@ const SupplierProductManagementPage: React.FC = () => {
               </div>
             </div>
             <div className="text-sm text-gray-500">
-              {sortedRelationships.length} resultado{sortedRelationships.length !== 1 ? 's' : ''}
+              {displayCount} resultado{displayCount !== 1 ? 's' : ''}
             </div>
           </div>
         </Card>
@@ -630,8 +642,8 @@ const SupplierProductManagementPage: React.FC = () => {
               <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              Productos con Proveedores
-              <span className="ml-2 text-sm font-normal text-gray-500">({sortedRelationships.length})</span>
+              Productos
+              <span className="ml-2 text-sm font-normal text-gray-500">({displayCount})</span>
             </h3>
           </div>
 
@@ -650,7 +662,7 @@ const SupplierProductManagementPage: React.FC = () => {
                   <p className="text-sm text-gray-400 mt-1">
                     {searchTerm || filterSupplier 
                       ? 'Intenta ajustar los filtros de búsqueda' 
-                      : 'Comienza agregando una relación proveedor-producto'
+                      : 'Comienza agregando un producto'
                     }
                   </p>
                   {!searchTerm && !filterSupplier && (
