@@ -8,13 +8,17 @@ import dayjs from 'dayjs';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import QuotationDocument from './QuotationDocument';
-import { parseQuotationMarkdown } from '@/utils/quotationParser';
+import InternalQuotationDocument from './InternalQuotationDocument';
+import { parseQuotationMarkdown, parseDualQuotationResponse } from '@/utils/quotationParser';
 
 interface Message {
   id: string;
   type: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  customerName?: string;
+  customerLocation?: string;
+  quotationId?: string;
 }
 
 type ConversationState = 'initial' | 'follow-up' | 'blocked';
@@ -23,6 +27,8 @@ const QuotationChatPage: React.FC = () => {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerLocation, setCustomerLocation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversationState, setConversationState] = useState<ConversationState>('initial');
@@ -72,7 +78,7 @@ const QuotationChatPage: React.FC = () => {
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
-    
+
     // Check if conversation is blocked
     if (conversationState === 'blocked') {
       setError('Esta conversación ha alcanzado el límite de mensajes. Usa "Nueva conversación" para empezar una nueva cotización.');
@@ -93,11 +99,11 @@ const QuotationChatPage: React.FC = () => {
 
     setMessages(prev => [...prev, userMessageObj]);
     setIsLoading(true);
-    
+
     // Update message count and conversation state
     const newCount = messageCount + 1;
     setMessageCount(newCount);
-    
+
     if (newCount === 1) {
       setConversationState('follow-up'); // After first message, allow one follow-up
     } else if (newCount >= 2) {
@@ -114,11 +120,21 @@ const QuotationChatPage: React.FC = () => {
       // Call API with chat history for conversation context
       const response = await apiRequest('/query', {
         method: 'POST',
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           query: userMessage,
-          messages: chatHistory  // Send conversation context
+          messages: chatHistory,  // Send conversation context
+          customer_name: customerName || undefined,
+          customer_location: customerLocation || undefined
         }),
       });
+
+      // Generate quotation ID (format: random number + date + location code if available)
+      const locationCode = customerLocation
+        ? customerLocation.split(',').map(w => w.trim().substring(0, 3).toUpperCase()).join('').substring(0, 3)
+        : '';
+      const randomNum = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      const dateCode = dayjs().format('DDMMYY');
+      const quotationId = `${randomNum}${dateCode}${locationCode}`;
 
       // Add assistant response
       const assistantMessage: Message = {
@@ -126,9 +142,35 @@ const QuotationChatPage: React.FC = () => {
         type: 'assistant',
         content: response.response,
         timestamp: new Date(),
+        customerName: customerName || undefined,
+        customerLocation: customerLocation || undefined,
+        quotationId: quotationId
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Save quotation to database if it contains both internal and customer quotations
+      try {
+        const dualQuotation = parseDualQuotationResponse(response.response);
+        if (dualQuotation.internal && dualQuotation.customer) {
+          await apiRequest('/quotation-history/', {
+            method: 'POST',
+            body: JSON.stringify({
+              user_query: userMessage,
+              title: `${quotationId} - ${customerName || 'Cotización'}`,
+              customer_name: customerName || null,
+              customer_location: customerLocation || null,
+              quotation_id: quotationId,
+              internal_quotation: dualQuotation.internalMarkdown || dualQuotation.rawResponse,
+              customer_quotation: dualQuotation.customerMarkdown || dualQuotation.rawResponse,
+              raw_response: dualQuotation.rawResponse
+            }),
+          });
+        }
+      } catch (saveError) {
+        // Don't block the UI if saving fails - just log it
+        console.error('Failed to save quotation:', saveError);
+      }
     } catch (err: any) {
       console.error('Failed to send message:', err);
       setError(err?.message || 'Error al generar la cotización. Por favor, intenta nuevamente.');
@@ -204,7 +246,7 @@ const QuotationChatPage: React.FC = () => {
         )}
 
         {/* Messages container with improved mobile height */}
-        <Card className="flex-1 overflow-y-auto p-3 bg-white rounded-2xl shadow-lg mb-3 flex flex-col gap-3 min-h-0 sm:p-4 sm:gap-4 sm:mb-4 sm:rounded-2xl md:p-6 md:gap-5" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+        <Card className="flex-1 overflow-y-auto overflow-x-hidden p-3 bg-white rounded-2xl shadow-lg mb-3 flex flex-col gap-3 min-h-0 sm:p-4 sm:gap-4 sm:mb-4 sm:rounded-2xl md:p-6 md:gap-5" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           {messages.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 text-center px-4 py-8 sm:px-6 sm:py-12 md:px-6 md:py-12">
               <div className="relative mb-4 sm:mb-5 md:mb-6">
@@ -245,7 +287,7 @@ const QuotationChatPage: React.FC = () => {
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex flex-col ${message.type === 'user' ? 'items-end ml-auto' : 'items-start mr-auto'} max-w-[90%] sm:max-w-[85%] md:max-w-[85%]`}
+              className={`flex flex-col ${message.type === 'user' ? 'items-end ml-auto' : 'items-start mr-auto'} ${message.type === 'assistant' ? 'w-full max-w-full' : 'max-w-[90%] sm:max-w-[85%] md:max-w-[85%]'}`}
             >
               {message.type === 'user' ? (
                 <>
@@ -258,17 +300,267 @@ const QuotationChatPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <div id={`quotation-${message.id}`} className="px-4 py-3 rounded-2xl bg-white border border-gray-200 shadow-md text-sm leading-relaxed break-words sm:px-5 sm:py-4 sm:text-base sm:rounded-2xl md:shadow-lg">
+                  <div className="w-full">
                     {(() => {
+                      // Try to parse as dual quotation first
+                      const dualQuotation = parseDualQuotationResponse(message.content);
+
+                      // If we have both internal and customer quotations, display side by side
+                      if (dualQuotation.internal && dualQuotation.customer) {
+                        return (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full">
+                            {/* Internal Quotation - Left Side */}
+                            <div id={`internal-quotation-${message.id}`} className="px-4 py-3 rounded-2xl bg-gray-50 border-2 border-gray-300 shadow-md min-w-0 overflow-x-auto">
+                              <div className="mb-2">
+                                <h3 className="text-xs font-bold text-gray-700 uppercase mb-1">Cotización Interna</h3>
+                                <p className="text-[10px] text-gray-500 italic">Uso interno - No compartir con cliente</p>
+                              </div>
+                              <InternalQuotationDocument
+                                quotation={dualQuotation.internal}
+                                fecha={message.timestamp}
+                              />
+                              <div className="flex flex-wrap gap-2 mt-4">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCopyToClipboard(dualQuotation.internalMarkdown || dualQuotation.rawResponse)}
+                                  className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 text-xs"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  Copiar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const markdown = dualQuotation.internalMarkdown || dualQuotation.rawResponse;
+                                    const blob = new Blob([markdown], { type: 'text/markdown' });
+                                    const url = URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.download = `cotizacion_interna_${dayjs(message.timestamp).format('YYYY-MM-DD')}.md`;
+                                    link.click();
+                                    URL.revokeObjectURL(url);
+                                  }}
+                                  className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 text-xs"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  Markdown
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const html2canvas = (await import('html2canvas')).default;
+                                    const element = document.getElementById(`internal-quotation-${message.id}`);
+                                    if (element) {
+                                      const canvas = await html2canvas(element, { scale: 2 });
+                                      const link = document.createElement('a');
+                                      link.download = `cotizacion_interna_${dayjs(message.timestamp).format('YYYY-MM-DD')}.png`;
+                                      link.href = canvas.toDataURL();
+                                      link.click();
+                                    }
+                                  }}
+                                  className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 text-xs"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  PNG
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const html2canvas = (await import('html2canvas')).default;
+                                    const jsPDF = (await import('jspdf')).default;
+                                    const element = document.getElementById(`internal-quotation-${message.id}`);
+                                    if (element) {
+                                      const canvas = await html2canvas(element, {
+                                        scale: 2,
+                                        useCORS: true,
+                                        allowTaint: false,
+                                        backgroundColor: '#ffffff',
+                                        logging: false
+                                      });
+                                      const imgData = canvas.toDataURL('image/png');
+                                      const pdf = new jsPDF('p', 'mm', 'a4');
+                                      const imgWidth = 210;
+                                      const pageHeight = 297;
+                                      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                                      let heightLeft = imgHeight;
+                                      let position = 0;
+                                      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                                      heightLeft -= pageHeight;
+                                      while (heightLeft >= 0) {
+                                        position = heightLeft - imgHeight;
+                                        pdf.addPage();
+                                        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                                        heightLeft -= pageHeight;
+                                      }
+                                      pdf.save(`cotizacion_interna_${dayjs(message.timestamp).format('YYYY-MM-DD')}.pdf`);
+                                    }
+                                  }}
+                                  className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 text-xs"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  </svg>
+                                  PDF
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Customer Quotation - Right Side */}
+                            <div id={`customer-quotation-${message.id}`} className="px-4 py-3 rounded-2xl bg-white border border-gray-200 shadow-md min-w-0 overflow-x-auto">
+                              <div className="mb-2">
+                                <h3 className="text-xs font-bold text-gray-700 uppercase mb-1">Cotización para Cliente</h3>
+                                <p className="text-[10px] text-gray-500 italic">Lista para compartir</p>
+                              </div>
+                              {dualQuotation.customer.hasTable ? (
+                                <QuotationDocument
+                                  quotation={dualQuotation.customer}
+                                  fecha={message.timestamp}
+                                  customerName={message.customerName}
+                                  customerLocation={message.customerLocation}
+                                  quotationId={message.quotationId}
+                                />
+                              ) : (
+                                <div className="prose prose-sm max-w-none">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {dualQuotation.customer.title || 'Cotización'}
+                                  </ReactMarkdown>
+                                </div>
+                              )}
+                              <div className="flex flex-wrap gap-2 mt-4">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCopyToClipboard(dualQuotation.customerMarkdown || dualQuotation.rawResponse)}
+                                  className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 text-xs"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  Copiar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const markdown = dualQuotation.customerMarkdown || dualQuotation.rawResponse;
+                                    const blob = new Blob([markdown], { type: 'text/markdown' });
+                                    const url = URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.download = `cotizacion_cliente_${dayjs(message.timestamp).format('YYYY-MM-DD')}.md`;
+                                    link.click();
+                                    URL.revokeObjectURL(url);
+                                  }}
+                                  className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 text-xs"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  Markdown
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const html2canvas = (await import('html2canvas')).default;
+                                    const cardElement = document.getElementById(`customer-quotation-${message.id}`);
+                                    if (cardElement) {
+                                      const quotationElement = cardElement.querySelector('[id^="quotation-doc-"]') as HTMLElement;
+                                      const elementToExport = quotationElement || cardElement;
+                                      const canvas = await html2canvas(elementToExport, { scale: 2 });
+                                      const link = document.createElement('a');
+                                      link.download = `cotizacion_cliente_${dayjs(message.timestamp).format('YYYY-MM-DD')}.png`;
+                                      link.href = canvas.toDataURL();
+                                      link.click();
+                                    }
+                                  }}
+                                  className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 text-xs"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  PNG
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const html2canvas = (await import('html2canvas')).default;
+                                    const jsPDF = (await import('jspdf')).default;
+                                    const cardElement = document.getElementById(`customer-quotation-${message.id}`);
+                                    if (cardElement) {
+                                      const quotationElement = cardElement.querySelector('[id^="quotation-doc-"]') as HTMLElement;
+                                      const elementToExport = quotationElement || cardElement;
+
+                                      const canvas = await html2canvas(elementToExport, {
+                                        scale: 2,
+                                        useCORS: true,
+                                        allowTaint: false,
+                                        backgroundColor: '#ffffff',
+                                        logging: false,
+                                        imageTimeout: 15000,
+                                        removeContainer: false
+                                      });
+
+                                      const imgData = canvas.toDataURL('image/png');
+                                      const pdf = new jsPDF('p', 'mm', 'a4');
+                                      const imgWidth = 210;
+                                      const pageHeight = 297;
+                                      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                                      let heightLeft = imgHeight;
+                                      let position = 0;
+
+                                      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                                      heightLeft -= pageHeight;
+
+                                      while (heightLeft >= 0) {
+                                        position = heightLeft - imgHeight;
+                                        pdf.addPage();
+                                        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                                        heightLeft -= pageHeight;
+                                      }
+
+                                      pdf.save(`cotizacion_cliente_${dayjs(message.timestamp).format('YYYY-MM-DD')}.pdf`);
+                                    }
+                                  }}
+                                  className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 text-xs"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  </svg>
+                                  PDF
+                                </Button>
+
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Fallback: Try parsing as single quotation
                       const parsedQuotation = parseQuotationMarkdown(message.content);
-                      
+
                       // If we successfully parsed a quotation with tables, use structured format
                       if (parsedQuotation.hasTable) {
                         return (
-                          <>
-                            <QuotationDocument 
+                          <div id={`quotation-${message.id}`} className="px-4 py-3 rounded-2xl bg-white border border-gray-200 shadow-md text-sm leading-relaxed break-words overflow-x-auto sm:px-5 sm:py-4 sm:text-base sm:rounded-2xl md:shadow-lg">
+                            <QuotationDocument
                               quotation={parsedQuotation}
                               fecha={message.timestamp}
+                              customerName={message.customerName}
+                              customerLocation={message.customerLocation}
+                              quotationId={message.quotationId}
                             />
                             <div className="flex flex-wrap gap-2 mt-4 sm:gap-2.5 sm:mt-4">
                               <Button
@@ -281,6 +573,26 @@ const QuotationChatPage: React.FC = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
                                 Copiar
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const markdown = message.content;
+                                  const blob = new Blob([markdown], { type: 'text/markdown' });
+                                  const url = URL.createObjectURL(blob);
+                                  const link = document.createElement('a');
+                                  link.href = url;
+                                  link.download = `cotizacion_${dayjs(message.timestamp).format('YYYY-MM-DD')}.md`;
+                                  link.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                                className="flex items-center gap-1.5 text-[10px] font-medium hover:bg-gray-100 px-2.5 py-1.5 sm:text-xs sm:px-3 sm:py-2"
+                              >
+                                <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Markdown
                               </Button>
                               <Button
                                 variant="outline"
@@ -311,12 +623,28 @@ const QuotationChatPage: React.FC = () => {
                                   const jsPDF = (await import('jspdf')).default;
                                   const element = document.getElementById(`quotation-${message.id}`);
                                   if (element) {
-                                    const canvas = await html2canvas(element, { scale: 2 });
+                                    const canvas = await html2canvas(element, {
+                                      scale: 2,
+                                      useCORS: true,
+                                      allowTaint: false,
+                                      backgroundColor: '#ffffff',
+                                      logging: false
+                                    });
                                     const imgData = canvas.toDataURL('image/png');
                                     const pdf = new jsPDF('p', 'mm', 'a4');
                                     const imgWidth = 210;
+                                    const pageHeight = 297;
                                     const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                                    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+                                    let heightLeft = imgHeight;
+                                    let position = 0;
+                                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                                    heightLeft -= pageHeight;
+                                    while (heightLeft >= 0) {
+                                      position = heightLeft - imgHeight;
+                                      pdf.addPage();
+                                      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                                      heightLeft -= pageHeight;
+                                    }
                                     pdf.save(`cotizacion_${dayjs(message.timestamp).format('YYYY-MM-DD')}.pdf`);
                                   }
                                 }}
@@ -327,14 +655,15 @@ const QuotationChatPage: React.FC = () => {
                                 </svg>
                                 PDF
                               </Button>
+
                             </div>
-                          </>
+                          </div>
                         );
                       }
-                      
+
                       // Fallback to markdown rendering for non-table content
                       return (
-                        <>
+                        <div className="px-4 py-3 rounded-2xl bg-white border border-gray-200 shadow-md text-sm leading-relaxed break-words sm:px-5 sm:py-4 sm:text-base sm:rounded-2xl md:shadow-lg">
                           <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:font-semibold prose-h1:text-xl prose-h1:border-b-2 prose-h1:border-blue-600 prose-h1:pb-2 prose-h1:mt-0 prose-h1:mb-3 prose-h2:text-lg prose-h2:text-gray-700 prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:text-gray-700 prose-h3:mt-3 prose-h3:mb-2 prose-p:text-gray-600 prose-p:my-2 prose-p:leading-relaxed prose-p:text-sm prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline prose-strong:text-gray-900 prose-strong:font-semibold prose-ul:my-2 prose-ul:ml-4 prose-ul:list-disc prose-ul:space-y-1 prose-ul:text-sm prose-ol:my-2 prose-ol:ml-4 prose-ol:list-decimal prose-ol:space-y-1 prose-ol:text-sm prose-li:text-gray-600 prose-li:mb-1 prose-code:bg-gray-100 prose-code:text-red-600 prose-code:px-2 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:border prose-code:border-gray-200 sm:prose-base">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {message.content}
@@ -351,7 +680,7 @@ const QuotationChatPage: React.FC = () => {
                             </svg>
                             Copiar
                           </Button>
-                        </>
+                        </div>
                       );
                     })()}
                   </div>
@@ -377,6 +706,32 @@ const QuotationChatPage: React.FC = () => {
           )}
 
           <div ref={messagesEndRef} />
+        </Card>
+
+        {/* Customer Info Inputs */}
+        <Card className="flex flex-col gap-2 p-3 bg-white rounded-2xl shadow-lg border border-gray-200 sm:flex-row sm:gap-3 sm:p-4 md:rounded-2xl mb-3">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Nombre del Cliente</label>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Nombre del cliente (opcional)"
+              disabled={isLoading}
+              className="w-full px-3 py-2 border-2 border-gray-300 rounded-xl text-sm outline-none transition-all bg-white text-gray-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-50 placeholder:text-gray-400 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-200"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Ubicación</label>
+            <input
+              type="text"
+              value={customerLocation}
+              onChange={(e) => setCustomerLocation(e.target.value)}
+              placeholder="Ubicación (opcional)"
+              disabled={isLoading}
+              className="w-full px-3 py-2 border-2 border-gray-300 rounded-xl text-sm outline-none transition-all bg-white text-gray-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-50 placeholder:text-gray-400 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-200"
+            />
+          </div>
         </Card>
 
         {/* Input area with better mobile styling */}
