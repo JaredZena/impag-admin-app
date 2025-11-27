@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Navigation from '@/components/ui/Navigation';
 import { apiRequest } from '@/utils/api';
 import dayjs from 'dayjs';
@@ -29,6 +29,7 @@ interface Quotation {
 
 const QuotationHistoryPage: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,16 @@ const QuotationHistoryPage: React.FC = () => {
     loadQuotations();
   }, []);
 
+  // Load quotation from URL parameter
+  useEffect(() => {
+    if (id) {
+      const quotationId = parseInt(id, 10);
+      if (!isNaN(quotationId)) {
+        loadQuotationById(quotationId);
+      }
+    }
+  }, [id]);
+
   const loadQuotations = async () => {
     try {
       setIsLoading(true);
@@ -48,6 +59,32 @@ const QuotationHistoryPage: React.FC = () => {
     } catch (err: any) {
       console.error('Failed to load quotations:', err);
       setError(err?.message || 'Error al cargar el historial de cotizaciones.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadQuotationById = async (quotationId: number) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const quotation = await apiRequest(`/quotation-history/${quotationId}`);
+      setSelectedQuotation(quotation);
+      setViewMode('detail');
+      // Also update the quotations list if this quotation is in it
+      setQuotations(prev => {
+        const index = prev.findIndex(q => q.id === quotationId);
+        if (index !== -1) {
+          const updated = [...prev];
+          updated[index] = quotation;
+          return updated;
+        }
+        return prev;
+      });
+    } catch (err: any) {
+      console.error('Failed to load quotation:', err);
+      setError(err?.message || 'Error al cargar la cotización.');
+      navigate('/quotation-history');
     } finally {
       setIsLoading(false);
     }
@@ -66,6 +103,7 @@ const QuotationHistoryPage: React.FC = () => {
       if (selectedQuotation?.id === id) {
         setSelectedQuotation(null);
         setViewMode('list');
+        navigate('/quotation-history');
       }
     } catch (err: any) {
       console.error('Failed to delete quotation:', err);
@@ -74,13 +112,15 @@ const QuotationHistoryPage: React.FC = () => {
   };
 
   const handleViewQuotation = (quotation: Quotation) => {
-    setSelectedQuotation(quotation);
-    setViewMode('detail');
+    navigate(`/quotation-history/${quotation.id}`);
+    // Reload the quotation to get the latest data from database
+    loadQuotationById(quotation.id);
   };
 
   const handleBackToList = () => {
     setSelectedQuotation(null);
     setViewMode('list');
+    navigate('/quotation-history');
   };
 
   if (viewMode === 'detail' && selectedQuotation) {

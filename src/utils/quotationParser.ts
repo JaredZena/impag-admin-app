@@ -200,9 +200,14 @@ export function parseQuotationMarkdown(markdown: string): ParsedQuotation {
       const isNotaSection = currentSection.title.toLowerCase().includes('nota');
 
       // Only collect notes from "Nota" sections
-      if (isNotaSection && (line.startsWith('✅') || line.startsWith('📋') || line.startsWith('🔧') ||
-        line.startsWith('📞') || line.startsWith('*') || line.startsWith('-'))) {
-        notes.push(line);
+      if (isNotaSection) {
+        // Be more flexible - capture any line in a Nota section that has content
+        // This includes lines starting with emojis, bullets, dashes, or any line with ** (bold)
+        if (line.startsWith('✅') || line.startsWith('📋') || line.startsWith('🔧') ||
+          line.startsWith('📞') || line.startsWith('*') || line.startsWith('-') ||
+          line.includes('**') || (line.trim().length > 5 && !line.startsWith('|'))) {
+          notes.push(line);
+        }
       } else if (!isNotaSection && (line.includes('**') || line.length > 10)) {
         // Collect other content for non-nota sections
         currentSection.content.push(line);
@@ -395,9 +400,14 @@ export function parseInternalQuotationMarkdown(markdown: string): ParsedInternal
       const isNotaSection = currentSection.title.toLowerCase().includes('nota');
 
       // Only collect notes from "Nota" sections
-      if (isNotaSection && (line.startsWith('✅') || line.startsWith('📋') || line.startsWith('🔧') ||
-        line.startsWith('📞') || line.startsWith('*') || line.startsWith('-'))) {
-        notes.push(line);
+      if (isNotaSection) {
+        // Be more flexible - capture any line in a Nota section that has content
+        // This includes lines starting with emojis, bullets, dashes, or any line with ** (bold)
+        if (line.startsWith('✅') || line.startsWith('📋') || line.startsWith('🔧') ||
+          line.startsWith('📞') || line.startsWith('*') || line.startsWith('-') ||
+          line.includes('**') || (line.trim().length > 5 && !line.startsWith('|'))) {
+          notes.push(line);
+        }
       } else if (!isNotaSection && (line.includes('**') || line.length > 10)) {
         // Collect other content for non-nota sections
         currentSection.content.push(line);

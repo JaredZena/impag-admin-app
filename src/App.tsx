@@ -82,7 +82,7 @@ const AppContent: React.FC = () => {
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
           <Route path="/quotation-chat" element={<QuotationChatPage />} />
-          <Route path="/quotation-history" element={<QuotationHistoryPage />} />
+          <Route path="/quotation-history/:id?" element={<QuotationHistoryPage />} />
           <Route path="*" element={<Navigate to="/supplier-products" replace />} />
         </Routes>
       </ProtectedRoute>
