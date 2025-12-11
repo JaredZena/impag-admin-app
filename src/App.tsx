@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import ProductManagementPage from './components/product/ProductManagementPage';
 import ProductDetailPage from './components/product/ProductDetailPage';
 import ProductFormPage from './components/product/ProductFormPage';
 import StockManagementPage from './components/product/StockManagementPage';
@@ -13,6 +12,7 @@ import ProductBalancePage from './components/product/ProductBalancePage';
 import QuotationUploadPage from './components/quotation/QuotationUploadPage';
 import QuotationChatPage from './components/quotation/QuotationChatPage';
 import QuotationHistoryPage from './components/quotation/QuotationHistoryPage';
+import SocialCalendarPage from './components/social-calendar/SocialCalendarPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
@@ -79,7 +79,9 @@ const AppContent: React.FC = () => {
           <Route path="/supplier-products/edit/:id" element={<SupplierProductFormPage />} />
           <Route path="/stock" element={<StockManagementPage />} />
           <Route path="/balance" element={<ProductBalancePage />} />
+          <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />
+          <Route path="/social-calendar" element={<SocialCalendarPage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
           <Route path="/quotation-chat" element={<QuotationChatPage />} />
           <Route path="/quotation-history/:id?" element={<QuotationHistoryPage />} />
