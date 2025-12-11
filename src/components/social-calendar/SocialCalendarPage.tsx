@@ -12,9 +12,10 @@ import {
   getDaySuggestions, 
   updateSuggestionStatus, 
   getNextEmptyDate, 
-  getAllDatesWithSuggestions 
+  getAllDatesWithSuggestions,
+  saveDaySuggestions
 } from '../../lib/socialCalendarStorage';
-import { socialCalendarGenerator } from '../../lib/socialCalendar';
+import { socialCalendarGenerator, loadPostsFromDatabase, loadPostsForDate, saveDaySuggestionsToDatabase } from '../../lib/socialCalendar';
 import { formatDate, parseDate } from '../../lib/socialCalendarHelpers';
 import './SocialCalendar.css';
 
@@ -42,13 +43,56 @@ const SocialCalendarPage: React.FC = () => {
     refreshStatusMap();
   }, [viewMonth]);
 
+  // Load all posts from database on mount (shared across users)
+  useEffect(() => {
+    const loadFromDatabase = async () => {
+      try {
+        // Load posts for the current month and surrounding months
+        const start = new Date(viewMonth);
+        start.setMonth(start.getMonth() - 1);
+        start.setDate(1);
+        
+        const end = new Date(viewMonth);
+        end.setMonth(end.getMonth() + 2);
+        end.setDate(0); // Last day of the month
+        
+        const dbPosts = await loadPostsFromDatabase(
+          start.toISOString().split('T')[0],
+          end.toISOString().split('T')[0]
+        );
+        
+        // Merge with localStorage (database takes priority)
+        for (const dbDay of dbPosts) {
+          saveDaySuggestions(dbDay); // Update localStorage with DB data
+        }
+        
+        refreshStatusMap();
+      } catch (error) {
+        console.error('Failed to load posts from database:', error);
+        // Continue with localStorage only
+      }
+    };
+    
+    loadFromDatabase();
+  }, [viewMonth]);
+
   // Load suggestions when selected date changes
   useEffect(() => {
     loadSuggestionsForDate(selectedDate);
   }, [selectedDate]);
 
   // Actions
-  const loadSuggestionsForDate = (date: string) => {
+  const loadSuggestionsForDate = async (date: string) => {
+    // First try database (shared across users)
+    const dbData = await loadPostsForDate(date);
+    if (dbData) {
+      setCurrentSuggestions(dbData);
+      // Also update localStorage as cache
+      saveDaySuggestions(dbData);
+      return;
+    }
+    
+    // Fallback to localStorage
     const data = getDaySuggestions(date);
     setCurrentSuggestions(data);
   };
@@ -176,7 +220,7 @@ const SocialCalendarPage: React.FC = () => {
     }
   };
 
-  const handleStatusChange = (id: string, newStatus: SuggestionStatus) => {
+  const handleStatusChange = async (id: string, newStatus: SuggestionStatus) => {
     if (!currentSuggestions) return;
     updateSuggestionStatus(selectedDate, id, newStatus);
     
@@ -187,6 +231,13 @@ const SocialCalendarPage: React.FC = () => {
       updated.suggestions[idx].status = newStatus;
       setCurrentSuggestions(updated); // Update detail view
       refreshStatusMap(); // Update calendar dots
+      
+      // Save updated status to database
+      try {
+        await saveDaySuggestionsToDatabase(updated);
+      } catch (error) {
+        console.error('Failed to save status update to database:', error);
+      }
     }
   };
 

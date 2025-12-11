@@ -21,7 +21,7 @@ import { getPostTemplate } from '../data/social/postTemplates';
 import { getChannelConfig } from '../data/social/channelConfig';
 import { getPromptsForContext, hydratePrompt } from '../data/social/imagePrompts';
 // Removed unused imports: fetchSocialGenConfig, updateSocialGenConfig, PHASE_DEFINITIONS, SEASON_PATTERNS
-import { saveDaySuggestions, getHistory, cleanupOldEntries } from './socialCalendarStorage';
+import { saveDaySuggestions, getHistory, cleanupOldEntries, getDaySuggestions } from './socialCalendarStorage';
 import { generateId, weightedRandomSelect, formatDate, parseDate, randomInt, shuffle, replaceVariables } from './socialCalendarHelpers';
 import { apiRequest } from '../utils/api';
 
@@ -32,6 +32,178 @@ const DEFAULT_CONTACT_INFO = {
   social: '@impag.tech',
   email: 'impagtodoparaelcampo@gmail.com'
 };
+
+// -----------------------------------------------------------------------------
+// Database Sync Functions (Shared across users)
+// -----------------------------------------------------------------------------
+
+/**
+ * Save day suggestions to database (shared across all users)
+ */
+export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestions): Promise<void> {
+  try {
+    // Save each suggestion as a separate post in the database
+    for (const suggestion of daySuggestions.suggestions) {
+      await apiRequest('/social/save', {
+        method: 'POST',
+        body: JSON.stringify({
+          date_for: daySuggestions.date,
+          caption: suggestion.caption,
+          image_prompt: suggestion.imagePrompt,
+          post_type: suggestion.postType,
+          status: suggestion.status,
+          selected_product_id: suggestion.products[0]?.id || null,
+          formatted_content: {
+            id: suggestion.id,
+            postType: suggestion.postType,
+            channels: suggestion.channels,
+            hook: suggestion.hook,
+            hookType: suggestion.hookType,
+            products: suggestion.products,
+            tags: suggestion.tags,
+            instructions: suggestion.instructions,
+            postingTime: suggestion.postingTime,
+            generationSource: suggestion.generationSource,
+            // Extract strategy notes from instructions if present
+            strategyNotes: suggestion.instructions?.includes('🧠 Estrategia IA:') 
+              ? suggestion.instructions.split('🧠 Estrategia IA:')[1]?.split('\n\n')[0]?.trim() || null
+              : null
+          }
+        })
+      });
+    }
+  } catch (error) {
+    console.error('Failed to save suggestions to database:', error);
+    // Don't throw - allow localStorage to work as fallback
+  }
+}
+
+/**
+ * Load posts from database and convert to DaySuggestions format
+ */
+export async function loadPostsFromDatabase(
+  startDate?: string,
+  endDate?: string
+): Promise<DaySuggestions[]> {
+  try {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    
+    const response = await apiRequest(`/social/posts?${params.toString()}`);
+    
+    if (response.status === 'success' && response.posts) {
+      // Group posts by date_for
+      const postsByDate = new Map<string, any[]>();
+      
+      for (const post of response.posts) {
+        if (!postsByDate.has(post.date_for)) {
+          postsByDate.set(post.date_for, []);
+        }
+        postsByDate.get(post.date_for)!.push(post);
+      }
+      
+      // Convert to DaySuggestions format
+      const daySuggestions: DaySuggestions[] = [];
+      
+      for (const [date, posts] of postsByDate.entries()) {
+        const suggestions: Suggestion[] = posts.map(post => {
+          const formattedContent = post.formatted_content || {};
+          return {
+            id: formattedContent.id || `db-${post.id}`,
+            postType: formattedContent.postType || post.post_type || 'promo',
+            channels: formattedContent.channels || ['fb-post'],
+            hook: formattedContent.hook || '',
+            hookType: formattedContent.hookType || 'seasonality',
+            products: formattedContent.products || (post.selected_product_id ? [{
+              id: post.selected_product_id,
+              name: '',
+              category: 'vivero' as ProductCategory
+            }] : []),
+            caption: post.caption,
+            imagePrompt: post.image_prompt || '',
+            tags: formattedContent.tags || [],
+            status: (post.status as SuggestionStatus) || 'planned',
+            instructions: formattedContent.instructions,
+            postingTime: formattedContent.postingTime || post.posting_time,
+            generationSource: formattedContent.generationSource || 'template'
+          };
+        });
+        
+        daySuggestions.push({
+          date,
+          generatedAt: posts[0]?.created_at || new Date().toISOString(),
+          suggestions,
+          metadata: {
+            monthPhase: 'germinacion' as any, // Will be calculated if needed
+            relevantDates: [],
+            priorityCategories: []
+          }
+        });
+      }
+      
+      return daySuggestions.sort((a, b) => a.date.localeCompare(b.date));
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Failed to load posts from database:', error);
+    return [];
+  }
+}
+
+/**
+ * Load posts for a specific date from database
+ */
+export async function loadPostsForDate(date: string): Promise<DaySuggestions | null> {
+  try {
+    const response = await apiRequest(`/social/posts/by-date/${date}`);
+    
+    if (response.status === 'success' && response.posts && response.posts.length > 0) {
+      const posts = response.posts;
+      const formattedContent = posts[0].formatted_content || {};
+      
+      const suggestions: Suggestion[] = posts.map(post => {
+        const fc = post.formatted_content || {};
+        return {
+          id: fc.id || `db-${post.id}`,
+          postType: fc.postType || post.post_type || 'promo',
+          channels: fc.channels || ['fb-post'],
+          hook: fc.hook || '',
+          hookType: fc.hookType || 'seasonality',
+          products: fc.products || (post.selected_product_id ? [{
+            id: post.selected_product_id,
+            name: '',
+            category: 'vivero' as ProductCategory
+          }] : []),
+          caption: post.caption,
+          imagePrompt: post.image_prompt || '',
+          tags: fc.tags || [],
+          status: (post.status as SuggestionStatus) || 'planned',
+          instructions: fc.instructions,
+          postingTime: fc.postingTime || post.posting_time,
+          generationSource: fc.generationSource || 'template'
+        };
+      });
+      
+      return {
+        date,
+        generatedAt: posts[0]?.created_at || new Date().toISOString(),
+        suggestions,
+        metadata: {
+          monthPhase: 'germinacion' as any,
+          relevantDates: [],
+          priorityCategories: []
+        }
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Failed to load posts for date ${date}:`, error);
+    return null;
+  }
+}
 
 const CATEGORY_KEYWORDS: Record<ProductCategory, RegExp[]> = {
   mallasombra: [/malla/i, /sombra/i, /monofil/i, /raschel/i],
@@ -501,6 +673,10 @@ export class SocialCalendarGenerator {
     };
 
     saveDaySuggestions(daySuggestions);
+    
+    // Also save to database (shared across users)
+    await saveDaySuggestionsToDatabase(daySuggestions);
+    
     return daySuggestions;
   }
 
