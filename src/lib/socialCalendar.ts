@@ -107,7 +107,7 @@ export async function loadPostsFromDatabase(
       const daySuggestions: DaySuggestions[] = [];
       
       for (const [date, posts] of postsByDate.entries()) {
-        const suggestions: Suggestion[] = posts.map(post => {
+        const suggestions: Suggestion[] = posts.map((post: any) => {
           const formattedContent = post.formatted_content || {};
           return {
             id: formattedContent.id || `db-${post.id}`,
@@ -163,7 +163,7 @@ export async function loadPostsForDate(date: string): Promise<DaySuggestions | n
       const posts = response.posts;
       const formattedContent = posts[0].formatted_content || {};
       
-      const suggestions: Suggestion[] = posts.map(post => {
+      const suggestions: Suggestion[] = posts.map((post: any) => {
         const fc = post.formatted_content || {};
         return {
           id: fc.id || `db-${post.id}`,
