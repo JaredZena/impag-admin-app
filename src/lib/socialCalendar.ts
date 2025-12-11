@@ -635,30 +635,96 @@ export class SocialCalendarGenerator {
     // 0. Get Context
     const nearbyDates = getImportantDatesInWindow(targetDate, this.config.dateWindowDays);
     const dateBoostedCategories = nearbyDates.flatMap(d => d.relatedCategories);
-    const history = getHistory(
-      formatDate(new Date(targetDate.getTime() - this.config.dedupWindowDays * 24 * 60 * 60 * 1000)),
-      formatDate(targetDate)
-    );
+    
+    // Load history from database (last 10 days) for better deduplication
+    const historyStartDate = new Date(targetDate);
+    historyStartDate.setDate(historyStartDate.getDate() - 10);
+    
+    let history: DaySuggestions[] = [];
+    try {
+      // Try to load from database first (shared across users)
+      history = await loadPostsFromDatabase(
+        formatDate(historyStartDate),
+        formatDate(targetDate)
+      );
+      
+      // If database is empty, fallback to localStorage
+      if (history.length === 0) {
+        history = getHistory(
+          formatDate(historyStartDate),
+          formatDate(targetDate)
+        );
+      }
+    } catch (error) {
+      console.warn('Failed to load history from database, using localStorage:', error);
+      history = getHistory(
+        formatDate(historyStartDate),
+        formatDate(targetDate)
+      );
+    }
 
     // 2. Autonomous Generation Loop
     const count = randomInt(this.config.minSuggestions, this.config.maxSuggestions);
     const suggestions: Suggestion[] = [];
     
-    // Prepare history summary (Last 10 posts)
-    // Assuming 'history' contains previous suggestions in chronological order or we slice from end
-    const recentHistory = history
+    // Prepare comprehensive history for deduplication
+    // Extract products, categories, and topics from last 10 days
+    const recentPosts = history
       .flatMap(day => day.suggestions)
+      .slice(-20); // Last 20 posts for better context
+    
+    const recentProductIds = new Set<string>();
+    const recentCategories = new Set<string>();
+    const recentTopics = new Set<string>();
+    
+    recentPosts.forEach(post => {
+      // Track product IDs
+      post.products.forEach(p => {
+        if (p.id) recentProductIds.add(p.id);
+        if (p.category) recentCategories.add(p.category);
+      });
+      
+      // Extract topics from captions (first few words)
+      const captionWords = post.caption.split(/\s+/).slice(0, 3).join(' ').toLowerCase();
+      if (captionWords) recentTopics.add(captionWords);
+    });
+    
+    // Create history summary for backend
+    const recentHistory = recentPosts
       .slice(-10)
       .map(h => `${h.caption.substring(0, 50)}... [${h.postType}]`);
+    
+    // Create deduplication context
+    const dedupContext = {
+      recentProductIds: Array.from(recentProductIds),
+      recentCategories: Array.from(recentCategories),
+      recentTopics: Array.from(recentTopics),
+      recentPostCount: recentPosts.length
+    };
 
+    // Track products/categories used in this generation batch to avoid duplicates
+    const usedInBatch = {
+      productIds: new Set<string>(),
+      categories: new Set<string>()
+    };
+    
     for (let i = 0; i < count; i++) {
        const suggestion = await this.createAutonomousSuggestion(
          targetDate,
          nearbyDates,
          monthPattern,
-         recentHistory
+         recentHistory,
+         dedupContext,
+         usedInBatch
        );
-       if (suggestion) suggestions.push(suggestion);
+       if (suggestion) {
+         suggestions.push(suggestion);
+         // Track what we just used
+         suggestion.products.forEach(p => {
+           if (p.id) usedInBatch.productIds.add(p.id);
+           if (p.category) usedInBatch.categories.add(p.category);
+         });
+       }
     }
 
     const daySuggestions: DaySuggestions = {
@@ -713,7 +779,17 @@ export class SocialCalendarGenerator {
     date: Date,
     nearbyDates: any[],
     monthPattern: MonthPattern,
-    recentHistory: string[] = []
+    recentHistory: string[] = [],
+    dedupContext?: {
+      recentProductIds: string[];
+      recentCategories: string[];
+      recentTopics: string[];
+      recentPostCount: number;
+    },
+    usedInBatch?: {
+      productIds: Set<string>;
+      categories: Set<string>;
+    }
   ): Promise<Suggestion | null> {
     const id = generateId();
     // Default fallback values
@@ -732,13 +808,23 @@ export class SocialCalendarGenerator {
     let generationSource: 'llm' | 'template' = 'template';
 
     try {
-      // Thin Client: We just send the date and history.
+      // Send comprehensive context to backend for better deduplication
       const llmResponse: any = await apiRequest('/social/generate', {
         method: 'POST',
         body: JSON.stringify({
           date: date.toISOString().split('T')[0], // YYYY-MM-DD
           category: undefined,
-          recentPostHistory: recentHistory // Context to avoid repetition
+          recentPostHistory: recentHistory, // Context to avoid repetition
+          dedupContext: dedupContext ? {
+            recent_product_ids: dedupContext.recentProductIds,
+            recent_categories: dedupContext.recentCategories,
+            recent_topics: dedupContext.recentTopics,
+            recent_post_count: dedupContext.recentPostCount
+          } : undefined,
+          used_in_batch: usedInBatch ? {
+            product_ids: Array.from(usedInBatch.productIds),
+            categories: Array.from(usedInBatch.categories)
+          } : undefined
         })
       });
 
