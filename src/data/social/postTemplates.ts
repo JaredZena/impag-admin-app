@@ -62,7 +62,7 @@ export const POST_TEMPLATES: Record<PostType, PostTemplate> = {
     purpose: 'Ticket mayor y solución completa',
     formats: ['Carrusel con desglose', 'Reel mostrando armado'],
     ctaExamples: ['Arma tu kit según hectáreas', 'Entrega en campo'],
-    applicableChannels: ['fb-post', 'ig-post', 'wa- broadcast'],
+    applicableChannels: ['fb-post', 'ig-post', 'wa-broadcast'],
     captionTemplate: '🛠️ Todo lo que necesitas en un solo paquete:\n\nKit de [CATEGORIA] incluye:\n🔹 [ITEM 1]\n🔹 [ITEM 2]\n🔹 [ITEM 3]\n\n💡 Ideal para [USO/CULTIVO].\n\n🚚 Te lo enviamos hasta tu parcela.'
   },
 
@@ -158,7 +158,7 @@ export const POST_TEMPLATES: Record<PostType, PostTemplate> = {
     purpose: 'Justificar inversión (bomba solar, sombra)',
     formats: ['Carrusel con números', 'Reel interactivo'],
     ctaExamples: ['Calcula tu ROI', 'Escribe "inversión"'],
-    applicableChannels: ['linkedIn', 'fb-post', 'ig-post'], // Added LinkedIn implicitly just in case
+    applicableChannels: ['fb-post', 'ig-post'], // LinkedIn not available as channel type
     captionTemplate: '💰 ¿Cuánto ahorras con [PRODUCTO]?\n\nHagamos cuentas:\n\n📉 Gasto anterior: $[MONTO]\n📈 Ahorro mensual: $[MONTO]\n\nTu inversión se paga sola en [TIEMPO].\n\nCotiza tu proyecto hoy mismo.'
   },
 

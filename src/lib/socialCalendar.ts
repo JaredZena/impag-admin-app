@@ -20,14 +20,7 @@ import { getImportantDatesInWindow } from '../data/social/importantDates';
 import { getPostTemplate } from '../data/social/postTemplates';
 import { getChannelConfig } from '../data/social/channelConfig';
 import { getPromptsForContext, hydratePrompt } from '../data/social/imagePrompts';
-import {
-  fetchSocialGenConfig,
-  updateSocialGenConfig
-} from './api';
-import {
-  PHASE_DEFINITIONS,
-  SEASON_PATTERNS
-} from '../data/social/seasonPatterns';
+// Removed unused imports: fetchSocialGenConfig, updateSocialGenConfig, PHASE_DEFINITIONS, SEASON_PATTERNS
 import { saveDaySuggestions, getHistory, cleanupOldEntries } from './socialCalendarStorage';
 import { generateId, weightedRandomSelect, formatDate, parseDate, randomInt, shuffle, replaceVariables } from './socialCalendarHelpers';
 import { apiRequest } from '../utils/api';
