@@ -268,16 +268,14 @@ export interface ImportantDate {
 }
 
 /**
- * Channel configuration
+ * Channel configuration (Frontend display only)
+ * Detailed AI context (format specs, music requirements, etc.) is in backend: social.py
  */
 export interface ChannelConfig {
   channel: Channel;
-  bestFor: string[];
-  format: string;
-  tone: string;
-  ctaStyle: string;
-  maxPerWeek: number;
-  examples: string[];
+  label: string;
+  icon: string;
+  color: string;
 }
 
 /**

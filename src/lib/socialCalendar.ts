@@ -336,16 +336,20 @@ export class SocialCalendarGenerator {
     let mainProduct: ProductRef | undefined = undefined; // No local pool to pick from
     let category: string = 'vivero'; // Default general category if no product
     
-    let hookType: HookType = 'seasonality';
-    let hookText = 'Tendencias agrícolas';
-    let postType: PostType = 'promo';
-    const channels: Channel[] = ['wa-status', 'fb-post', 'ig-post'];
+    const hookType: HookType = 'seasonality';
+    const hookText = 'Tendencias agrícolas';
+    const postType: PostType = 'promo';
+    let channels: Channel[] = ['fb-post']; // Default, will be updated from backend
     
     let caption = 'Contenido generado automáticamente.';
     let imagePrompt = 'Imagen agrícola profesional.';
     let postingTime = '10:00 AM';
     let instructions = 'Revisar antes de publicar.';
     let generationSource: 'llm' | 'template' = 'template';
+    
+    // Channel-specific data from backend
+    let carouselSlides: string[] | undefined;
+    let needsMusic = false;
 
     try {
       // Send comprehensive context to backend for better deduplication
@@ -371,7 +375,7 @@ export class SocialCalendarGenerator {
              const raw = text.replace(/```json/g, '').replace(/```/g, '').trim();
              const parsed = JSON.parse(raw);
              return parsed.caption || parsed.text || text;
-           } catch (e) { 
+           } catch { 
              return text.replace(/```json/g, '').replace(/```/g, '').trim();
            }
         }
@@ -397,15 +401,51 @@ export class SocialCalendarGenerator {
             };
          }
 
+         // 3. Resolve Channel from Backend
+         if (llmResponse.channel) {
+            const selectedChannel = llmResponse.channel as Channel;
+            channels = [selectedChannel];
+            
+            // Add cross-posted channels (FB → IG)
+            if (selectedChannel === 'fb-post') {
+              channels.push('ig-post');
+            } else if (selectedChannel === 'fb-reel') {
+              channels.push('ig-reel');
+            }
+         }
+         
+         // 4. Capture channel-specific data (carousel slides work for TikTok AND FB/IG)
+         if (llmResponse.carousel_slides && Array.isArray(llmResponse.carousel_slides)) {
+            carouselSlides = llmResponse.carousel_slides;
+         }
+         if (llmResponse.needs_music !== undefined) {
+            needsMusic = llmResponse.needs_music;
+         }
+
          caption = cleanText(llmResponse.caption) || caption;
          
-         let rawPrompt = llmResponse.image_prompt || llmResponse.imagePrompt;
+         const rawPrompt = llmResponse.image_prompt || llmResponse.imagePrompt;
          if (rawPrompt) imagePrompt = cleanText(rawPrompt);
 
          postingTime = llmResponse.posting_time || llmResponse.postingTime || postingTime;
          
+         // Build instructions with channel-specific notes
+         let channelNotes = '';
+         if (needsMusic) {
+            channelNotes += '🎵 Este contenido necesita música de fondo (corridos mexicanos, regional popular)\n';
+         }
+         if (carouselSlides && carouselSlides.length > 0) {
+            const channelLabel = channels[0] === 'tiktok' ? 'TikTok' : 'FB/IG';
+            channelNotes += `📱 ${channelLabel} Carrusel (${carouselSlides.length} slides):\n`;
+            carouselSlides.forEach((slide, i) => {
+               channelNotes += `  Slide ${i + 1}: ${slide.substring(0, 100)}...\n`;
+            });
+         }
+         
          if (llmResponse.notes) {
-           instructions = `🧠 Estrategia IA:\n${llmResponse.notes}\n\n${instructions}`;
+           instructions = `🧠 Estrategia IA:\n${llmResponse.notes}\n\n${channelNotes}${instructions}`;
+         } else if (channelNotes) {
+           instructions = `${channelNotes}\n${instructions}`;
          }
          
          generationSource = 'llm';
