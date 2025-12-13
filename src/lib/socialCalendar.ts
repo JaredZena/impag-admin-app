@@ -82,10 +82,8 @@ export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestion
         // Update the suggestion ID to be db-{postId} format for future reference
         if (suggestion.id !== dbId) {
           suggestion.id = dbId; // Update the suggestion ID directly
-          // Also update formatted_content.id for consistency
-          if (suggestion.formatted_content) {
-            suggestion.formatted_content.id = dbId;
-          }
+          // Note: formatted_content is stored in the database, not in the Suggestion object
+          // The ID will be updated in the database when the post is saved
         }
       }
     }
