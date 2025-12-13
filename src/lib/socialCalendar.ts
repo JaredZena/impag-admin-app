@@ -29,17 +29,34 @@ export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestion
   try {
     // Save each suggestion as a separate post in the database
     for (const suggestion of daySuggestions.suggestions) {
-      await apiRequest('/social/save', {
+      // Extract channel (primary channel, first one)
+      const primaryChannel = suggestion.channels[0] || 'fb-post';
+      
+      // Extract carousel slides from imagePrompt if it contains "━━━━ SLIDE"
+      let carouselSlides: string[] | null = null;
+      if (suggestion.imagePrompt && suggestion.imagePrompt.includes('━━━━ SLIDE')) {
+        const slides = suggestion.imagePrompt.split('━━━━ SLIDE').slice(1);
+        carouselSlides = slides.map(slide => slide.split('━━━━')[0].trim());
+      }
+      
+      // Extract needs_music from instructions
+      const needsMusic = suggestion.instructions?.includes('🎵') || false;
+      
+      const response = await apiRequest('/social/save', {
         method: 'POST',
         body: JSON.stringify({
           date_for: daySuggestions.date,
           caption: suggestion.caption,
-          image_prompt: suggestion.imagePrompt,
+          image_prompt: carouselSlides ? null : suggestion.imagePrompt, // Only send if not carousel
           post_type: suggestion.postType,
           status: suggestion.status,
           selected_product_id: suggestion.products[0]?.id || null,
+          channel: primaryChannel, // Send as string, not array
+          carousel_slides: carouselSlides, // Send array if carousel
+          needs_music: needsMusic, // Send boolean
+          user_feedback: suggestion.userFeedback || null, // Send as top-level field
           formatted_content: {
-            id: suggestion.id,
+            id: suggestion.id, // This should be "db-{id}" if loaded from DB, or original ID if new
             postType: suggestion.postType,
             channels: suggestion.channels,
             hook: suggestion.hook,
@@ -49,6 +66,7 @@ export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestion
             instructions: suggestion.instructions,
             postingTime: suggestion.postingTime,
             generationSource: suggestion.generationSource,
+            userFeedback: suggestion.userFeedback || null, // Keep for backwards compatibility
             // Extract strategy notes from instructions if present
             strategyNotes: suggestion.instructions?.includes('🧠 Estrategia IA:') 
               ? suggestion.instructions.split('🧠 Estrategia IA:')[1]?.split('\n\n')[0]?.trim() || null
@@ -56,10 +74,42 @@ export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestion
           }
         })
       });
+      
+      // If this was a new post (not updated), update the suggestion ID to include DB ID
+      // This ensures future updates can find the post
+      if (response && response.id) {
+        const dbId = `db-${response.id}`;
+        // Update the suggestion ID to be db-{postId} format for future reference
+        if (suggestion.id !== dbId) {
+          suggestion.id = dbId; // Update the suggestion ID directly
+          // Also update formatted_content.id for consistency
+          if (suggestion.formatted_content) {
+            suggestion.formatted_content.id = dbId;
+          }
+        }
+      }
     }
   } catch (error) {
     console.error('Failed to save suggestions to database:', error);
     // Don't throw - allow localStorage to work as fallback
+  }
+}
+
+/**
+ * Update user feedback for a specific post
+ */
+export async function updatePostFeedback(
+  postId: number,
+  feedback: 'like' | 'dislike' | null
+): Promise<void> {
+  try {
+    await apiRequest(`/social/posts/${postId}/feedback`, {
+      method: 'PUT',
+      body: JSON.stringify({ feedback })
+    });
+  } catch (error) {
+    console.error(`Failed to update feedback for post ${postId}:`, error);
+    throw error;
   }
 }
 
@@ -94,24 +144,55 @@ export async function loadPostsFromDatabase(
       for (const [date, posts] of postsByDate.entries()) {
         const suggestions: Suggestion[] = posts.map((post: any) => {
           const formattedContent = post.formatted_content || {};
+          // Use post.channel directly if available, otherwise fallback to formatted_content.channels
+          const channels = post.channel 
+            ? [post.channel as Channel] 
+            : (formattedContent.channels || ['fb-post']);
+          
+          // Reconstruct imagePrompt from carousel_slides if present
+          let imagePrompt = post.image_prompt || '';
+          if (post.carousel_slides && Array.isArray(post.carousel_slides) && post.carousel_slides.length > 0) {
+            imagePrompt = post.carousel_slides.map((slide: string, i: number) => 
+              `━━━━ SLIDE ${i + 1} ━━━━\n${slide}`
+            ).join('\n\n');
+          }
+          
+          // Add music note to instructions if needs_music is true
+          let instructions = formattedContent.instructions || '';
+          if (post.needs_music && !instructions.includes('🎵')) {
+            instructions = `🎵 Este contenido necesita música de fondo (corridos mexicanos, regional popular)\n${instructions}`;
+          }
+          
+          // Use products from formatted_content if available, otherwise create placeholder
+          let products = formattedContent.products || [];
+          if (post.selected_product_id && products.length === 0) {
+            // If we have a product ID but no product name, create a placeholder
+            // The name will be fetched later if needed, but for now we'll show the ID
+            products = [{
+              id: post.selected_product_id,
+              name: `Producto ${post.selected_product_id}`, // Placeholder, could be enhanced with API call
+              category: 'vivero' as ProductCategory
+            }];
+          }
+          
+          // Get user_feedback from top-level field (preferred) or fallback to formatted_content
+          const userFeedback = post.user_feedback || formattedContent.userFeedback || null;
+          
           return {
             id: formattedContent.id || `db-${post.id}`,
             postType: formattedContent.postType || post.post_type || 'promo',
-            channels: formattedContent.channels || ['fb-post'],
+            channels: channels,
             hook: formattedContent.hook || '',
             hookType: formattedContent.hookType || 'seasonality',
-            products: formattedContent.products || (post.selected_product_id ? [{
-              id: post.selected_product_id,
-              name: '',
-              category: 'vivero' as ProductCategory
-            }] : []),
+            products: products,
             caption: post.caption,
-            imagePrompt: post.image_prompt || '',
+            imagePrompt: imagePrompt,
             tags: formattedContent.tags || [],
             status: (post.status as SuggestionStatus) || 'planned',
-            instructions: formattedContent.instructions,
+            instructions: instructions,
             postingTime: formattedContent.postingTime || post.posting_time,
-            generationSource: formattedContent.generationSource || 'template'
+            generationSource: formattedContent.generationSource || 'template',
+            userFeedback: userFeedback
           };
         });
         
@@ -150,25 +231,55 @@ export async function loadPostsForDate(date: string): Promise<DaySuggestions | n
       
       const suggestions: Suggestion[] = posts.map((post: any) => {
         const fc = post.formatted_content || {};
-        return {
-          id: fc.id || `db-${post.id}`,
-          postType: fc.postType || post.post_type || 'promo',
-          channels: fc.channels || ['fb-post'],
-          hook: fc.hook || '',
-          hookType: fc.hookType || 'seasonality',
-          products: fc.products || (post.selected_product_id ? [{
+        // Use post.channel directly if available, otherwise fallback to formatted_content.channels
+        const channels = post.channel 
+          ? [post.channel as Channel] 
+          : (fc.channels || ['fb-post']);
+        
+        // Reconstruct imagePrompt from carousel_slides if present
+        let imagePrompt = post.image_prompt || '';
+        if (post.carousel_slides && Array.isArray(post.carousel_slides) && post.carousel_slides.length > 0) {
+          imagePrompt = post.carousel_slides.map((slide: string, i: number) => 
+            `━━━━ SLIDE ${i + 1} ━━━━\n${slide}`
+          ).join('\n\n');
+        }
+        
+        // Add music note to instructions if needs_music is true
+        let instructions = fc.instructions || '';
+        if (post.needs_music && !instructions.includes('🎵')) {
+          instructions = `🎵 Este contenido necesita música de fondo (corridos mexicanos, regional popular)\n${instructions}`;
+        }
+        
+        // Use products from formatted_content if available, otherwise create placeholder
+        let products = fc.products || [];
+        if (post.selected_product_id && products.length === 0) {
+          // If we have a product ID but no product name, create a placeholder
+          products = [{
             id: post.selected_product_id,
-            name: '',
+            name: `Producto ${post.selected_product_id}`, // Placeholder, could be enhanced with API call
             category: 'vivero' as ProductCategory
-          }] : []),
-          caption: post.caption,
-          imagePrompt: post.image_prompt || '',
-          tags: fc.tags || [],
-          status: (post.status as SuggestionStatus) || 'planned',
-          instructions: fc.instructions,
-          postingTime: fc.postingTime || post.posting_time,
-          generationSource: fc.generationSource || 'template'
-        };
+          }];
+        }
+        
+          // Get user_feedback from top-level field (preferred) or fallback to formatted_content
+          const userFeedback = post.user_feedback || fc.userFeedback || null;
+          
+          return {
+            id: fc.id || `db-${post.id}`,
+            postType: fc.postType || post.post_type || 'promo',
+            channels: channels,
+            hook: fc.hook || '',
+            hookType: fc.hookType || 'seasonality',
+            products: products,
+            caption: post.caption,
+            imagePrompt: imagePrompt,
+            tags: fc.tags || [],
+            status: (post.status as SuggestionStatus) || 'planned',
+            instructions: instructions,
+            postingTime: fc.postingTime || post.posting_time,
+            generationSource: fc.generationSource || 'template',
+            userFeedback: userFeedback
+          };
       });
       
       return {
@@ -230,7 +341,16 @@ export class SocialCalendarGenerator {
     return SocialCalendarGenerator.instance;
   }
 
-  public async generate(dateStr: string): Promise<DaySuggestions> {
+  public async generate(
+    dateStr: string,
+    categoryOverride?: ProductCategory,
+    usedInBatchOverride?: {
+      productIds: Set<string>;
+      categories: Set<string>;
+    },
+    batchGeneratedHistoryOverride: string[] = [],
+    suggestedTopic?: string
+  ): Promise<DaySuggestions> {
     const targetDate = parseDate(dateStr);
     const month = targetDate.getMonth() + 1; // 1-12
     const monthPattern = getMonthPattern(month);
@@ -241,13 +361,13 @@ export class SocialCalendarGenerator {
     
     // Track products/categories used in this generation batch to avoid duplicates
     // (This is the only context we need to track locally because it's not in DB yet)
-    const usedInBatch = {
+    const usedInBatch = usedInBatchOverride || {
       productIds: new Set<string>(),
       categories: new Set<string>()
     };
     
     // Track posts generated in this batch for context awareness
-    const batchGeneratedHistory: string[] = [];
+    const batchGeneratedHistory = batchGeneratedHistoryOverride;
     
     // 2. Autonomous Generation Loop
     const count = randomInt(this.config.minSuggestions, this.config.maxSuggestions);
@@ -259,7 +379,8 @@ export class SocialCalendarGenerator {
          nearbyDates,
          monthPattern,
          usedInBatch,
-         batchGeneratedHistory
+         batchGeneratedHistory,
+         suggestedTopic
        );
        if (suggestion) {
          suggestions.push(suggestion);
@@ -329,7 +450,8 @@ export class SocialCalendarGenerator {
       productIds: Set<string>;
       categories: Set<string>;
     },
-    batchGeneratedHistory: string[] = []
+    batchGeneratedHistory: string[] = [],
+    suggestedTopic?: string
   ): Promise<Suggestion | null> {
     const id = generateId();
     // Default fallback values
@@ -338,7 +460,7 @@ export class SocialCalendarGenerator {
     
     const hookType: HookType = 'seasonality';
     const hookText = 'Tendencias agrícolas';
-    const postType: PostType = 'promo';
+    let postType: PostType = 'promo'; // Default, will be updated from backend
     let channels: Channel[] = ['fb-post']; // Default, will be updated from backend
     
     let caption = 'Contenido generado automáticamente.';
@@ -363,7 +485,8 @@ export class SocialCalendarGenerator {
             product_ids: Array.from(usedInBatch.productIds),
             categories: Array.from(usedInBatch.categories)
           } : undefined,
-          batch_generated_history: batchGeneratedHistory // Pass accumulated batch history
+          batch_generated_history: batchGeneratedHistory, // Pass accumulated batch history
+          suggested_topic: suggestedTopic // Pass user-suggested topic if provided
         })
       });
 
@@ -388,7 +511,74 @@ export class SocialCalendarGenerator {
              category = normalizeCategory(llmResponse.selected_category);
          }
          
-         // 2. Resolve Product from Backend Response
+         // 2. Resolve Post Type from Backend (map Spanish names to PostType enum)
+         if (llmResponse.post_type) {
+            const backendPostType = llmResponse.post_type.toLowerCase();
+            // Map Spanish post type names from backend to frontend PostType
+            const postTypeMap: Record<string, PostType> = {
+               'infografías': 'infographic',
+               'infografia': 'infographic',
+               'infographic': 'infographic',
+               'fechas importantes': 'important-date',
+               'fecha importante': 'important-date',
+               'important-date': 'important-date',
+               'memes/tips rápidos': 'meme-tip',
+               'meme/tip rápido': 'meme-tip',
+               'meme-tip': 'meme-tip',
+               'promoción puntual': 'promo',
+               'promocion': 'promo',
+               'promo': 'promo',
+               'kits': 'kit',
+               'kit': 'kit',
+               'caso de éxito': 'case-study',
+               'caso de exito': 'case-study',
+               'ugc': 'ugc-request',
+               'case-study': 'case-study',
+               'antes / después': 'before-after',
+               'antes/despues': 'before-after',
+               'before-after': 'before-after',
+               'checklist operativo': 'checklist',
+               'checklist': 'checklist',
+               'tutorial corto': 'tutorial',
+               'tutorial': 'tutorial',
+               'lo que llegó hoy': 'new-arrivals',
+               'novedades': 'new-arrivals',
+               'new-arrivals': 'new-arrivals',
+               'faq': 'faq',
+               'mitos': 'faq',
+               'seguridad': 'safety',
+               'safety': 'safety',
+               'roi': 'roi',
+               'números rápidos': 'roi',
+               'convocatoria a ugc': 'ugc-request',
+               'ugc-request': 'ugc-request',
+               'recordatorio de servicio': 'service-reminder',
+               'service-reminder': 'service-reminder',
+               'cómo pedir': 'how-to-order',
+               'logística': 'how-to-order',
+               'how-to-order': 'how-to-order'
+            };
+            
+            // Try to find a match (exact or partial)
+            let matchedType: PostType | undefined = postTypeMap[backendPostType];
+            if (!matchedType) {
+               // Try partial match
+               for (const [key, value] of Object.entries(postTypeMap)) {
+                  if (backendPostType.includes(key) || key.includes(backendPostType)) {
+                     matchedType = value;
+                     break;
+                  }
+               }
+            }
+            
+            if (matchedType) {
+               postType = matchedType;
+            } else {
+               console.warn(`Unknown post_type from backend: ${llmResponse.post_type}, using default 'promo'`);
+            }
+         }
+         
+         // 3. Resolve Product from Backend Response
          if (llmResponse.selected_product_details) {
             const p = llmResponse.selected_product_details;
             mainProduct = {
@@ -401,7 +591,7 @@ export class SocialCalendarGenerator {
             };
          }
 
-         // 3. Resolve Channel from Backend
+         // 4. Resolve Channel from Backend
          if (llmResponse.channel) {
             const selectedChannel = llmResponse.channel as Channel;
             channels = [selectedChannel];
@@ -414,7 +604,7 @@ export class SocialCalendarGenerator {
             }
          }
          
-         // 4. Capture channel-specific data (carousel slides work for TikTok AND FB/IG)
+         // 5. Capture channel-specific data (carousel slides work for TikTok AND FB/IG)
          if (llmResponse.carousel_slides && Array.isArray(llmResponse.carousel_slides)) {
             carouselSlides = llmResponse.carousel_slides;
          }
@@ -474,7 +664,8 @@ export class SocialCalendarGenerator {
       imagePrompt,
       instructions,
       postingTime,
-      generationSource
+      generationSource,
+      userFeedback: null
     };
   }
 

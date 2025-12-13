@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Sparkles, Calendar as CalendarIcon, AlertCircle, Check, AlertTriangle, X, RefreshCw, ArrowRight } from 'lucide-react';
+import { Sparkles, Calendar as CalendarIcon, AlertCircle, Check, AlertTriangle, X, RefreshCw, ArrowRight, ThumbsUp, ThumbsDown } from 'lucide-react';
 import CalendarGrid from './CalendarGrid';
 import SuggestionCard from './SuggestionCard';
+import StepIndicator from './StepIndicator';
 import { 
   DaySuggestions, 
   SuggestionStatus, 
@@ -13,9 +14,10 @@ import {
   updateSuggestionStatus, 
   getNextEmptyDate, 
   getAllDatesWithSuggestions,
-  saveDaySuggestions
+  saveDaySuggestions,
+  deleteDaySuggestions
 } from '../../lib/socialCalendarStorage';
-import { socialCalendarGenerator, loadPostsFromDatabase, loadPostsForDate, saveDaySuggestionsToDatabase } from '../../lib/socialCalendar';
+import { socialCalendarGenerator, loadPostsFromDatabase, loadPostsForDate, saveDaySuggestionsToDatabase, updatePostFeedback } from '../../lib/socialCalendar';
 import { formatDate, parseDate } from '../../lib/socialCalendarHelpers';
 import './SocialCalendar.css';
 
@@ -27,7 +29,9 @@ const SocialCalendarPage: React.FC = () => {
   const [currentSuggestions, setCurrentSuggestions] = useState<DaySuggestions | null>(null);
   const [statusMap, setStatusMap] = useState<Record<string, SuggestionStatus>>({});
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStep, setGenerationStep] = useState<string>('');
   const [generationMsg, setGenerationMsg] = useState<{type: 'success' | 'warning', text: string} | null>(null);
+  const [suggestedTopic, setSuggestedTopic] = useState<string>('');
   const abortGenRef = useRef(false);
 
   const handleCancelGeneration = () => {
@@ -61,9 +65,25 @@ const SocialCalendarPage: React.FC = () => {
           end.toISOString().split('T')[0]
         );
         
-        // Merge with localStorage (database takes priority)
+        // Get all dates that have data in localStorage for this range
+        const allLocalDates = getAllDatesWithSuggestions().filter(dateStr => {
+          const date = new Date(dateStr);
+          return date >= start && date <= end;
+        });
+        
+        // Create a set of dates that have posts in DB
+        const dbDatesSet = new Set(dbPosts.map(p => p.date));
+        
+        // Update localStorage: save DB posts, remove dates that are no longer in DB
         for (const dbDay of dbPosts) {
           saveDaySuggestions(dbDay); // Update localStorage with DB data
+        }
+        
+        // Remove from localStorage any dates that are in localStorage but not in DB
+        for (const localDate of allLocalDates) {
+          if (!dbDatesSet.has(localDate)) {
+            deleteDaySuggestions(localDate);
+          }
         }
         
         refreshStatusMap();
@@ -92,12 +112,53 @@ const SocialCalendarPage: React.FC = () => {
       return;
     }
     
-    // Fallback to localStorage
-    const data = getDaySuggestions(date);
-    setCurrentSuggestions(data);
+    // If DB returns null/empty, check if we should clear localStorage for this date
+    // This handles the case where posts were deleted from DB
+    const localData = getDaySuggestions(date);
+    if (localData) {
+      // If we have local data but no DB data, the posts were likely deleted
+      // Clear localStorage for this date to keep them in sync
+      deleteDaySuggestions(date);
+      setCurrentSuggestions(null);
+      return;
+    }
+    
+    // No data in DB or localStorage
+    setCurrentSuggestions(null);
   };
 
-  const refreshStatusMap = () => {
+  const refreshStatusMap = async () => {
+    // First, sync with DB to ensure we're showing accurate data
+    try {
+      const start = new Date(viewMonth);
+      start.setMonth(start.getMonth() - 1);
+      start.setDate(1);
+      
+      const end = new Date(viewMonth);
+      end.setMonth(end.getMonth() + 2);
+      end.setDate(0);
+      
+      const dbPosts = await loadPostsFromDatabase(
+        start.toISOString().split('T')[0],
+        end.toISOString().split('T')[0]
+      );
+      
+      const dbDatesSet = new Set(dbPosts.map(p => p.date));
+      const allLocalDates = getAllDatesWithSuggestions().filter(dateStr => {
+        const date = new Date(dateStr);
+        return date >= start && date <= end;
+      });
+      
+      // Remove dates from localStorage that are no longer in DB
+      for (const localDate of allLocalDates) {
+        if (!dbDatesSet.has(localDate)) {
+          deleteDaySuggestions(localDate);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to sync status map with database:', error);
+    }
+    
     const allDates = getAllDatesWithSuggestions();
     const newMap: Record<string, SuggestionStatus> = {};
     
@@ -149,13 +210,15 @@ const SocialCalendarPage: React.FC = () => {
         }
       }
 
-      // Generate
-      const result = await socialCalendarGenerator.generate(targetDate);
+      setGenerationStep('Generando contenido con IA...');
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Generate with optional topic suggestion
+      const result = await socialCalendarGenerator.generate(targetDate, undefined, undefined, [], suggestedTopic || undefined);
       
       if (abortGenRef.current) return;
 
       // Update state
-      setCurrentSuggestions(result);
       setCurrentSuggestions(result);
       refreshStatusMap();
 
@@ -176,15 +239,36 @@ const SocialCalendarPage: React.FC = () => {
       console.error('Generation failed:', error);
       alert('Error generando contenido.');
     } finally {
-      if (!abortGenRef.current) setIsGenerating(false);
+      if (!abortGenRef.current) {
+        setIsGenerating(false);
+        setGenerationStep('');
+        setSuggestedTopic(''); // Clear topic after generation
+      }
     }
   };
 
   const handleGenerateNextEmpty = async () => {
     abortGenRef.current = false;
     setIsGenerating(true);
+    setGenerationStep('Buscando siguiente día disponible...');
     try {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setGenerationStep('Iniciando generación...');
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const nextDate = getNextEmptyDate(); // defaults to tomorrow+
+      
+      setGenerationStep('Analizando tendencias e inventario...');
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      setGenerationStep('Consultando base de datos de productos...');
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      setGenerationStep('Generando estrategia con IA...');
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      setGenerationStep('Creando contenido y prompts de imagen...');
+      
       const result = await socialCalendarGenerator.generate(nextDate);
       
       if (abortGenRef.current) return;
@@ -216,7 +300,10 @@ const SocialCalendarPage: React.FC = () => {
       console.error(error);
       alert('Error buscando siguiente día libre.');
     } finally {
-      if (!abortGenRef.current) setIsGenerating(false);
+      if (!abortGenRef.current) {
+        setIsGenerating(false);
+        setGenerationStep('');
+      }
     }
   };
 
@@ -273,47 +360,89 @@ const SocialCalendarPage: React.FC = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            backdropFilter: 'blur(4px)',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            backdropFilter: 'blur(8px)',
             zIndex: 50,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: '0.75rem',
-            color: '#e2e8f0'
+            color: '#e2e8f0',
+            padding: '2rem'
           }}>
-            <div className="animate-spin mb-4">
-              <Sparkles size={48} className="text-purple-500" />
+            <div className="animate-spin mb-6">
+              <Sparkles size={56} className="text-purple-500" />
             </div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-              Analizando tendencias e inventario...
+            
+            {/* Multi-step progress indicator */}
+            <div style={{ width: '100%', maxWidth: '400px', marginBottom: '2rem' }}>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem'
+              }}>
+                <StepIndicator 
+                  active={generationStep.includes('Iniciando') || generationStep.includes('Analizando')}
+                  completed={generationStep.includes('Consultando') || generationStep.includes('Generando') || generationStep.includes('Creando')}
+                  label="Análisis de tendencias"
+                />
+                <StepIndicator 
+                  active={generationStep.includes('Consultando')}
+                  completed={generationStep.includes('Generando') || generationStep.includes('Creando')}
+                  label="Consulta de productos"
+                />
+                <StepIndicator 
+                  active={generationStep.includes('Generando')}
+                  completed={generationStep.includes('Creando')}
+                  label="Estrategia con IA"
+                />
+                <StepIndicator 
+                  active={generationStep.includes('Creando')}
+                  completed={false}
+                  label="Generación de contenido"
+                />
+              </div>
+            </div>
+            
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '0.5rem', textAlign: 'center' }}>
+              {generationStep || 'Generando contenido...'}
             </h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem', maxWidth: '300px', textAlign: 'center' }}>
-              La IA está revisando tus productos, fechas importantes y patrones de venta para crear el post ideal.
+            <p style={{ fontSize: '1rem', color: '#94a3b8', marginBottom: '2rem', textAlign: 'center' }}>
+              Esto puede tomar unos momentos...
             </p>
-            <button 
+            <button
               onClick={handleCancelGeneration}
               style={{
-                marginTop: '1.5rem',
-                padding: '0.5rem 1rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '0.75rem 1.5rem',
                 borderRadius: '0.5rem',
-                color: '#cbd5e1',
-                fontSize: '0.85rem',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                color: '#fca5a5',
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
+                fontSize: '0.875rem',
+                fontWeight: 600,
                 transition: 'all 0.2s'
               }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.3)'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'}
             >
-              <X size={14} /> Cancelar Generación
+              <X size={16} style={{ marginRight: '0.5rem', display: 'inline', verticalAlign: 'middle' }} /> Cancelar
             </button>
           </div>
+        )}
+        
+        {/* Step Indicator Animation */}
+        {isGenerating && (
+          <style>{`
+            @keyframes stepPulse {
+              0%, 100% { opacity: 0.5; }
+              50% { opacity: 1; }
+            }
+            .step-active {
+              animation: stepPulse 1.5s ease-in-out infinite;
+            }
+          `}</style>
         )}
 
         <div className="feed-header">
@@ -377,7 +506,7 @@ const SocialCalendarPage: React.FC = () => {
         )}
 
 
-        {currentSuggestions ? (
+        {currentSuggestions && currentSuggestions.suggestions.length > 0 ? (
           <div>
             {currentSuggestions.metadata.relevantDates.length > 0 && (
               <div style={{ 
@@ -401,14 +530,136 @@ const SocialCalendarPage: React.FC = () => {
                 key={suggestion.id}
                 suggestion={suggestion}
                 onStatusChange={handleStatusChange}
+                onFeedbackChange={async (id, feedback) => {
+                  if (currentSuggestions) {
+                    const updated = { ...currentSuggestions };
+                    const idx = updated.suggestions.findIndex(s => s.id === id);
+                    if (idx >= 0) {
+                      updated.suggestions[idx].userFeedback = feedback;
+                      setCurrentSuggestions(updated);
+                      saveDaySuggestions(updated);
+                      
+                      // Try to update feedback directly using PUT endpoint (most efficient)
+                      // Extract post ID from suggestion ID (format: "db-{postId}")
+                      const postIdMatch = id.match(/^db-(\d+)$/);
+                      if (postIdMatch) {
+                        const postId = parseInt(postIdMatch[1], 10);
+                        try {
+                          await updatePostFeedback(postId, feedback);
+                          console.log(`✓ Feedback updated via PUT for post ${postId}`);
+                          return; // Success - exit early
+                        } catch (error) {
+                          console.error('Failed to update feedback via PUT endpoint:', error);
+                          // Fallback: update entire post (which will now update instead of create)
+                          try {
+                            await saveDaySuggestionsToDatabase(updated);
+                            console.log(`✓ Feedback updated via full save for suggestion ${id}`);
+                          } catch (fallbackError) {
+                            console.error('Failed to save feedback to database:', fallbackError);
+                          }
+                        }
+                      } else {
+                        // If ID format doesn't match "db-{id}", the post might not be in DB yet
+                        // Try to save/update anyway - it will create if new, update if exists
+                        try {
+                          await saveDaySuggestionsToDatabase(updated);
+                          console.log(`✓ Feedback saved for suggestion ${id}`);
+                        } catch (error) {
+                          console.error('Failed to save feedback to database:', error);
+                        }
+                      }
+                    }
+                  }
+                }}
               />
             ))}
           </div>
         ) : (
-          <div className="empty-state">
-            <CalendarIcon size={48} className="empty-icon" />
-            <h3>No hay contenido planeado para este día</h3>
-            <p>Haz clic en "Generar Próximo Libre" o regenera este día.</p>
+          <div className="empty-state" style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '400px',
+            textAlign: 'center',
+            padding: '3rem 2rem'
+          }}>
+            <CalendarIcon size={64} className="empty-icon" style={{ 
+              marginBottom: '1.5rem', 
+              opacity: 0.5,
+              color: '#64748b'
+            }} />
+            <h3 style={{ 
+              fontSize: '1.5rem', 
+              fontWeight: 600, 
+              marginBottom: '1rem',
+              color: '#e2e8f0'
+            }}>
+              No hay contenido planeado para este día
+            </h3>
+            <p style={{ 
+              fontSize: '1rem', 
+              color: '#94a3b8',
+              marginBottom: '2rem',
+              maxWidth: '400px'
+            }}>
+              Genera contenido automáticamente con IA o sugiere un tema específico
+            </p>
+            
+            {/* Optional topic suggestion */}
+            <div style={{
+              width: '100%',
+              maxWidth: '500px',
+              marginBottom: '2rem'
+            }}>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                color: '#cbd5e1',
+                marginBottom: '0.5rem',
+                textAlign: 'left'
+              }}>
+                💡 Tema sugerido (opcional):
+              </label>
+              <input
+                type="text"
+                value={suggestedTopic}
+                onChange={(e) => setSuggestedTopic(e.target.value)}
+                placeholder="Ej: Preparación de suelo para primavera, Protección contra heladas..."
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  color: '#e2e8f0',
+                  fontSize: '0.9rem',
+                  outline: 'none',
+                  transition: 'all 0.2s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = 'rgba(139, 92, 246, 0.5)'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
+              />
+            </div>
+            
+            {/* Large generate button */}
+            <button 
+              className="generate-btn" 
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              style={{
+                padding: '1rem 2.5rem',
+                fontSize: '1.125rem',
+                fontWeight: 600,
+                minWidth: '250px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem'
+              }}
+            >
+              <Sparkles size={24} /> Generar Contenido
+            </button>
           </div>
         )}
       </div>

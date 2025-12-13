@@ -206,6 +206,8 @@ export interface Suggestion {
   instructions?: string;
   postingTime?: string;
   generationSource?: 'llm' | 'template';
+  // Feedback fields
+  userFeedback?: 'like' | 'dislike' | null;
 }
 
 /**
