@@ -440,6 +440,11 @@ export class SocialCalendarGenerator {
             carouselSlides.forEach((slide, i) => {
                channelNotes += `  Slide ${i + 1}: ${slide.substring(0, 100)}...\n`;
             });
+            
+            // Also format carousel slides as the imagePrompt for easy copy
+            imagePrompt = carouselSlides.map((slide, i) => 
+               `━━━━ SLIDE ${i + 1} ━━━━\n${slide}`
+            ).join('\n\n');
          }
          
          if (llmResponse.notes) {
