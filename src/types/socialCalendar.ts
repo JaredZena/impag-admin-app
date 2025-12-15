@@ -187,11 +187,8 @@ export interface ProductRef {
   sku?: string;
 }
 
-/**
- * Single post suggestion
- */
 export interface Suggestion {
-  id: string;
+  id: string; // DB ID as string (numeric)
   postType: PostType;
   channels: Channel[];
   hook: string;
@@ -200,12 +197,20 @@ export interface Suggestion {
   caption: string;
   captionVariants?: Partial<Record<Channel, string>>;
   imagePrompt: string;
+  carouselSlides?: string[];      // Explicit carousel data
+  needsMusic?: boolean;           // Explicit music flag
   tags: SuggestionTag[];
   status: SuggestionStatus;
   notes?: string;
   instructions?: string;
+  strategyNotes?: string;
   postingTime?: string;
   generationSource?: 'llm' | 'template';
+  generatedContext?: {
+    monthPhase: AgriculturalPhase;
+    nearbyDates: ImportantDate[];
+    selectedCategories: ProductCategory[];
+  };
   // Feedback fields
   userFeedback?: 'like' | 'dislike' | null;
 }

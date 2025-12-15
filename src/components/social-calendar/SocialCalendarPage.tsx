@@ -13,9 +13,6 @@ import {
   getDaySuggestions, 
   updateSuggestionStatus, 
   getNextEmptyDate, 
-  getAllDatesWithSuggestions,
-  saveDaySuggestions,
-  deleteDaySuggestions
 } from '../../lib/socialCalendarStorage';
 import { socialCalendarGenerator, loadPostsFromDatabase, loadPostsForDate, saveDaySuggestionsToDatabase, updatePostFeedback } from '../../lib/socialCalendar';
 import { formatDate, parseDate } from '../../lib/socialCalendarHelpers';
@@ -41,59 +38,7 @@ const SocialCalendarPage: React.FC = () => {
 
   // Load status map for calendar view (batch load)
   useEffect(() => {
-    // In a real app with DB, we'd query by month range.
-    // Here with localStorage, we just iterate all known dates or lazy load.
-    // For simplicity, we'll reload the map when the month changes or after generation.
-    refreshStatusMap();
-  }, [viewMonth]);
-
-  // Load all posts from database on mount (shared across users)
-  useEffect(() => {
-    const loadFromDatabase = async () => {
-      try {
-        // Load posts for the current month and surrounding months
-        const start = new Date(viewMonth);
-        start.setMonth(start.getMonth() - 1);
-        start.setDate(1);
-        
-        const end = new Date(viewMonth);
-        end.setMonth(end.getMonth() + 2);
-        end.setDate(0); // Last day of the month
-        
-        const dbPosts = await loadPostsFromDatabase(
-          start.toISOString().split('T')[0],
-          end.toISOString().split('T')[0]
-        );
-        
-        // Get all dates that have data in localStorage for this range
-        const allLocalDates = getAllDatesWithSuggestions().filter(dateStr => {
-          const date = new Date(dateStr);
-          return date >= start && date <= end;
-        });
-        
-        // Create a set of dates that have posts in DB
-        const dbDatesSet = new Set(dbPosts.map(p => p.date));
-        
-        // Update localStorage: save DB posts, remove dates that are no longer in DB
-        for (const dbDay of dbPosts) {
-          saveDaySuggestions(dbDay); // Update localStorage with DB data
-        }
-        
-        // Remove from localStorage any dates that are in localStorage but not in DB
-        for (const localDate of allLocalDates) {
-          if (!dbDatesSet.has(localDate)) {
-            deleteDaySuggestions(localDate);
-          }
-        }
-        
-        refreshStatusMap();
-      } catch (error) {
-        console.error('Failed to load posts from database:', error);
-        // Continue with localStorage only
-      }
-    };
-    
-    loadFromDatabase();
+    loadStatusMap();
   }, [viewMonth]);
 
   // Load suggestions when selected date changes
@@ -103,32 +48,11 @@ const SocialCalendarPage: React.FC = () => {
 
   // Actions
   const loadSuggestionsForDate = async (date: string) => {
-    // First try database (shared across users)
     const dbData = await loadPostsForDate(date);
-    if (dbData) {
-      setCurrentSuggestions(dbData);
-      // Also update localStorage as cache
-      saveDaySuggestions(dbData);
-      return;
-    }
-    
-    // If DB returns null/empty, check if we should clear localStorage for this date
-    // This handles the case where posts were deleted from DB
-    const localData = getDaySuggestions(date);
-    if (localData) {
-      // If we have local data but no DB data, the posts were likely deleted
-      // Clear localStorage for this date to keep them in sync
-      deleteDaySuggestions(date);
-      setCurrentSuggestions(null);
-      return;
-    }
-    
-    // No data in DB or localStorage
-    setCurrentSuggestions(null);
+    setCurrentSuggestions(dbData);
   };
 
-  const refreshStatusMap = async () => {
-    // First, sync with DB to ensure we're showing accurate data
+  const loadStatusMap = async () => {
     try {
       const start = new Date(viewMonth);
       start.setMonth(start.getMonth() - 1);
@@ -142,47 +66,25 @@ const SocialCalendarPage: React.FC = () => {
         start.toISOString().split('T')[0],
         end.toISOString().split('T')[0]
       );
-      
-      const dbDatesSet = new Set(dbPosts.map(p => p.date));
-      const allLocalDates = getAllDatesWithSuggestions().filter(dateStr => {
-        const date = new Date(dateStr);
-        return date >= start && date <= end;
-      });
-      
-      // Remove dates from localStorage that are no longer in DB
-      for (const localDate of allLocalDates) {
-        if (!dbDatesSet.has(localDate)) {
-          deleteDaySuggestions(localDate);
+
+      const newMap: Record<string, SuggestionStatus> = {};
+      dbPosts.forEach(day => {
+        const statuses = day.suggestions.map(s => s.status);
+        if (statuses.length === 0) {
+          return;
         }
-      }
-    } catch (error) {
-      console.error('Failed to sync status map with database:', error);
-    }
-    
-    const allDates = getAllDatesWithSuggestions();
-    const newMap: Record<string, SuggestionStatus> = {};
-    
-    // Filter for current view month to save processing if listing was huge (optional optimization)
-    // But since localStorage is local, we can just read all or filter.
-    allDates.forEach(dateStr => {
-      const data = getDaySuggestions(dateStr);
-      if (data && data.suggestions.length > 0) {
-        // Determine aggregate status
-        // Priority: Done > Scheduled > Planned
-        // If *all* done -> done
-        // If *any* scheduled -> scheduled
-        // Else -> planned
-        const statuses = data.suggestions.map(s => s.status);
         if (statuses.every(s => s === 'done')) {
-          newMap[dateStr] = 'done';
+          newMap[day.date] = 'done';
         } else if (statuses.some(s => s === 'scheduled')) {
-          newMap[dateStr] = 'scheduled';
+          newMap[day.date] = 'scheduled';
         } else {
-          newMap[dateStr] = 'planned';
+          newMap[day.date] = 'planned';
         }
-      }
-    });
-    setStatusMap(newMap);
+      });
+      setStatusMap(newMap);
+    } catch (error) {
+      console.error('Failed to load status map from database:', error);
+    }
   };
 
   const handleGenerate = async () => {
@@ -201,9 +103,9 @@ const SocialCalendarPage: React.FC = () => {
       // Or just a primary fab that generates for the *selected* date always.
       
       let targetDate = selectedDate;
-      const existing = getDaySuggestions(targetDate);
+      const existing = await getDaySuggestions(targetDate);
       
-      if (existing) {
+      if (existing && existing.suggestions.length > 0) {
         if (!window.confirm(`El día ${targetDate} ya tiene contenido. ¿Deseas regenerarlo?`)) {
           setIsGenerating(false);
           return;
@@ -220,7 +122,7 @@ const SocialCalendarPage: React.FC = () => {
 
       // Update state
       setCurrentSuggestions(result);
-      refreshStatusMap();
+      await loadStatusMap();
 
       // Check success
       const llmCount = result.suggestions.filter(s => s.generationSource === 'llm').length;
@@ -256,7 +158,7 @@ const SocialCalendarPage: React.FC = () => {
       setGenerationStep('Iniciando generación...');
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      const nextDate = getNextEmptyDate(); // defaults to tomorrow+
+      const nextDate = await getNextEmptyDate(); // defaults to tomorrow+
       
       setGenerationStep('Analizando tendencias e inventario...');
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -282,7 +184,7 @@ const SocialCalendarPage: React.FC = () => {
       }
       
       setCurrentSuggestions(result);
-      refreshStatusMap();
+      await loadStatusMap();
 
       // Check success
       const llmCount = result.suggestions.filter(s => s.generationSource === 'llm').length;
@@ -309,19 +211,16 @@ const SocialCalendarPage: React.FC = () => {
 
   const handleStatusChange = async (id: string, newStatus: SuggestionStatus) => {
     if (!currentSuggestions) return;
-    updateSuggestionStatus(selectedDate, id, newStatus);
     
-    // Update local state largely to reflect UI immediately
+    // Optimistic UI update
     const updated = { ...currentSuggestions };
     const idx = updated.suggestions.findIndex(s => s.id === id);
     if (idx >= 0) {
       updated.suggestions[idx].status = newStatus;
       setCurrentSuggestions(updated); // Update detail view
-      refreshStatusMap(); // Update calendar dots
-      
-      // Save updated status to database
       try {
-        await saveDaySuggestionsToDatabase(updated);
+        await updateSuggestionStatus(selectedDate, id, newStatus);
+        await loadStatusMap(); // Update calendar dots
       } catch (error) {
         console.error('Failed to save status update to database:', error);
       }
@@ -537,36 +436,24 @@ const SocialCalendarPage: React.FC = () => {
                     if (idx >= 0) {
                       updated.suggestions[idx].userFeedback = feedback;
                       setCurrentSuggestions(updated);
-                      saveDaySuggestions(updated);
                       
-                      // Try to update feedback directly using PUT endpoint (most efficient)
-                      // Extract post ID from suggestion ID (format: "db-{postId}")
-                      const postIdMatch = id.match(/^db-(\d+)$/);
-                      if (postIdMatch) {
-                        const postId = parseInt(postIdMatch[1], 10);
+                      const postId = Number(id);
+                      if (!Number.isNaN(postId)) {
                         try {
                           await updatePostFeedback(postId, feedback);
                           console.log(`✓ Feedback updated via PUT for post ${postId}`);
                           return; // Success - exit early
                         } catch (error) {
                           console.error('Failed to update feedback via PUT endpoint:', error);
-                          // Fallback: update entire post (which will now update instead of create)
-                          try {
-                            await saveDaySuggestionsToDatabase(updated);
-                            console.log(`✓ Feedback updated via full save for suggestion ${id}`);
-                          } catch (fallbackError) {
-                            console.error('Failed to save feedback to database:', fallbackError);
-                          }
                         }
-                      } else {
-                        // If ID format doesn't match "db-{id}", the post might not be in DB yet
-                        // Try to save/update anyway - it will create if new, update if exists
-                        try {
-                          await saveDaySuggestionsToDatabase(updated);
-                          console.log(`✓ Feedback saved for suggestion ${id}`);
-                        } catch (error) {
-                          console.error('Failed to save feedback to database:', error);
-                        }
+                      }
+
+                      // Fallback: update or create via full save
+                      try {
+                        await saveDaySuggestionsToDatabase(updated);
+                        console.log(`✓ Feedback saved for suggestion ${id}`);
+                      } catch (error) {
+                        console.error('Failed to save feedback to database:', error);
                       }
                     }
                   }

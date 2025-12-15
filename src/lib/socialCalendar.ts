@@ -9,12 +9,17 @@ import {
   GeneratorConfig, 
   DEFAULT_GENERATOR_CONFIG, 
   HookType, 
-  MonthPattern
+  MonthPattern,
+  ImportantDate
 } from '../types/socialCalendar';
 
+import dayjs from 'dayjs';
+import { CategorySelector } from './socialCalendarCategorySelector';
+import { HttpProductService } from './socialCalendarProducts';
+import { FallbackGenerator, GenerationContext } from './socialCalendarFallback';
+import { validateDaySuggestions } from './socialCalendarValidation';
 import { getMonthPattern } from '../data/social/salesPatterns';
 import { getImportantDatesInWindow } from '../data/social/importantDates';
-import { saveDaySuggestions } from './socialCalendarStorage';
 import { generateId, parseDate, randomInt } from './socialCalendarHelpers';
 import { apiRequest } from '../utils/api';
 
@@ -27,20 +32,34 @@ import { apiRequest } from '../utils/api';
  */
 export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestions): Promise<void> {
   try {
+    // Validate before saving
+    const validation = validateDaySuggestions(daySuggestions);
+    if (!validation.isValid) {
+      console.error('Validation failed before saving:', validation.errors);
+      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+    }
+    if (validation.warnings.length > 0) {
+      console.warn('Validation warnings:', validation.warnings);
+    }
+    
     // Save each suggestion as a separate post in the database
     for (const suggestion of daySuggestions.suggestions) {
       // Extract channel (primary channel, first one)
       const primaryChannel = suggestion.channels[0] || 'fb-post';
       
-      // Extract carousel slides from imagePrompt if it contains "━━━━ SLIDE"
-      let carouselSlides: string[] | null = null;
-      if (suggestion.imagePrompt && suggestion.imagePrompt.includes('━━━━ SLIDE')) {
+      // Prefer explicit carousel data, otherwise derive from image prompt markup
+      let carouselSlides: string[] | null = suggestion.carouselSlides || null;
+      if (!carouselSlides && suggestion.imagePrompt && suggestion.imagePrompt.includes('━━━━ SLIDE')) {
         const slides = suggestion.imagePrompt.split('━━━━ SLIDE').slice(1);
         carouselSlides = slides.map(slide => slide.split('━━━━')[0].trim());
       }
-      
-      // Extract needs_music from instructions
-      const needsMusic = suggestion.instructions?.includes('🎵') || false;
+
+      const needsMusic = suggestion.needsMusic ?? (suggestion.instructions?.includes('🎵') || false);
+      const strategyNotes = suggestion.strategyNotes || (
+        suggestion.instructions?.includes('🧠 Estrategia IA:')
+          ? suggestion.instructions.split('🧠 Estrategia IA:')[1]?.split('\n\n')[0]?.trim() || null
+          : null
+      );
       
       const response = await apiRequest('/social/save', {
         method: 'POST',
@@ -56,7 +75,7 @@ export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestion
           needs_music: needsMusic, // Send boolean
           user_feedback: suggestion.userFeedback || null, // Send as top-level field
           formatted_content: {
-            id: suggestion.id, // This should be "db-{id}" if loaded from DB, or original ID if new
+            id: suggestion.id,
             postType: suggestion.postType,
             channels: suggestion.channels,
             hook: suggestion.hook,
@@ -67,29 +86,23 @@ export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestion
             postingTime: suggestion.postingTime,
             generationSource: suggestion.generationSource,
             userFeedback: suggestion.userFeedback || null, // Keep for backwards compatibility
-            // Extract strategy notes from instructions if present
-            strategyNotes: suggestion.instructions?.includes('🧠 Estrategia IA:') 
-              ? suggestion.instructions.split('🧠 Estrategia IA:')[1]?.split('\n\n')[0]?.trim() || null
-              : null
+            strategyNotes,
+            carouselSlides: carouselSlides,
+            needsMusic,
+            generatedContext: suggestion.generatedContext || null
           }
         })
       });
       
-      // If this was a new post (not updated), update the suggestion ID to include DB ID
-      // This ensures future updates can find the post
       if (response && response.id) {
-        const dbId = `db-${response.id}`;
-        // Update the suggestion ID to be db-{postId} format for future reference
+        const dbId = String(response.id);
         if (suggestion.id !== dbId) {
           suggestion.id = dbId; // Update the suggestion ID directly
-          // Note: formatted_content is stored in the database, not in the Suggestion object
-          // The ID will be updated in the database when the post is saved
         }
       }
     }
   } catch (error) {
     console.error('Failed to save suggestions to database:', error);
-    // Don't throw - allow localStorage to work as fallback
   }
 }
 
@@ -140,44 +153,43 @@ export async function loadPostsFromDatabase(
       const daySuggestions: DaySuggestions[] = [];
       
       for (const [date, posts] of postsByDate.entries()) {
-        const suggestions: Suggestion[] = posts.map((post: any) => {
+        // Fetch products in parallel for all posts that need them
+        const productService = new HttpProductService();
+        const productPromises = posts.map(async (post: any) => {
+          const formattedContent = post.formatted_content || {};
+          let products = formattedContent.products || [];
+          
+          // Fetch real product if we have ID but no product data
+          if (post.selected_product_id && products.length === 0) {
+            const realProduct = await productService.fetchProductById(post.selected_product_id);
+            if (realProduct) {
+              products = [realProduct];
+            }
+          }
+          
+          return { post, products };
+        });
+        
+        const postsWithProducts = await Promise.all(productPromises);
+        
+        const suggestions: Suggestion[] = postsWithProducts.map(({ post, products }) => {
           const formattedContent = post.formatted_content || {};
           // Use post.channel directly if available, otherwise fallback to formatted_content.channels
           const channels = post.channel 
             ? [post.channel as Channel] 
             : (formattedContent.channels || ['fb-post']);
           
-          // Reconstruct imagePrompt from carousel_slides if present
-          let imagePrompt = post.image_prompt || '';
-          if (post.carousel_slides && Array.isArray(post.carousel_slides) && post.carousel_slides.length > 0) {
-            imagePrompt = post.carousel_slides.map((slide: string, i: number) => 
-              `━━━━ SLIDE ${i + 1} ━━━━\n${slide}`
-            ).join('\n\n');
-          }
+          // Use explicit fields - no parsing needed
+          const imagePrompt = post.image_prompt || '';
           
-          // Add music note to instructions if needs_music is true
-          let instructions = formattedContent.instructions || '';
-          if (post.needs_music && !instructions.includes('🎵')) {
-            instructions = `🎵 Este contenido necesita música de fondo (corridos mexicanos, regional popular)\n${instructions}`;
-          }
-          
-          // Use products from formatted_content if available, otherwise create placeholder
-          let products = formattedContent.products || [];
-          if (post.selected_product_id && products.length === 0) {
-            // If we have a product ID but no product name, create a placeholder
-            // The name will be fetched later if needed, but for now we'll show the ID
-            products = [{
-              id: post.selected_product_id,
-              name: `Producto ${post.selected_product_id}`, // Placeholder, could be enhanced with API call
-              category: 'vivero' as ProductCategory
-            }];
-          }
+          // Use explicit needsMusic field - no parsing from instructions
+          const instructions = formattedContent.instructions || '';
           
           // Get user_feedback from top-level field (preferred) or fallback to formatted_content
           const userFeedback = post.user_feedback || formattedContent.userFeedback || null;
           
           return {
-            id: formattedContent.id || `db-${post.id}`,
+            id: formattedContent.id ? String(formattedContent.id) : String(post.id),
             postType: formattedContent.postType || post.post_type || 'promo',
             channels: channels,
             hook: formattedContent.hook || '',
@@ -185,11 +197,15 @@ export async function loadPostsFromDatabase(
             products: products,
             caption: post.caption,
             imagePrompt: imagePrompt,
+            carouselSlides: post.carousel_slides || formattedContent.carouselSlides || undefined,
+            needsMusic: post.needs_music ?? formattedContent.needsMusic ?? false,
             tags: formattedContent.tags || [],
             status: (post.status as SuggestionStatus) || 'planned',
             instructions: instructions,
+            strategyNotes: formattedContent.strategyNotes || null,
             postingTime: formattedContent.postingTime || post.posting_time,
             generationSource: formattedContent.generationSource || 'template',
+            generatedContext: formattedContent.generatedContext || null,
             userFeedback: userFeedback
           };
         });
@@ -227,57 +243,61 @@ export async function loadPostsForDate(date: string): Promise<DaySuggestions | n
       const posts = response.posts;
       const formattedContent = posts[0].formatted_content || {};
       
-      const suggestions: Suggestion[] = posts.map((post: any) => {
+      // Fetch products in parallel for all posts that need them
+      const productService = new HttpProductService();
+      const productPromises = posts.map(async (post: any) => {
+        const fc = post.formatted_content || {};
+        let products = fc.products || [];
+        
+        // Fetch real product if we have ID but no product data
+        if (post.selected_product_id && products.length === 0) {
+          const realProduct = await productService.fetchProductById(post.selected_product_id);
+          if (realProduct) {
+            products = [realProduct];
+          }
+        }
+        
+        return { post, products };
+      });
+      
+      const postsWithProducts = await Promise.all(productPromises);
+      
+      const suggestions: Suggestion[] = postsWithProducts.map(({ post, products }) => {
         const fc = post.formatted_content || {};
         // Use post.channel directly if available, otherwise fallback to formatted_content.channels
         const channels = post.channel 
           ? [post.channel as Channel] 
           : (fc.channels || ['fb-post']);
         
-        // Reconstruct imagePrompt from carousel_slides if present
-        let imagePrompt = post.image_prompt || '';
-        if (post.carousel_slides && Array.isArray(post.carousel_slides) && post.carousel_slides.length > 0) {
-          imagePrompt = post.carousel_slides.map((slide: string, i: number) => 
-            `━━━━ SLIDE ${i + 1} ━━━━\n${slide}`
-          ).join('\n\n');
-        }
+        // Use explicit fields - no parsing needed
+        const imagePrompt = post.image_prompt || '';
         
-        // Add music note to instructions if needs_music is true
-        let instructions = fc.instructions || '';
-        if (post.needs_music && !instructions.includes('🎵')) {
-          instructions = `🎵 Este contenido necesita música de fondo (corridos mexicanos, regional popular)\n${instructions}`;
-        }
+        // Use explicit needsMusic field - no parsing from instructions
+        const instructions = fc.instructions || '';
         
-        // Use products from formatted_content if available, otherwise create placeholder
-        let products = fc.products || [];
-        if (post.selected_product_id && products.length === 0) {
-          // If we have a product ID but no product name, create a placeholder
-          products = [{
-            id: post.selected_product_id,
-            name: `Producto ${post.selected_product_id}`, // Placeholder, could be enhanced with API call
-            category: 'vivero' as ProductCategory
-          }];
-        }
+        // Get user_feedback from top-level field (preferred) or fallback to formatted_content
+        const userFeedback = post.user_feedback || fc.userFeedback || null;
         
-          // Get user_feedback from top-level field (preferred) or fallback to formatted_content
-          const userFeedback = post.user_feedback || fc.userFeedback || null;
-          
-          return {
-            id: fc.id || `db-${post.id}`,
-            postType: fc.postType || post.post_type || 'promo',
-            channels: channels,
-            hook: fc.hook || '',
-            hookType: fc.hookType || 'seasonality',
-            products: products,
-            caption: post.caption,
-            imagePrompt: imagePrompt,
-            tags: fc.tags || [],
-            status: (post.status as SuggestionStatus) || 'planned',
-            instructions: instructions,
-            postingTime: fc.postingTime || post.posting_time,
-            generationSource: fc.generationSource || 'template',
-            userFeedback: userFeedback
-          };
+        return {
+          id: fc.id ? String(fc.id) : String(post.id),
+          postType: fc.postType || post.post_type || 'promo',
+          channels: channels,
+          hook: fc.hook || '',
+          hookType: fc.hookType || 'seasonality',
+          products: products,
+          caption: post.caption,
+          imagePrompt: imagePrompt,
+          carouselSlides: post.carousel_slides || fc.carouselSlides || undefined,
+          needsMusic: post.needs_music ?? fc.needsMusic ?? false,
+          tags: fc.tags || [],
+          status: (post.status as SuggestionStatus) || 'planned',
+          instructions: instructions,
+          strategyNotes: fc.strategyNotes || null,
+          postingTime: fc.postingTime || post.posting_time,
+          generationSource: fc.generationSource || 'template',
+          generatedContext: fc.generatedContext || null,
+          userFeedback: userFeedback
+        };
       });
       
       return {
@@ -356,6 +376,23 @@ export class SocialCalendarGenerator {
     // 0. Get Context
     const nearbyDates = getImportantDatesInWindow(targetDate, this.config.dateWindowDays);
     const dateBoostedCategories = nearbyDates.flatMap(d => d.relatedCategories);
+
+    // 1. Get recent history for deduplication
+    const dedupStart = dayjs(targetDate).subtract(this.config.dedupWindowDays, 'day').format('YYYY-MM-DD');
+    const dedupHistory = await loadPostsFromDatabase(
+      dedupStart,
+      targetDate.toISOString().split('T')[0]
+    );
+
+    const categorySelector = new CategorySelector();
+    const { categories: selectedCategories } = await categorySelector.selectCategories(
+      targetDate,
+      monthPattern,
+      nearbyDates,
+      dedupHistory,
+      this.config
+    );
+    const categoryPool = categoryOverride ? [categoryOverride, ...selectedCategories] : selectedCategories;
     
     // Track products/categories used in this generation batch to avoid duplicates
     // (This is the only context we need to track locally because it's not in DB yet)
@@ -372,13 +409,16 @@ export class SocialCalendarGenerator {
     const suggestions: Suggestion[] = [];
 
     for (let i = 0; i < count; i++) {
+       const preferredCategory = categoryPool[i % categoryPool.length];
        const suggestion = await this.createAutonomousSuggestion(
          targetDate,
          nearbyDates,
          monthPattern,
          usedInBatch,
          batchGeneratedHistory,
-         suggestedTopic
+         suggestedTopic,
+         preferredCategory,
+         categoryPool
        );
        if (suggestion) {
          suggestions.push(suggestion);
@@ -403,12 +443,12 @@ export class SocialCalendarGenerator {
       }
     };
 
-    saveDaySuggestions(daySuggestions);
-    
-    // Also save to database (shared across users)
+    // Save to database (shared across users)
     await saveDaySuggestionsToDatabase(daySuggestions);
-    
-    return daySuggestions;
+
+    // Reload from DB to ensure IDs and persisted fields are in sync
+    const persisted = await loadPostsForDate(dateStr);
+    return persisted || daySuggestions;
   }
 
   private calculateCategoryScores(
@@ -442,19 +482,21 @@ export class SocialCalendarGenerator {
 
   private async createAutonomousSuggestion(
     date: Date,
-    nearbyDates: any[],
+    nearbyDates: ImportantDate[],
     monthPattern: MonthPattern,
     usedInBatch?: {
       productIds: Set<string>;
       categories: Set<string>;
     },
     batchGeneratedHistory: string[] = [],
-    suggestedTopic?: string
+    suggestedTopic?: string,
+    preferredCategory?: ProductCategory,
+    selectedCategories: ProductCategory[] = []
   ): Promise<Suggestion | null> {
     const id = generateId();
     // Default fallback values
     let mainProduct: ProductRef | undefined = undefined; // No local pool to pick from
-    let category: string = 'vivero'; // Default general category if no product
+    let category: string = preferredCategory || 'vivero'; // Default general category if no product
     
     const hookType: HookType = 'seasonality';
     const hookText = 'Tendencias agrícolas';
@@ -470,6 +512,14 @@ export class SocialCalendarGenerator {
     // Channel-specific data from backend
     let carouselSlides: string[] | undefined;
     let needsMusic = false;
+    let strategyNotes: string | undefined;
+    const generatedContext = {
+      monthPhase: monthPattern.phase,
+      nearbyDates,
+      selectedCategories: selectedCategories.length
+        ? selectedCategories
+        : (Array.from(usedInBatch?.categories ?? []) as ProductCategory[])
+    };
 
     try {
       // Send comprehensive context to backend for better deduplication
@@ -477,14 +527,15 @@ export class SocialCalendarGenerator {
         method: 'POST',
         body: JSON.stringify({
           date: date.toISOString().split('T')[0], // YYYY-MM-DD
-          category: undefined,
+          category,
           // Removed redundant history/dedupContext (backend handles DB checks)
           used_in_batch: usedInBatch ? {
             product_ids: Array.from(usedInBatch.productIds),
             categories: Array.from(usedInBatch.categories)
           } : undefined,
           batch_generated_history: batchGeneratedHistory, // Pass accumulated batch history
-          suggested_topic: suggestedTopic // Pass user-suggested topic if provided
+          suggested_topic: suggestedTopic, // Pass user-suggested topic if provided
+          selected_categories: selectedCategories
         })
       });
 
@@ -636,6 +687,7 @@ export class SocialCalendarGenerator {
          }
          
          if (llmResponse.notes) {
+           strategyNotes = llmResponse.notes;
            instructions = `🧠 Estrategia IA:\n${llmResponse.notes}\n\n${channelNotes}${instructions}`;
          } else if (channelNotes) {
            instructions = `${channelNotes}\n${instructions}`;
@@ -646,7 +698,38 @@ export class SocialCalendarGenerator {
 
     } catch (err) {
       console.warn('Autonomous LLM generation failed', err);
-      // Fallback: Continue with random mainProduct selected at top
+      // Will use fallback generator below
+    }
+
+    // Use fallback generator if LLM failed or returned minimal content
+    if (generationSource === 'template' || !caption || caption === 'Contenido generado automáticamente.') {
+      const fallbackGen = new FallbackGenerator();
+      const fallbackContext: GenerationContext = {
+        monthPhase: monthPattern.phase,
+        nearbyDates,
+        selectedCategories: selectedCategories,
+        product: mainProduct,
+      };
+      
+      const fallbackSuggestion = fallbackGen.generateFromTemplate(
+        postType,
+        mainProduct,
+        fallbackContext
+      );
+      
+      // Merge fallback with any LLM data we did get
+      return {
+        ...fallbackSuggestion,
+        id,
+        postType: postType || fallbackSuggestion.postType,
+        channels: channels.length > 0 ? channels : fallbackSuggestion.channels,
+        carouselSlides: carouselSlides || fallbackSuggestion.carouselSlides,
+        needsMusic: needsMusic || fallbackSuggestion.needsMusic,
+        strategyNotes: strategyNotes || fallbackSuggestion.strategyNotes,
+        generatedContext,
+        postingTime: postingTime || fallbackSuggestion.postingTime,
+        generationSource: 'template',
+      };
     }
 
     return {
@@ -660,9 +743,13 @@ export class SocialCalendarGenerator {
       tags: [],
       caption,
       imagePrompt,
+      carouselSlides,
+      needsMusic,
       instructions,
+      strategyNotes,
       postingTime,
       generationSource,
+      generatedContext,
       userFeedback: null
     };
   }
