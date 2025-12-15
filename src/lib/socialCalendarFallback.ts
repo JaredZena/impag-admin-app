@@ -143,3 +143,5 @@ export class FallbackGenerator {
     return labels[category] || category;
   }
 }
+
+

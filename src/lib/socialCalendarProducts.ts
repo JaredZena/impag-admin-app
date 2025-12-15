@@ -92,3 +92,5 @@ export class HttpProductService implements ProductService {
     return this.fetchProductsByCategories([], { inStockOnly: true, limit: 12 });
   }
 }
+
+
