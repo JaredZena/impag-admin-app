@@ -69,3 +69,4 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({ active, completed, label 
 export default StepIndicator;
 
 
+

@@ -95,6 +95,8 @@ const SupplierProductFormPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -226,12 +228,12 @@ const SupplierProductFormPage: React.FC = () => {
       navigate('/supplier-products', {
         state: { 
           message: isEditing 
-            ? 'Relación actualizada exitosamente' 
-            : 'Relación creada exitosamente' 
+            ? 'Producto del proveedor actualizado exitosamente' 
+            : 'Producto del proveedor creado exitosamente' 
         }
       });
     } catch (err: any) {
-      setError(err.message || 'Error al guardar la relación');
+      setError(err.message || 'Error al guardar el producto del proveedor');
     } finally {
       setSaving(false);
     }
@@ -242,6 +244,31 @@ const SupplierProductFormPage: React.FC = () => {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleArchiveSupplierProduct = async () => {
+    if (!isEditing || !id) return;
+
+    setArchiving(true);
+    setError(null);
+
+    try {
+      await apiRequest(`/products/supplier-product/${id}/archive`, {
+        method: 'PATCH'
+      });
+
+      navigate('/supplier-products', {
+        state: {
+          message: 'Producto del proveedor eliminado exitosamente'
+        }
+      });
+    } catch (err: any) {
+      setError(err.message || 'Error al eliminar el producto del proveedor');
+      console.error('Error archiving supplier product:', err);
+    } finally {
+      setArchiving(false);
+      setShowArchiveDialog(false);
+    }
   };
 
   if (loading) {
@@ -274,10 +301,13 @@ const SupplierProductFormPage: React.FC = () => {
         <div className="mb-8">
           <div className="mb-6">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent mb-2">
-              {isEditing ? 'Editar ' : 'Nuevo '} Producto
+              {isEditing ? 'Editar Producto del Proveedor' : 'Nuevo Producto del Proveedor'}
             </h1>
             <p className="text-gray-600">
-              {isEditing ? 'Modifica la información del producto' : 'Crea un nuevo producto'}
+              {isEditing 
+                ? 'Modifica la información del producto que compras a este proveedor, incluyendo costos, stock y envío.'
+                : 'Configura un nuevo producto de proveedor con toda la información de costo, stock y envío.'
+              }
             </p>
           </div>
         </div>
@@ -665,7 +695,7 @@ const SupplierProductFormPage: React.FC = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/product-admin')}
+                onClick={() => navigate('/supplier-products')}
                 className="flex-1"
               >
                 Cancelar
@@ -684,10 +714,81 @@ const SupplierProductFormPage: React.FC = () => {
                     Guardando...
                   </>
                 ) : (
-                  isEditing ? 'Actualizar Relación' : 'Crear Relación'
+                  isEditing ? 'Actualizar Producto' : 'Crear Producto'
                 )}
               </Button>
             </div>
+
+            {/* Danger Zone - only when editing */}
+            {isEditing && (
+              <div className="mt-10 pt-6 border-t border-red-200">
+                <div className="bg-red-50 rounded-lg p-6 border border-red-200">
+                  <h3 className="text-lg font-semibold text-red-800 mb-2 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    Zona de peligro
+                  </h3>
+                  <p className="text-red-700 text-sm mb-4">
+                    Esta acción archivará este producto del proveedor. Dejará de aparecer en las listas y cotizaciones,
+                    pero se conservará el historial para referencia interna.
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => setShowArchiveDialog(true)}
+                    disabled={saving || archiving}
+                    className="bg-red-600 hover:bg-red-700 text-white border-red-600"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Eliminar producto del proveedor
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Archive confirmation dialog */}
+            {showArchiveDialog && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                  <div className="flex items-center mb-4">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Confirmar eliminación
+                    </h3>
+                  </div>
+
+                  <p className="text-gray-600 mb-6">
+                    ¿Estás seguro de que deseas eliminar este producto del proveedor? Esta acción lo moverá a un estado archivado y
+                    dejará de estar disponible para nuevas cotizaciones.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      onClick={handleArchiveSupplierProduct}
+                      disabled={archiving}
+                      className="bg-red-600 hover:bg-red-700 text-white flex-1"
+                    >
+                      {archiving ? 'Eliminando...' : 'Sí, eliminar producto'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowArchiveDialog(false)}
+                      disabled={archiving}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </form>
         </Card>
       </div>
