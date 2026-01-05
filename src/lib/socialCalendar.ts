@@ -409,7 +409,10 @@ export class SocialCalendarGenerator {
     const suggestions: Suggestion[] = [];
 
     for (let i = 0; i < count; i++) {
-       const preferredCategory = categoryPool[i % categoryPool.length];
+       // Sometimes use a category, sometimes don't - allows for broader educational content
+       // Mix: 60% with category (product-focused), 40% without (general educational)
+       const useCategory = Math.random() < 0.6;
+       const preferredCategory = useCategory ? categoryPool[i % categoryPool.length] : undefined;
        const suggestion = await this.createAutonomousSuggestion(
          targetDate,
          nearbyDates,
@@ -496,7 +499,7 @@ export class SocialCalendarGenerator {
     const id = generateId();
     // Default fallback values
     let mainProduct: ProductRef | undefined = undefined; // No local pool to pick from
-    let category: string = preferredCategory || 'vivero'; // Default general category if no product
+    let category: string | undefined = preferredCategory; // Only use category if explicitly provided - allows for general educational content
     
     const hookType: HookType = 'seasonality';
     const hookText = 'Tendencias agrícolas';
@@ -527,7 +530,7 @@ export class SocialCalendarGenerator {
         method: 'POST',
         body: JSON.stringify({
           date: date.toISOString().split('T')[0], // YYYY-MM-DD
-          category,
+          category: preferredCategory || undefined, // Only pass category if explicitly provided, allow undefined for general educational content
           // Removed redundant history/dedupContext (backend handles DB checks)
           used_in_batch: usedInBatch ? {
             product_ids: Array.from(usedInBatch.productIds),
