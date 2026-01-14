@@ -4,6 +4,8 @@ import { Input } from '../ui/input';
 import { Card } from '../ui/card';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import { apiRequest } from '../../utils/api';
+import CSVExportModal from './CSVExportModal';
+import { ColumnOption, convertToCSV, downloadCSV } from '../../utils/csvExport';
 
 interface StockProduct {
   id: number;
@@ -36,6 +38,8 @@ const StockManagementPage: React.FC = () => {
   const [saving, setSaving] = useState<{[key: number]: boolean}>({});
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     fetchStockData();
@@ -169,6 +173,73 @@ const StockManagementPage: React.FC = () => {
     return new Date(dateString).toLocaleDateString('es-MX');
   };
 
+  // CSV Export functionality
+  const supplierProductColumns: ColumnOption[] = [
+    { key: 'id', label: 'ID', defaultSelected: true },
+    { key: 'name', label: 'Nombre del Producto', defaultSelected: true },
+    { key: 'sku', label: 'SKU', defaultSelected: true },
+    { key: 'supplier_name', label: 'Proveedor', defaultSelected: true },
+    { key: 'supplier_id', label: 'ID Proveedor', defaultSelected: false },
+    { key: 'unit', label: 'Unidad', defaultSelected: true },
+    { key: 'stock', label: 'Stock', defaultSelected: true },
+    { key: 'price', label: 'Costo Unitario', defaultSelected: true },
+    { key: 'currency', label: 'Moneda', defaultSelected: true },
+    { key: 'total_value', label: 'Valor Total', defaultSelected: true },
+    { key: 'last_updated', label: 'Última Actualización', defaultSelected: true },
+  ];
+
+  const handleExportCSV = async (selectedColumns: string[]) => {
+    setIsExporting(true);
+    try {
+      // Fetch all stock data (with pagination if needed)
+      let allStockProducts: any[] = [];
+      let offset = 0;
+      const limit = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await apiRequest(
+          `/products/stock?include_zero_stock=${includeZeroStock}&limit=${limit}&offset=${offset}&sort_by=${sortBy}&sort_order=${sortOrder}`
+        );
+        
+        if (response.success && response.data?.products) {
+          const products = response.data.products;
+          allStockProducts = [...allStockProducts, ...products];
+          
+          hasMore = products.length === limit;
+          offset += limit;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Transform data for CSV export
+      const csvData = allStockProducts.map(product => ({
+        id: product.id,
+        name: product.name || '',
+        sku: product.sku || '',
+        supplier_name: product.supplier_name || '',
+        supplier_id: product.supplier_id || '',
+        unit: product.unit || '',
+        stock: product.stock || 0,
+        price: product.price || '',
+        currency: product.currency || 'MXN',
+        total_value: product.total_value || '',
+        last_updated: product.last_updated || '',
+      }));
+
+      // Generate CSV
+      const csvContent = convertToCSV(csvData, supplierProductColumns, selectedColumns);
+      const timestamp = new Date().toISOString().split('T')[0];
+      downloadCSV(csvContent, `inventario_${timestamp}.csv`);
+    } catch (err: any) {
+      console.error('Error exporting CSV:', err);
+      alert('Error al exportar CSV: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 pt-20 px-4">
@@ -191,15 +262,39 @@ const StockManagementPage: React.FC = () => {
                 Administra los niveles de stock y precios de tus productos
               </p>
             </div>
-            <Button 
-              onClick={fetchStockData}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Actualizar
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setIsExportModalOpen(true)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <>
+                    <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Exportando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Exportar CSV
+                  </>
+                )}
+              </Button>
+              <Button 
+                onClick={fetchStockData}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Actualizar
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -464,6 +559,15 @@ const StockManagementPage: React.FC = () => {
           )}
         </Card>
       </div>
+
+      {/* CSV Export Modal */}
+      <CSVExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExport={handleExportCSV}
+        columns={supplierProductColumns}
+        title="Exportar Inventario a CSV"
+      />
     </div>
   );
 };

@@ -7,6 +7,8 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { apiRequest } from '@/utils/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import CSVExportModal from './CSVExportModal';
+import { ColumnOption, convertToCSV, downloadCSV } from '@/utils/csvExport';
 
 const PAGE_SIZE = 50;
 
@@ -38,6 +40,8 @@ const ProductManagementPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'last_updated' | 'category_name' | 'price'>((searchParams.get('sortBy') as any) || 'name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>((searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Sorting handlers
   const handleSortChange = (field: 'name' | 'created_at' | 'last_updated' | 'category_name' | 'price') => {
@@ -304,6 +308,134 @@ const ProductManagementPage: React.FC = () => {
     setFilters(f => ({ ...f, currencyFilter: v }));
   };
 
+  // CSV Export functionality
+  const supplierProductColumns: ColumnOption[] = [
+    { key: 'id', label: 'ID', defaultSelected: true },
+    { key: 'name', label: 'Nombre del Producto', defaultSelected: true },
+    { key: 'description', label: 'Descripción', defaultSelected: true },
+    { key: 'sku', label: 'SKU', defaultSelected: true },
+    { key: 'base_sku', label: 'SKU Base', defaultSelected: false },
+    { key: 'supplier_sku', label: 'SKU Proveedor', defaultSelected: true },
+    { key: 'supplier_name', label: 'Proveedor', defaultSelected: true },
+    { key: 'supplier_id', label: 'ID Proveedor', defaultSelected: false },
+    { key: 'category_name', label: 'Categoría', defaultSelected: true },
+    { key: 'category_id', label: 'ID Categoría', defaultSelected: false },
+    { key: 'unit', label: 'Unidad', defaultSelected: true },
+    { key: 'package_size', label: 'Tamaño de Paquete', defaultSelected: false },
+    { key: 'cost', label: 'Costo', defaultSelected: true },
+    { key: 'currency', label: 'Moneda', defaultSelected: true },
+    { key: 'stock', label: 'Stock', defaultSelected: true },
+    { key: 'iva', label: 'IVA', defaultSelected: false },
+    { key: 'default_margin', label: 'Margen por Defecto', defaultSelected: false },
+    { key: 'lead_time_days', label: 'Tiempo de Entrega (días)', defaultSelected: false },
+    { key: 'shipping_method', label: 'Método de Envío', defaultSelected: false },
+    { key: 'shipping_cost_direct', label: 'Costo de Envío Directo', defaultSelected: false },
+    { key: 'shipping_stage1_cost', label: 'Costo Envío Etapa 1', defaultSelected: false },
+    { key: 'shipping_stage2_cost', label: 'Costo Envío Etapa 2', defaultSelected: false },
+    { key: 'shipping_stage3_cost', label: 'Costo Envío Etapa 3', defaultSelected: false },
+    { key: 'shipping_stage4_cost', label: 'Costo Envío Etapa 4', defaultSelected: false },
+    { key: 'shipping_notes', label: 'Notas de Envío', defaultSelected: false },
+    { key: 'is_active', label: 'Activo', defaultSelected: true },
+    { key: 'notes', label: 'Notas', defaultSelected: false },
+    { key: 'created_at', label: 'Fecha de Creación', defaultSelected: false },
+    { key: 'last_updated', label: 'Última Actualización', defaultSelected: true },
+  ];
+
+  const handleExportCSV = async (selectedColumns: string[]) => {
+    setIsExporting(true);
+    try {
+      // Fetch categories to map category_id to category_name
+      let categoriesMap: { [key: number]: string } = {};
+      try {
+        const categoriesResponse = await apiRequest('/categories');
+        if (categoriesResponse.success && categoriesResponse.data) {
+          categoriesMap = categoriesResponse.data.reduce((acc: any, cat: any) => {
+            acc[cat.id] = cat.name;
+            return acc;
+          }, {});
+        }
+      } catch (catErr) {
+        console.warn('Could not fetch categories for export:', catErr);
+      }
+
+      // Fetch all supplier products (with pagination if needed)
+      let allSupplierProducts: any[] = [];
+      let skip = 0;
+      const limit = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const params = new URLSearchParams();
+        params.append('skip', skip.toString());
+        params.append('limit', limit.toString());
+        params.append('include_archived', 'false');
+
+        // Apply current filters if they match supplier product filters
+        if (filters.supplier) {
+          params.append('supplier_id', filters.supplier);
+        }
+        if (filters.name) {
+          params.append('search', filters.name);
+        }
+
+        const response = await apiRequest(`/supplier-products?${params.toString()}`);
+        
+        if (response.success && response.data?.supplier_products) {
+          const products = response.data.supplier_products;
+          allSupplierProducts = [...allSupplierProducts, ...products];
+          
+          hasMore = products.length === limit;
+          skip += limit;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Transform data for CSV export
+      const csvData = allSupplierProducts.map(sp => ({
+        id: sp.id,
+        name: sp.name || sp.product_name || '',
+        description: sp.description || '',
+        sku: sp.sku || sp.product_sku || '',
+        base_sku: sp.base_sku || '',
+        supplier_sku: sp.supplier_sku || '',
+        supplier_name: sp.supplier_name || '',
+        supplier_id: sp.supplier_id || '',
+        category_name: sp.category_id ? (categoriesMap[sp.category_id] || '') : '',
+        category_id: sp.category_id || '',
+        unit: sp.unit || '',
+        package_size: sp.package_size || '',
+        cost: sp.cost || '',
+        currency: sp.currency || 'MXN',
+        stock: sp.stock || 0,
+        iva: sp.iva ? 'Sí' : 'No',
+        default_margin: sp.default_margin || '',
+        lead_time_days: sp.lead_time_days || '',
+        shipping_method: sp.shipping_method || '',
+        shipping_cost_direct: sp.shipping_cost_direct || '',
+        shipping_stage1_cost: sp.shipping_stage1_cost || '',
+        shipping_stage2_cost: sp.shipping_stage2_cost || '',
+        shipping_stage3_cost: sp.shipping_stage3_cost || '',
+        shipping_stage4_cost: sp.shipping_stage4_cost || '',
+        shipping_notes: sp.shipping_notes || '',
+        is_active: sp.is_active ? 'Sí' : 'No',
+        notes: sp.notes || '',
+        created_at: sp.created_at || '',
+        last_updated: sp.last_updated || '',
+      }));
+
+      // Generate CSV
+      const csvContent = convertToCSV(csvData, supplierProductColumns, selectedColumns);
+      const timestamp = new Date().toISOString().split('T')[0];
+      downloadCSV(csvContent, `productos_${timestamp}.csv`);
+    } catch (err: any) {
+      console.error('Error exporting CSV:', err);
+      alert('Error al exportar CSV: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
       <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
@@ -323,6 +455,28 @@ const ProductManagementPage: React.FC = () => {
           
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mb-6">
+            <Button 
+              onClick={() => setIsExportModalOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap text-sm"
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <>
+                  <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Exportando...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Exportar CSV
+                </>
+              )}
+            </Button>
             <Button 
               onClick={() => navigate('/product-admin/new')}
               className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap text-sm"
@@ -491,6 +645,15 @@ const ProductManagementPage: React.FC = () => {
         
         <div ref={sentinelRef} style={{ height: '1px' }} />
       </div>
+
+      {/* CSV Export Modal */}
+      <CSVExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExport={handleExportCSV}
+        columns={supplierProductColumns}
+        title="Exportar Productos a CSV"
+      />
     </div>
   );
 };
