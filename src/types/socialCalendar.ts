@@ -213,6 +213,9 @@ export interface Suggestion {
   };
   // Feedback fields
   userFeedback?: 'like' | 'dislike' | null;
+  // Topic-based deduplication fields (CRITICAL)
+  topic?: string; // Topic in format "Problema → Solución" (canonical unit of deduplication)
+  problem_identified?: string; // Problem description from strategy phase
 }
 
 /**

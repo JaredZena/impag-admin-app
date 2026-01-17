@@ -29,6 +29,8 @@ import { apiRequest } from '../utils/api';
 
 /**
  * Save day suggestions to database (shared across all users)
+ * NOTE: Posts are now automatically saved by /generate endpoint, so this function
+ * is only used to update existing posts (status, user_feedback, etc.)
  */
 export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestions): Promise<void> {
   try {
@@ -42,67 +44,15 @@ export async function saveDaySuggestionsToDatabase(daySuggestions: DaySuggestion
       console.warn('Validation warnings:', validation.warnings);
     }
     
-    // Save each suggestion as a separate post in the database
-    for (const suggestion of daySuggestions.suggestions) {
-      // Extract channel (primary channel, first one)
-      const primaryChannel = suggestion.channels[0] || 'fb-post';
-      
-      // Prefer explicit carousel data, otherwise derive from image prompt markup
-      let carouselSlides: string[] | null = suggestion.carouselSlides || null;
-      if (!carouselSlides && suggestion.imagePrompt && suggestion.imagePrompt.includes('━━━━ SLIDE')) {
-        const slides = suggestion.imagePrompt.split('━━━━ SLIDE').slice(1);
-        carouselSlides = slides.map(slide => slide.split('━━━━')[0].trim());
-      }
-
-      const needsMusic = suggestion.needsMusic ?? (suggestion.instructions?.includes('🎵') || false);
-      const strategyNotes = suggestion.strategyNotes || (
-        suggestion.instructions?.includes('🧠 Estrategia IA:')
-          ? suggestion.instructions.split('🧠 Estrategia IA:')[1]?.split('\n\n')[0]?.trim() || null
-          : null
-      );
-      
-      const response = await apiRequest('/social/save', {
-        method: 'POST',
-        body: JSON.stringify({
-          date_for: daySuggestions.date,
-          caption: suggestion.caption,
-          image_prompt: carouselSlides ? null : suggestion.imagePrompt, // Only send if not carousel
-          post_type: suggestion.postType,
-          status: suggestion.status,
-          selected_product_id: suggestion.products[0]?.id || null,
-          channel: primaryChannel, // Send as string, not array
-          carousel_slides: carouselSlides, // Send array if carousel
-          needs_music: needsMusic, // Send boolean
-          user_feedback: suggestion.userFeedback || null, // Send as top-level field
-          formatted_content: {
-            id: suggestion.id,
-            postType: suggestion.postType,
-            channels: suggestion.channels,
-            hook: suggestion.hook,
-            hookType: suggestion.hookType,
-            products: suggestion.products,
-            tags: suggestion.tags,
-            instructions: suggestion.instructions,
-            postingTime: suggestion.postingTime,
-            generationSource: suggestion.generationSource,
-            userFeedback: suggestion.userFeedback || null, // Keep for backwards compatibility
-            strategyNotes,
-            carouselSlides: carouselSlides,
-            needsMusic,
-            generatedContext: suggestion.generatedContext || null
-          }
-        })
-      });
-      
-      if (response && response.id) {
-        const dbId = String(response.id);
-        if (suggestion.id !== dbId) {
-          suggestion.id = dbId; // Update the suggestion ID directly
-        }
-      }
-    }
+    // Posts are automatically saved by /generate, so we only need to update if there are changes
+    // For now, we'll skip the save call since /generate already saved everything
+    // If we need to update status/user_feedback later, we can add a separate update endpoint
+    console.log('Posts are automatically saved by /generate endpoint. No additional save needed.');
+    
+    // TODO: If we need to update status or user_feedback, use a separate /update endpoint
+    // For now, all posts are saved with status="planned" by /generate
   } catch (error) {
-    console.error('Failed to save suggestions to database:', error);
+    console.error('Failed to process suggestions:', error);
   }
 }
 
@@ -516,6 +466,9 @@ export class SocialCalendarGenerator {
     let carouselSlides: string[] | undefined;
     let needsMusic = false;
     let strategyNotes: string | undefined;
+    // Topic-based deduplication fields (CRITICAL)
+    let topic: string | undefined;
+    let problem_identified: string | undefined;
     const generatedContext = {
       monthPhase: monthPattern.phase,
       nearbyDates,
@@ -558,6 +511,11 @@ export class SocialCalendarGenerator {
       };
 
       if (llmResponse) {
+         // Backend now automatically saves the post, so we get the saved_post_id
+         if (llmResponse.saved_post_id) {
+            id = String(llmResponse.saved_post_id); // Use the saved DB ID
+         }
+         
          // 1. Resolve Category
          if (llmResponse.selected_category) {
              category = normalizeCategory(llmResponse.selected_category);
@@ -697,6 +655,10 @@ export class SocialCalendarGenerator {
          }
          
          generationSource = 'llm';
+         
+         // Store topic and problem_identified from generate response (CRITICAL for deduplication)
+         topic = llmResponse.topic;
+         problem_identified = llmResponse.problem_identified;
       }
 
     } catch (err) {
@@ -753,7 +715,9 @@ export class SocialCalendarGenerator {
       postingTime,
       generationSource,
       generatedContext,
-      userFeedback: null
+      userFeedback: null,
+      topic, // Topic from generate response (CRITICAL for deduplication)
+      problem_identified // Problem description from strategy phase
     };
   }
 
