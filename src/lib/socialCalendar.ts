@@ -10,18 +10,16 @@ import {
   DEFAULT_GENERATOR_CONFIG, 
   HookType, 
   MonthPattern,
-  ImportantDate
+  ImportantDate,
+  AgriculturalPhase
 } from '../types/socialCalendar';
 
 import dayjs from 'dayjs';
-import { CategorySelector } from './socialCalendarCategorySelector';
-import { HttpProductService } from './socialCalendarProducts';
-import { FallbackGenerator, GenerationContext } from './socialCalendarFallback';
-import { validateDaySuggestions } from './socialCalendarValidation';
-import { getMonthPattern } from '../data/social/salesPatterns';
-import { getImportantDatesInWindow } from '../data/social/importantDates';
-import { generateId, parseDate, randomInt } from './socialCalendarHelpers';
+// All business logic moved to backend - frontend is now just UI orchestration
 import { apiRequest } from '../utils/api';
+import { parseDate } from './socialCalendarHelpers';
+import { HttpProductService } from './socialCalendarProducts';
+import { validateDaySuggestions } from './socialCalendarValidation';
 
 // -----------------------------------------------------------------------------
 // Database Sync Functions (Shared across users)
@@ -319,407 +317,163 @@ export class SocialCalendarGenerator {
     batchGeneratedHistoryOverride: string[] = [],
     suggestedTopic?: string
   ): Promise<DaySuggestions> {
-    const targetDate = parseDate(dateStr);
-    const month = targetDate.getMonth() + 1; // 1-12
-    const monthPattern = getMonthPattern(month);
-    
-    // 0. Get Context
-    const nearbyDates = getImportantDatesInWindow(targetDate, this.config.dateWindowDays);
-    const dateBoostedCategories = nearbyDates.flatMap(d => d.relatedCategories);
-
-    // 1. Get recent history for deduplication
-    const dedupStart = dayjs(targetDate).subtract(this.config.dedupWindowDays, 'day').format('YYYY-MM-DD');
-    const dedupHistory = await loadPostsFromDatabase(
-      dedupStart,
-      targetDate.toISOString().split('T')[0]
-    );
-
-    const categorySelector = new CategorySelector();
-    const { categories: selectedCategories } = await categorySelector.selectCategories(
-      targetDate,
-      monthPattern,
-      nearbyDates,
-      dedupHistory,
-      this.config
-    );
-    const categoryPool = categoryOverride ? [categoryOverride, ...selectedCategories] : selectedCategories;
-    
-    // Track products/categories used in this generation batch to avoid duplicates
-    // (This is the only context we need to track locally because it's not in DB yet)
-    const usedInBatch = usedInBatchOverride || {
-      productIds: new Set<string>(),
-      categories: new Set<string>()
-    };
-    
-    // Track posts generated in this batch for context awareness
-    const batchGeneratedHistory = batchGeneratedHistoryOverride;
-    
-    // 2. Autonomous Generation Loop
-    const count = randomInt(this.config.minSuggestions, this.config.maxSuggestions);
-    const suggestions: Suggestion[] = [];
-
-    for (let i = 0; i < count; i++) {
-       // Sometimes use a category, sometimes don't - allows for broader educational content
-       // Mix: 60% with category (product-focused), 40% without (general educational)
-       const useCategory = Math.random() < 0.6;
-       const preferredCategory = useCategory ? categoryPool[i % categoryPool.length] : undefined;
-       const suggestion = await this.createAutonomousSuggestion(
-         targetDate,
-         nearbyDates,
-         monthPattern,
-         usedInBatch,
-         batchGeneratedHistory,
-         suggestedTopic,
-         preferredCategory,
-         categoryPool
-       );
-       if (suggestion) {
-         suggestions.push(suggestion);
-         // Track what we just used
-         suggestion.products.forEach(p => {
-           if (p.id) usedInBatch.productIds.add(p.id);
-           if (p.category) usedInBatch.categories.add(p.category);
-         });
-         // Add to batch history for next iteration's context
-         batchGeneratedHistory.push(`${suggestion.caption.substring(0, 50)}... [${suggestion.postType}]`);
-       }
-    }
-
-    const daySuggestions: DaySuggestions = {
-      date: dateStr,
-      generatedAt: new Date().toISOString(),
-      suggestions,
-      metadata: {
-        monthPhase: monthPattern.phase,
-        relevantDates: nearbyDates.map(d => d.name),
-        priorityCategories: dateBoostedCategories
-      }
-    };
-
-    // Save to database (shared across users)
-    await saveDaySuggestionsToDatabase(daySuggestions);
-
-    // Reload from DB to ensure IDs and persisted fields are in sync
-    const persisted = await loadPostsForDate(dateStr);
-    return persisted || daySuggestions;
-  }
-
-  private calculateCategoryScores(
-    available: ProductCategory[], 
-    month: MonthPattern, 
-    boosted: ProductCategory[],
-    history: DaySuggestions[]
-  ): Record<ProductCategory, number> {
-    const scores: Record<string, number> = {};
-
-    // Base scores from monthly pattern
-    for (const cat of available) {
-      const weightObj = month.categories.find(c => c.category === cat);
-      scores[cat] = weightObj ? weightObj.weight : 0.3; // Default base
-    }
-
-    // Boost important dates
-    for (const cat of boosted) {
-      if (scores[cat]) {
-        scores[cat] *= this.config.dateBoostMultiplier;
-      }
-    }
-
-    // Penalty for recent usage (Simple Bloom filterish or direct check)
-    // Flatten recent history tags/categories
-    const recentCategories = new Set<string>(); // simplified
-    // In a real implementation we would parse history. For now, assume we want variety.
-    
-    return scores;
-  }
-
-  private async createAutonomousSuggestion(
-    date: Date,
-    nearbyDates: ImportantDate[],
-    monthPattern: MonthPattern,
-    usedInBatch?: {
-      productIds: Set<string>;
-      categories: Set<string>;
-    },
-    batchGeneratedHistory: string[] = [],
-    suggestedTopic?: string,
-    preferredCategory?: ProductCategory,
-    selectedCategories: ProductCategory[] = []
-  ): Promise<Suggestion | null> {
-    let id = generateId(); // Can be overridden with saved_post_id from backend
-    // Default fallback values
-    let mainProduct: ProductRef | undefined = undefined; // No local pool to pick from
-    let category: string | undefined = preferredCategory; // Only use category if explicitly provided - allows for general educational content
-    
-    const hookType: HookType = 'seasonality';
-    const hookText = 'Tendencias agrícolas';
-    let postType: PostType = 'promo'; // Default, will be updated from backend
-    let channels: Channel[] = ['fb-post']; // Default, will be updated from backend
-    
-    let caption = 'Contenido generado automáticamente.';
-    let imagePrompt = 'Imagen agrícola profesional.';
-    let postingTime = '10:00 AM';
-    let instructions = 'Revisar antes de publicar.';
-    let generationSource: 'llm' | 'template' = 'template';
-    
-    // Channel-specific data from backend
-    let carouselSlides: string[] | undefined;
-    let needsMusic = false;
-    let strategyNotes: string | undefined;
-    // Topic-based deduplication fields (CRITICAL)
-    let topic: string | undefined;
-    let problem_identified: string | undefined;
-    const generatedContext = {
-      monthPhase: monthPattern.phase,
-      nearbyDates,
-      selectedCategories: selectedCategories.length
-        ? selectedCategories
-        : (Array.from(usedInBatch?.categories ?? []) as ProductCategory[])
-    };
-
+    // Simplified: Just call backend batch endpoint - all logic moved to backend
     try {
-      // Send comprehensive context to backend for better deduplication
-      const llmResponse: any = await apiRequest('/social/generate', {
+      const batchResponse: any = await apiRequest('/social/generate-batch', {
         method: 'POST',
         body: JSON.stringify({
-          date: date.toISOString().split('T')[0], // YYYY-MM-DD
-          category: preferredCategory || undefined, // Only pass category if explicitly provided, allow undefined for general educational content
-          // Removed redundant history/dedupContext (backend handles DB checks)
-          used_in_batch: usedInBatch ? {
-            product_ids: Array.from(usedInBatch.productIds),
-            categories: Array.from(usedInBatch.categories)
-          } : undefined,
-          batch_generated_history: batchGeneratedHistory, // Pass accumulated batch history
-          suggested_topic: suggestedTopic, // Pass user-suggested topic if provided
-          selected_categories: selectedCategories
+          date: dateStr,
+          min_count: this.config.minSuggestions,
+          max_count: this.config.maxSuggestions,
+          suggested_topic: suggestedTopic || undefined,
+          category_override: categoryOverride || undefined
         })
       });
 
-      // Helper to clean potential raw JSON leaks
-      const cleanText = (text: string) => {
-        if (!text) return '';
-        if (typeof text === 'string' && (text.trim().startsWith('```') || text.trim().startsWith('{'))) {
-           try {
-             const raw = text.replace(/```json/g, '').replace(/```/g, '').trim();
-             const parsed = JSON.parse(raw);
-             return parsed.caption || parsed.text || text;
-           } catch { 
-             return text.replace(/```json/g, '').replace(/```/g, '').trim();
-           }
+      // Map backend response to frontend format
+      const suggestions: Suggestion[] = batchResponse.posts.map((post: any) => {
+        // Helper to clean potential raw JSON leaks
+        const cleanText = (text: string) => {
+          if (!text) return '';
+          if (typeof text === 'string' && (text.trim().startsWith('```') || text.trim().startsWith('{'))) {
+             try {
+               const raw = text.replace(/```json/g, '').replace(/```/g, '').trim();
+               const parsed = JSON.parse(raw);
+               return parsed.caption || parsed.text || text;
+             } catch { 
+               return text.replace(/```json/g, '').replace(/```/g, '').trim();
+             }
+          }
+          return text;
+        };
+
+        // Map channel string to array
+        const channels: Channel[] = post.channel ? [post.channel as Channel] : ['fb-post'];
+        // Add cross-posted channels (FB → IG)
+        if (channels[0] === 'fb-post') {
+          channels.push('ig-post');
+        } else if (channels[0] === 'fb-reel') {
+          channels.push('ig-reel');
         }
-        return text;
+
+        return {
+          id: String(post.saved_post_id), // Use DB ID from backend
+          postType: this.mapPostType(post.post_type),
+          channels,
+          hook: 'Tendencias agrícolas',
+          hookType: 'seasonality',
+          products: post.selected_product_details ? [{
+            id: String(post.selected_product_details.id),
+            name: post.selected_product_details.name,
+            category: this.normalizeCategory(post.selected_product_details.category || post.selected_category || 'vivero'),
+            sku: post.selected_product_details.sku,
+            inStock: post.selected_product_details.inStock,
+            price: post.selected_product_details.price
+          }] : [],
+          caption: cleanText(post.caption),
+          imagePrompt: cleanText(post.image_prompt || ''),
+          carouselSlides: post.carousel_slides,
+          needsMusic: post.needs_music || false,
+          tags: [],
+          status: 'planned',
+          instructions: post.notes || '',
+          strategyNotes: post.notes || '',
+          postingTime: post.posting_time || '10:00 AM',
+          generationSource: 'llm',
+          generatedContext: {
+            monthPhase: batchResponse.metadata.monthPhase as AgriculturalPhase,
+            nearbyDates: [], // Could be populated from metadata if needed
+            selectedCategories: batchResponse.selected_categories as ProductCategory[]
+          },
+          userFeedback: null,
+          topic: post.topic,
+          problem_identified: post.problem_identified
+        };
+      });
+
+      const daySuggestions: DaySuggestions = {
+        date: dateStr,
+        generatedAt: new Date().toISOString(),
+        suggestions,
+        metadata: {
+          monthPhase: batchResponse.metadata.monthPhase as AgriculturalPhase,
+          relevantDates: batchResponse.metadata.importantDates || [],
+          priorityCategories: batchResponse.selected_categories as ProductCategory[]
+        }
       };
 
-      if (llmResponse) {
-         // Backend now automatically saves the post, so we get the saved_post_id
-         if (llmResponse.saved_post_id) {
-            id = String(llmResponse.saved_post_id); // Use the saved DB ID
-         }
-         
-         // 1. Resolve Category
-         if (llmResponse.selected_category) {
-             category = normalizeCategory(llmResponse.selected_category);
-         }
-         
-         // 2. Resolve Post Type from Backend (map Spanish names to PostType enum)
-         if (llmResponse.post_type) {
-            const backendPostType = llmResponse.post_type.toLowerCase();
-            // Map Spanish post type names from backend to frontend PostType
-            const postTypeMap: Record<string, PostType> = {
-               'infografías': 'infographic',
-               'infografia': 'infographic',
-               'infographic': 'infographic',
-               'fechas importantes': 'important-date',
-               'fecha importante': 'important-date',
-               'important-date': 'important-date',
-               'memes/tips rápidos': 'meme-tip',
-               'meme/tip rápido': 'meme-tip',
-               'meme-tip': 'meme-tip',
-               'promoción puntual': 'promo',
-               'promocion': 'promo',
-               'promo': 'promo',
-               'kits': 'kit',
-               'kit': 'kit',
-               'caso de éxito': 'case-study',
-               'caso de exito': 'case-study',
-               'ugc': 'ugc-request',
-               'case-study': 'case-study',
-               'antes / después': 'before-after',
-               'antes/despues': 'before-after',
-               'before-after': 'before-after',
-               'checklist operativo': 'checklist',
-               'checklist': 'checklist',
-               'tutorial corto': 'tutorial',
-               'tutorial': 'tutorial',
-               'lo que llegó hoy': 'new-arrivals',
-               'novedades': 'new-arrivals',
-               'new-arrivals': 'new-arrivals',
-               'faq': 'faq',
-               'mitos': 'faq',
-               'seguridad': 'safety',
-               'safety': 'safety',
-               'roi': 'roi',
-               'números rápidos': 'roi',
-               'convocatoria a ugc': 'ugc-request',
-               'ugc-request': 'ugc-request',
-               'recordatorio de servicio': 'service-reminder',
-               'service-reminder': 'service-reminder',
-               'cómo pedir': 'how-to-order',
-               'logística': 'how-to-order',
-               'how-to-order': 'how-to-order'
-            };
-            
-            // Try to find a match (exact or partial)
-            let matchedType: PostType | undefined = postTypeMap[backendPostType];
-            if (!matchedType) {
-               // Try partial match
-               for (const [key, value] of Object.entries(postTypeMap)) {
-                  if (backendPostType.includes(key) || key.includes(backendPostType)) {
-                     matchedType = value;
-                     break;
-                  }
-               }
-            }
-            
-            if (matchedType) {
-               postType = matchedType;
-            } else {
-               console.warn(`Unknown post_type from backend: ${llmResponse.post_type}, using default 'promo'`);
-            }
-         }
-         
-         // 3. Resolve Product from Backend Response
-         if (llmResponse.selected_product_details) {
-            const p = llmResponse.selected_product_details;
-            mainProduct = {
-               id: String(p.id),
-               name: p.name,
-               category: normalizeCategory(p.category),
-               sku: p.sku,
-               inStock: p.inStock,
-               price: p.price
-            };
-         }
+      // Posts are already saved by backend, just reload to ensure sync
+      const persisted = await loadPostsForDate(dateStr);
+      return persisted || daySuggestions;
 
-         // 4. Resolve Channel from Backend
-         if (llmResponse.channel) {
-            const selectedChannel = llmResponse.channel as Channel;
-            channels = [selectedChannel];
-            
-            // Add cross-posted channels (FB → IG)
-            if (selectedChannel === 'fb-post') {
-              channels.push('ig-post');
-            } else if (selectedChannel === 'fb-reel') {
-              channels.push('ig-reel');
-            }
-         }
-         
-         // 5. Capture channel-specific data (carousel slides work for TikTok AND FB/IG)
-         if (llmResponse.carousel_slides && Array.isArray(llmResponse.carousel_slides)) {
-            carouselSlides = llmResponse.carousel_slides;
-         }
-         if (llmResponse.needs_music !== undefined) {
-            needsMusic = llmResponse.needs_music;
-         }
-
-         caption = cleanText(llmResponse.caption) || caption;
-         
-         const rawPrompt = llmResponse.image_prompt || llmResponse.imagePrompt;
-         if (rawPrompt) imagePrompt = cleanText(rawPrompt);
-
-         postingTime = llmResponse.posting_time || llmResponse.postingTime || postingTime;
-         
-         // Build instructions with channel-specific notes
-         let channelNotes = '';
-         if (needsMusic) {
-            channelNotes += '🎵 Este contenido necesita música de fondo (corridos mexicanos, regional popular)\n';
-         }
-         if (carouselSlides && carouselSlides.length > 0) {
-            const channelLabel = channels[0] === 'tiktok' ? 'TikTok' : 'FB/IG';
-            channelNotes += `📱 ${channelLabel} Carrusel (${carouselSlides.length} slides):\n`;
-            carouselSlides.forEach((slide, i) => {
-               channelNotes += `  Slide ${i + 1}: ${slide.substring(0, 100)}...\n`;
-            });
-            
-            // Also format carousel slides as the imagePrompt for easy copy
-            imagePrompt = carouselSlides.map((slide, i) => 
-               `━━━━ SLIDE ${i + 1} ━━━━\n${slide}`
-            ).join('\n\n');
-         }
-         
-         if (llmResponse.notes) {
-           strategyNotes = llmResponse.notes;
-           instructions = `🧠 Estrategia IA:\n${llmResponse.notes}\n\n${channelNotes}${instructions}`;
-         } else if (channelNotes) {
-           instructions = `${channelNotes}\n${instructions}`;
-         }
-         
-         generationSource = 'llm';
-         
-         // Store topic and problem_identified from generate response (CRITICAL for deduplication)
-         topic = llmResponse.topic;
-         problem_identified = llmResponse.problem_identified;
-      }
-
-    } catch (err) {
-      console.warn('Autonomous LLM generation failed', err);
-      // Will use fallback generator below
-    }
-
-    // Use fallback generator if LLM failed or returned minimal content
-    if (generationSource === 'template' || !caption || caption === 'Contenido generado automáticamente.') {
-      const fallbackGen = new FallbackGenerator();
-      const fallbackContext: GenerationContext = {
-        monthPhase: monthPattern.phase,
-        nearbyDates,
-        selectedCategories: selectedCategories,
-        product: mainProduct,
-      };
-      
-      const fallbackSuggestion = fallbackGen.generateFromTemplate(
-        postType,
-        mainProduct,
-        fallbackContext
-      );
-      
-      // Merge fallback with any LLM data we did get
+    } catch (error) {
+      console.error('Batch generation failed:', error);
+      // Return empty result - UI will show error
       return {
-        ...fallbackSuggestion,
-        id,
-        postType: postType || fallbackSuggestion.postType,
-        channels: channels.length > 0 ? channels : fallbackSuggestion.channels,
-        carouselSlides: carouselSlides || fallbackSuggestion.carouselSlides,
-        needsMusic: needsMusic || fallbackSuggestion.needsMusic,
-        strategyNotes: strategyNotes || fallbackSuggestion.strategyNotes,
-        generatedContext,
-        postingTime: postingTime || fallbackSuggestion.postingTime,
-        generationSource: 'template',
+        date: dateStr,
+        generatedAt: new Date().toISOString(),
+        suggestions: [],
+        metadata: {
+          monthPhase: 'germinacion',
+          relevantDates: [],
+          priorityCategories: []
+        }
       };
     }
-
-    return {
-      id,
-      postType,
-      channels,
-      status: 'planned',
-      products: mainProduct ? [mainProduct] : [],
-      hook: hookText,
-      hookType,
-      tags: [],
-      caption,
-      imagePrompt,
-      carouselSlides,
-      needsMusic,
-      instructions,
-      strategyNotes,
-      postingTime,
-      generationSource,
-      generatedContext,
-      userFeedback: null,
-      topic, // Topic from generate response (CRITICAL for deduplication)
-      problem_identified // Problem description from strategy phase
-    };
   }
+
+  private mapPostType(backendType: string | undefined): PostType {
+    if (!backendType) return 'promo';
+    const typeMap: Record<string, PostType> = {
+      'infografías': 'infographic',
+      'infografia': 'infographic',
+      'checklist operativo': 'checklist',
+      'checklist': 'checklist',
+      'tutorial corto': 'tutorial',
+      'tutorial': 'tutorial',
+      'promoción puntual': 'promo',
+      'promocion': 'promo',
+      'kits': 'kit',
+      'kit': 'kit',
+      'caso de éxito': 'case-study',
+      'memes/tips rápidos': 'meme-tip',
+      'meme-tip': 'meme-tip',
+      'antes / después': 'before-after',
+      'lo que llegó hoy': 'new-arrivals',
+      'novedades': 'new-arrivals',
+      'faq': 'faq',
+      'seguridad': 'safety',
+      'roi': 'roi',
+      'fechas importantes': 'important-date',
+      'ugc': 'ugc-request',
+      'recordatorio de servicio': 'service-reminder',
+      'cómo pedir': 'how-to-order',
+      'logística': 'how-to-order'
+    };
+    const lower = backendType.toLowerCase();
+    return typeMap[lower] || typeMap[Object.keys(typeMap).find(k => lower.includes(k)) || ''] || 'promo';
+  }
+
+  private normalizeCategory(categoryName: string): ProductCategory {
+    const lower = categoryName.toLowerCase();
+    if (lower.includes('malla')) return 'mallasombra';
+    if (lower.includes('riego')) return 'riego';
+    if (lower.includes('bombeo') || lower.includes('solar')) return 'bombeo-solar';
+    if (lower.includes('anti')) return 'antiheladas';
+    if (lower.includes('acolchado')) return 'acolchado';
+    if (lower.includes('charola')) return 'charolas';
+    if (lower.includes('valvula')) return 'valvuleria';
+    if (lower.includes('cerca')) return 'cercas';
+    if (lower.includes('plaga')) return 'control-plagas';
+    if (lower.includes('estruct')) return 'estructuras';
+    if (lower.includes('kit')) return 'kits';
+    if (lower.includes('plastic')) return 'plasticos';
+    return 'vivero';
+  }
+
+  // Removed calculateCategoryScores - category selection now handled by backend
+  // Removed createAutonomousSuggestion - batch generation now handled by backend
+  // All business logic moved to backend - frontend is now just UI orchestration
 
 }
 

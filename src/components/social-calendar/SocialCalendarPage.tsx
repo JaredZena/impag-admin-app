@@ -27,7 +27,7 @@ const SocialCalendarPage: React.FC = () => {
   const [statusMap, setStatusMap] = useState<Record<string, SuggestionStatus>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>('');
-  const [generationMsg, setGenerationMsg] = useState<{type: 'success' | 'warning', text: string} | null>(null);
+  const [generationMsg, setGenerationMsg] = useState<{type: 'success' | 'warning' | 'error', text: string} | null>(null);
   const [suggestedTopic, setSuggestedTopic] = useState<string>('');
   const abortGenRef = useRef(false);
 
@@ -187,14 +187,20 @@ const SocialCalendarPage: React.FC = () => {
       await loadStatusMap();
 
       // Check success
-      const llmCount = result.suggestions.filter(s => s.generationSource === 'llm').length;
-      if (result.suggestions.length > 0) {
+      if (result.suggestions.length === 0) {
+        // All backend generation attempts failed - show error
+        setGenerationMsg({ 
+          type: 'error', 
+          text: '❌ Error: El backend no pudo generar contenido. Por favor, intenta nuevamente.' 
+        });
+        setTimeout(() => setGenerationMsg(null), 8000);
+      } else {
+        const llmCount = result.suggestions.filter(s => s.generationSource === 'llm').length;
         if (llmCount === result.suggestions.length) {
            setGenerationMsg({ type: 'success', text: '✨ Contenido generado con IA correctamente.' });
-        } else if (llmCount > 0) {
-           setGenerationMsg({ type: 'warning', text: '⚠️ Algunos contenidos usaron plantillas (IA parcial).' });
         } else {
-           setGenerationMsg({ type: 'warning', text: '⚠️ Falló la conexión IA. Se generó contenido base con plantillas.' });
+           // This shouldn't happen anymore since we removed fallback, but keep for safety
+           setGenerationMsg({ type: 'warning', text: '⚠️ Algunos contenidos no se generaron correctamente.' });
         }
         setTimeout(() => setGenerationMsg(null), 5000);
       }
@@ -394,12 +400,28 @@ const SocialCalendarPage: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            backgroundColor: generationMsg.type === 'success' ? 'rgba(74, 222, 128, 0.1)' : 'rgba(250, 204, 21, 0.1)',
-            border: `1px solid ${generationMsg.type === 'success' ? 'rgba(74, 222, 128, 0.2)' : 'rgba(250, 204, 21, 0.2)'}`,
-            color: generationMsg.type === 'success' ? '#4ade80' : '#facc15',
+            backgroundColor: generationMsg.type === 'success' 
+              ? 'rgba(74, 222, 128, 0.1)' 
+              : generationMsg.type === 'error'
+              ? 'rgba(239, 68, 68, 0.1)'
+              : 'rgba(250, 204, 21, 0.1)',
+            border: `1px solid ${generationMsg.type === 'success' 
+              ? 'rgba(74, 222, 128, 0.2)' 
+              : generationMsg.type === 'error'
+              ? 'rgba(239, 68, 68, 0.2)'
+              : 'rgba(250, 204, 21, 0.2)'}`,
+            color: generationMsg.type === 'success' 
+              ? '#4ade80' 
+              : generationMsg.type === 'error'
+              ? '#ef4444'
+              : '#facc15',
             fontSize: '0.9rem'
           }}>
-            {generationMsg.type === 'success' ? <Check size={16} /> : <AlertTriangle size={16} />}
+            {generationMsg.type === 'success' 
+              ? <Check size={16} /> 
+              : generationMsg.type === 'error'
+              ? <X size={16} />
+              : <AlertTriangle size={16} />}
             {generationMsg.text}
           </div>
         )}
