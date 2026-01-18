@@ -446,7 +446,7 @@ export class SocialCalendarGenerator {
     preferredCategory?: ProductCategory,
     selectedCategories: ProductCategory[] = []
   ): Promise<Suggestion | null> {
-    const id = generateId();
+    let id = generateId(); // Can be overridden with saved_post_id from backend
     // Default fallback values
     let mainProduct: ProductRef | undefined = undefined; // No local pool to pick from
     let category: string | undefined = preferredCategory; // Only use category if explicitly provided - allows for general educational content
