@@ -317,88 +317,86 @@ export class SocialCalendarGenerator {
     batchGeneratedHistoryOverride: string[] = [],
     suggestedTopic?: string
   ): Promise<DaySuggestions> {
-    // Simplified: Just call backend batch endpoint - all logic moved to backend
+    // Generate single post (not batch) to reduce costs
     try {
-      const batchResponse: any = await apiRequest('/social/generate-batch', {
+      const postResponse: any = await apiRequest('/social/generate', {
         method: 'POST',
         body: JSON.stringify({
           date: dateStr,
-          min_count: this.config.minSuggestions,
-          max_count: this.config.maxSuggestions,
-          suggested_topic: suggestedTopic || undefined,
-          category_override: categoryOverride || undefined
+          category: categoryOverride || undefined,
+          suggested_topic: suggestedTopic || undefined
         })
       });
 
-      // Map backend response to frontend format
-      const suggestions: Suggestion[] = batchResponse.posts.map((post: any) => {
-        // Helper to clean potential raw JSON leaks
-        const cleanText = (text: string) => {
-          if (!text) return '';
-          if (typeof text === 'string' && (text.trim().startsWith('```') || text.trim().startsWith('{'))) {
-             try {
-               const raw = text.replace(/```json/g, '').replace(/```/g, '').trim();
-               const parsed = JSON.parse(raw);
-               return parsed.caption || parsed.text || text;
-             } catch { 
-               return text.replace(/```json/g, '').replace(/```/g, '').trim();
-             }
-          }
-          return text;
-        };
-
-        // Map channel string to array
-        const channels: Channel[] = post.channel ? [post.channel as Channel] : ['fb-post'];
-        // Add cross-posted channels (FB → IG)
-        if (channels[0] === 'fb-post') {
-          channels.push('ig-post');
-        } else if (channels[0] === 'fb-reel') {
-          channels.push('ig-reel');
+      // Map single post response to frontend format
+      const post = postResponse;
+      
+      // Helper to clean potential raw JSON leaks
+      const cleanText = (text: string) => {
+        if (!text) return '';
+        if (typeof text === 'string' && (text.trim().startsWith('```') || text.trim().startsWith('{'))) {
+           try {
+             const raw = text.replace(/```json/g, '').replace(/```/g, '').trim();
+             const parsed = JSON.parse(raw);
+             return parsed.caption || parsed.text || text;
+           } catch { 
+             return text.replace(/```json/g, '').replace(/```/g, '').trim();
+           }
         }
+        return text;
+      };
 
-        return {
-          id: String(post.saved_post_id), // Use DB ID from backend
-          postType: this.mapPostType(post.post_type),
-          channels,
-          hook: 'Tendencias agrícolas',
-          hookType: 'seasonality',
-          products: post.selected_product_details ? [{
-            id: String(post.selected_product_details.id),
-            name: post.selected_product_details.name,
-            category: this.normalizeCategory(post.selected_product_details.category || post.selected_category || 'vivero'),
-            sku: post.selected_product_details.sku,
-            inStock: post.selected_product_details.inStock,
-            price: post.selected_product_details.price
-          }] : [],
-          caption: cleanText(post.caption),
-          imagePrompt: cleanText(post.image_prompt || ''),
-          carouselSlides: post.carousel_slides,
-          needsMusic: post.needs_music || false,
-          tags: [],
-          status: 'planned',
-          instructions: post.notes || '',
-          strategyNotes: post.notes || '',
-          postingTime: post.posting_time || '10:00 AM',
-          generationSource: 'llm',
-          generatedContext: {
-            monthPhase: batchResponse.metadata.monthPhase as AgriculturalPhase,
-            nearbyDates: [], // Could be populated from metadata if needed
-            selectedCategories: batchResponse.selected_categories as ProductCategory[]
-          },
-          userFeedback: null,
-          topic: post.topic,
-          problem_identified: post.problem_identified
-        };
-      });
+      // Map channel string to array
+      const channels: Channel[] = post.channel ? [post.channel as Channel] : ['fb-post'];
+      // Add cross-posted channels (FB → IG)
+      if (channels[0] === 'fb-post') {
+        channels.push('ig-post');
+      } else if (channels[0] === 'fb-reel') {
+        channels.push('ig-reel');
+      }
+
+      const suggestions: Suggestion[] = [{
+        id: String(post.saved_post_id), // Use DB ID from backend
+        postType: this.mapPostType(post.post_type),
+        channels,
+        hook: 'Tendencias agrícolas',
+        hookType: 'seasonality',
+        products: post.selected_product_details ? [{
+          id: String(post.selected_product_details.id),
+          name: post.selected_product_details.name,
+          category: this.normalizeCategory(post.selected_product_details.category || post.selected_category || 'vivero'),
+          sku: post.selected_product_details.sku,
+          inStock: post.selected_product_details.inStock,
+          price: post.selected_product_details.price
+        }] : [],
+        caption: cleanText(post.caption),
+        imagePrompt: cleanText(post.image_prompt || ''),
+        carouselSlides: post.carousel_slides,
+        needsMusic: post.needs_music || false,
+        tags: [],
+        status: 'planned',
+        instructions: post.notes || '',
+        strategyNotes: post.notes || '',
+        postingTime: post.posting_time || '10:00 AM',
+        generationSource: 'llm',
+        generatedContext: {
+          monthPhase: 'germinacion' as AgriculturalPhase, // Default, could be enhanced
+          nearbyDates: [],
+          selectedCategories: post.selected_category ? [post.selected_category as ProductCategory] : []
+        },
+        userFeedback: null,
+        topic: post.topic,
+        problem_identified: post.problem_identified
+      }];
 
       const daySuggestions: DaySuggestions = {
         date: dateStr,
         generatedAt: new Date().toISOString(),
         suggestions,
         metadata: {
-          monthPhase: batchResponse.metadata.monthPhase as AgriculturalPhase,
-          relevantDates: batchResponse.metadata.importantDates || [],
-          priorityCategories: batchResponse.selected_categories as ProductCategory[]
+          monthPhase: 'germinacion' as AgriculturalPhase,
+          relevantDates: [],
+          priorityCategories: post.selected_category ? [post.selected_category as ProductCategory] : []
         }
       };
 
