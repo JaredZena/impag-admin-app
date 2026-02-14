@@ -34,7 +34,7 @@ const TaskArchivePage: React.FC = () => {
   return (
     <div className="min-h-[100dvh] bg-[#f8f9fc] pb-8">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3 md:px-6 md:py-4">
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-16 pr-4 py-3 md:px-6 md:py-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/tasks')}

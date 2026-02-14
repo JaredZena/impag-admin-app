@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
@@ -67,6 +67,17 @@ const TasksPage: React.FC = () => {
   const [filterAssignee, setFilterAssignee] = useState<string>(searchParams.get('assigned_to') || '');
   const [filterPriority, setFilterPriority] = useState<string>(searchParams.get('priority') || '');
   const [filterCategory, setFilterCategory] = useState<string>(searchParams.get('category_id') || '');
+
+  // Drag & drop (desktop board)
+  const [draggingTaskId, setDraggingTaskId] = useState<number | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<TabKey | null>(null);
+
+  // Pull-to-refresh (mobile)
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullStartY = useRef(0);
+  const isPulling = useRef(false);
+  const PULL_THRESHOLD = 80;
 
   const hasActiveFilters = filterAssignee || filterPriority || filterCategory;
 
@@ -154,6 +165,59 @@ const TasksPage: React.FC = () => {
     addNotification({ type: 'success', title: 'Tarea archivada', duration: 3000 });
   }, [addNotification]);
 
+  // ── Drag & Drop (Desktop Board) ────────────────────
+
+  const handleDragStart = useCallback((e: React.DragEvent, taskId: number) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(taskId));
+    setDraggingTaskId(taskId);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingTaskId(null);
+    setDragOverColumn(null);
+  }, []);
+
+  const handleColumnDragOver = useCallback((e: React.DragEvent, column: TabKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverColumn(column);
+  }, []);
+
+  const handleColumnDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear if leaving the column entirely (not entering a child)
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOverColumn(null);
+    }
+  }, []);
+
+  const handleColumnDrop = useCallback(async (e: React.DragEvent, targetStatus: TabKey) => {
+    e.preventDefault();
+    setDragOverColumn(null);
+    setDraggingTaskId(null);
+
+    const taskId = Number(e.dataTransfer.getData('text/plain'));
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || task.status === targetStatus) return;
+
+    // Optimistic update
+    const prevTasks = tasks;
+    setTasks(prev => prev.map(t =>
+      t.id === taskId
+        ? { ...t, status: targetStatus as TaskStatus, completed_at: targetStatus === 'done' ? new Date().toISOString() : null }
+        : t
+    ));
+
+    try {
+      await updateTaskStatus(taskId, targetStatus);
+      const statusLabels: Record<TabKey, string> = { pending: 'Pendiente', in_progress: 'En Progreso', done: 'Completada' };
+      addNotification({ type: 'success', title: `Tarea movida a ${statusLabels[targetStatus]}`, duration: 3000 });
+    } catch {
+      setTasks(prevTasks);
+      addNotification({ type: 'error', title: 'Error al mover la tarea', duration: 5000 });
+    }
+  }, [tasks, addNotification]);
+
   // ── Filtered & Sorted Tasks ───────────────────────────
 
   const tasksByStatus = useMemo(() => {
@@ -188,12 +252,51 @@ const TasksPage: React.FC = () => {
     setShowSearch(false);
   };
 
+  // ── Pull-to-Refresh (Mobile) ────────────────────────
+
+  const handlePullStart = useCallback((e: React.TouchEvent) => {
+    if (window.scrollY <= 0 && !refreshing) {
+      pullStartY.current = e.touches[0].clientY;
+      isPulling.current = true;
+    }
+  }, [refreshing]);
+
+  const handlePullMove = useCallback((e: React.TouchEvent) => {
+    if (!isPulling.current || refreshing) return;
+    const diff = e.touches[0].clientY - pullStartY.current;
+    if (diff > 0) {
+      // Dampen the pull (feels more natural)
+      setPullDistance(Math.min(diff * 0.5, 120));
+    } else {
+      isPulling.current = false;
+      setPullDistance(0);
+    }
+  }, [refreshing]);
+
+  const handlePullEnd = useCallback(async () => {
+    if (!isPulling.current) return;
+    isPulling.current = false;
+
+    if (pullDistance >= PULL_THRESHOLD) {
+      setRefreshing(true);
+      setPullDistance(PULL_THRESHOLD); // Hold at threshold while loading
+      try {
+        await loadData();
+      } finally {
+        setRefreshing(false);
+        setPullDistance(0);
+      }
+    } else {
+      setPullDistance(0);
+    }
+  }, [pullDistance, PULL_THRESHOLD, loadData]);
+
   // ── Loading State ─────────────────────────────────────
 
   if (loading) {
     return (
       <div className="min-h-[100dvh] bg-[#f8f9fc]">
-        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3 md:px-6 md:py-4">
+        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-16 pr-4 py-3 md:px-6 md:py-4">
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">Tareas</h1>
         </div>
         <div className="p-4 space-y-3">
@@ -234,7 +337,7 @@ const TasksPage: React.FC = () => {
   return (
     <div className="min-h-[100dvh] bg-[#f8f9fc] pb-24 md:pb-8">
       {/* ── Mobile Sticky Header ────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3 md:px-6 md:py-4">
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-16 pr-4 py-3 md:px-6 md:py-4">
         <div className="flex items-center justify-between">
           {showSearch ? (
             <div className="flex-1 flex items-center gap-2">
@@ -445,7 +548,12 @@ const TasksPage: React.FC = () => {
       {/* ── Desktop Three-Column Board ──────────────────── */}
       <div className="hidden md:grid md:grid-cols-3 gap-5 lg:gap-6 p-6 lg:p-8">
         {TAB_CONFIG.map(tab => (
-          <div key={tab.key}>
+          <div
+            key={tab.key}
+            onDragOver={e => handleColumnDragOver(e, tab.key)}
+            onDragLeave={handleColumnDragLeave}
+            onDrop={e => handleColumnDrop(e, tab.key)}
+          >
             {/* Column header */}
             <div className="flex items-center gap-2 mb-3 px-1">
               <span className={`w-2 h-2 rounded-full ${tab.dotColor}`} />
@@ -457,10 +565,14 @@ const TasksPage: React.FC = () => {
               </span>
             </div>
             {/* Column body */}
-            <div className="bg-white/20 backdrop-blur-[2px] rounded-2xl p-3 min-h-[300px] space-y-3">
+            <div className={`rounded-2xl p-3 min-h-[300px] space-y-3 transition-colors duration-200 ${
+              dragOverColumn === tab.key
+                ? 'bg-indigo-50/50 ring-2 ring-indigo-300/50 ring-inset'
+                : 'bg-white/20 backdrop-blur-[2px]'
+            }`}>
               {tasksByStatus[tab.key].length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-sm text-slate-400">
-                  No hay tareas
+                  {dragOverColumn === tab.key ? 'Soltar aquí' : 'No hay tareas'}
                 </div>
               ) : (
                 tasksByStatus[tab.key].map(task => (
@@ -469,6 +581,10 @@ const TasksPage: React.FC = () => {
                     task={task}
                     onToggleDone={handleToggleDone}
                     onClick={setSelectedTask}
+                    draggable
+                    isDragging={draggingTaskId === task.id}
+                    onDragStart={e => handleDragStart(e, task.id)}
+                    onDragEnd={handleDragEnd}
                   />
                 ))
               )}
@@ -477,32 +593,51 @@ const TasksPage: React.FC = () => {
         ))}
       </div>
 
-      {/* ── Mobile Task List ────────────────────────────── */}
-      <div className="md:hidden py-3 space-y-3">
-        {currentTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center min-h-[60vh]">
-            <div className="w-24 h-24 rounded-full bg-indigo-50 flex items-center justify-center">
-              <ClipboardList size={40} className="text-indigo-300" />
+      {/* ── Mobile Task List with Pull-to-Refresh ─────── */}
+      <div
+        className="md:hidden"
+        onTouchStart={handlePullStart}
+        onTouchMove={handlePullMove}
+        onTouchEnd={handlePullEnd}
+      >
+        {/* Pull indicator */}
+        <div
+          className="flex items-center justify-center overflow-hidden transition-[height] duration-200"
+          style={{ height: pullDistance > 0 ? pullDistance : 0 }}
+        >
+          <RefreshCw
+            size={20}
+            className={`text-indigo-400 transition-transform duration-200 ${refreshing ? 'animate-spin' : ''}`}
+            style={{ transform: `rotate(${Math.min(pullDistance / PULL_THRESHOLD, 1) * 360}deg)`, opacity: Math.min(pullDistance / (PULL_THRESHOLD * 0.6), 1) }}
+          />
+        </div>
+
+        <div className="py-3 space-y-3">
+          {currentTasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh]">
+              <div className="w-24 h-24 rounded-full bg-indigo-50 flex items-center justify-center">
+                <ClipboardList size={40} className="text-indigo-300" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-700 mt-6">
+                {tasks.length === 0 ? 'No hay tareas todavía' : 'No hay tareas aquí'}
+              </h3>
+              <p className="text-sm text-slate-400 text-center max-w-[260px] mt-2 leading-relaxed">
+                {tasks.length === 0
+                  ? 'Toca el botón + para crear tu primera tarea'
+                  : `No hay tareas con estado "${TAB_CONFIG.find(t => t.key === activeTab)?.label}"`}
+              </p>
             </div>
-            <h3 className="text-lg font-semibold text-slate-700 mt-6">
-              {tasks.length === 0 ? 'No hay tareas todavía' : 'No hay tareas aquí'}
-            </h3>
-            <p className="text-sm text-slate-400 text-center max-w-[260px] mt-2 leading-relaxed">
-              {tasks.length === 0
-                ? 'Toca el botón + para crear tu primera tarea'
-                : `No hay tareas con estado "${TAB_CONFIG.find(t => t.key === activeTab)?.label}"`}
-            </p>
-          </div>
-        ) : (
-          currentTasks.map(task => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onToggleDone={handleToggleDone}
-              onClick={setSelectedTask}
-            />
-          ))
-        )}
+          ) : (
+            currentTasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onToggleDone={handleToggleDone}
+                onClick={setSelectedTask}
+              />
+            ))
+          )}
+        </div>
       </div>
 
       {/* ── FAB (Mobile Only) ───────────────────────────── */}

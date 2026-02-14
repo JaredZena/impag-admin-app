@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Calendar, MessageCircle, Check } from 'lucide-react';
+import { MessageCircle, Check } from 'lucide-react';
 import type { Task, TaskUser } from '@/types/tasks';
 
 type DueDateUrgency = 'overdue' | 'due_today' | 'approaching' | 'comfortable' | 'no_date';
@@ -73,9 +73,13 @@ interface TaskCardProps {
   task: Task;
   onToggleDone: (task: Task) => void;
   onClick: (task: Task) => void;
+  draggable?: boolean;
+  isDragging?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleDone, onClick }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleDone, onClick, draggable, isDragging, onDragStart, onDragEnd }) => {
   const isDone = task.status === 'done';
   const urgency = getDueDateUrgency(task.due_date);
   const [swiping, setSwiping] = useState(false);
@@ -121,16 +125,21 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleDone, onClick }) => {
 
       <div
         ref={cardRef}
+        draggable={draggable}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
         onTouchStart={!isDone ? handleTouchStart : undefined}
         onTouchMove={!isDone ? handleTouchMove : undefined}
         onTouchEnd={!isDone ? handleTouchEnd : undefined}
         onClick={() => onClick(task)}
         className={`
-          relative backdrop-blur-xl border border-white/50 rounded-2xl p-4 cursor-pointer
+          relative backdrop-blur-xl border border-white/50 rounded-2xl px-4 py-3 cursor-pointer
           shadow-[0_8px_32px_rgba(99,102,241,0.06)]
           transition-all duration-200
           md:hover:bg-white/90 md:hover:shadow-[0_12px_40px_rgba(99,102,241,0.12)]
           active:scale-[0.98]
+          ${draggable ? 'md:cursor-grab md:active:cursor-grabbing' : ''}
+          ${isDragging ? 'opacity-40 scale-[0.97]' : ''}
           ${urgencyBorder[urgency]}
           ${isDone ? 'bg-white/50 opacity-60' : urgencyBg[urgency]}
         `}
@@ -179,69 +188,52 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleDone, onClick }) => {
           </div>
         </div>
 
-        {/* Row 2: Due date + Category */}
-        {!isDone && (
-          <div className="flex items-center gap-2 mt-2.5 ml-[36px]">
-            <Calendar size={14} className="text-slate-400 shrink-0" />
-            <span className={`text-[12px] ${urgencyDateColor[urgency]}`}>
-              {getDueDateText(task.due_date)}
-            </span>
-            {task.category && (
-              <span
-                className="text-[10px] font-medium px-2 py-0.5 rounded-full ml-1"
-                style={{
-                  backgroundColor: task.category.color + '15',
-                  color: task.category.color,
-                }}
-              >
-                {task.category.name}
+        {/* Meta row: due date · category · assignee · comments */}
+        <div className="flex items-center gap-2 mt-1.5 ml-[36px] flex-wrap">
+          {!isDone && (
+            <>
+              <span className={`text-[11px] ${urgencyDateColor[urgency]}`}>
+                {getDueDateText(task.due_date)}
               </span>
-            )}
-          </div>
-        )}
-
-        {/* Done state: archive countdown */}
-        {isDone && task.completed_at && (
-          <div className="ml-[36px] mt-1.5">
+              {task.category && (
+                <>
+                  <span className="text-slate-300 text-[10px]">&middot;</span>
+                  <span
+                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none"
+                    style={{ backgroundColor: task.category.color + '15', color: task.category.color }}
+                  >
+                    {task.category.name}
+                  </span>
+                </>
+              )}
+            </>
+          )}
+          {isDone && task.completed_at && (
             <span className="text-[11px] text-slate-400">
               {(() => {
-                const completedDate = new Date(task.completed_at);
-                const now = new Date();
-                const daysSince = Math.floor((now.getTime() - completedDate.getTime()) / (1000 * 60 * 60 * 24));
+                const daysSince = Math.floor((Date.now() - new Date(task.completed_at).getTime()) / 86400000);
                 const daysLeft = 3 - daysSince;
-                if (daysLeft > 0) return `Se archivará en ${daysLeft} día${daysLeft > 1 ? 's' : ''}`;
-                return 'Se archivará pronto';
+                return daysLeft > 0 ? `Se archivará en ${daysLeft}d` : 'Se archivará pronto';
               })()}
             </span>
-          </div>
-        )}
-
-        {/* Row 3: Assignee + Comments */}
-        <div className="flex items-center justify-between mt-2 ml-[36px]">
-          <div className="flex items-center gap-1.5">
-            {task.assignee && (
-              <>
-                {task.assignee.avatar_url ? (
-                  <img
-                    src={task.assignee.avatar_url}
-                    alt={task.assignee.display_name}
-                    className="w-5 h-5 rounded-full"
-                  />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <span className="text-[10px] font-semibold text-indigo-600">
-                      {task.assignee.display_name.charAt(0)}
-                    </span>
-                  </div>
-                )}
-                <span className="text-[12px] text-slate-400">{task.assignee.display_name}</span>
-              </>
-            )}
-          </div>
+          )}
+          <span className="ml-auto" />
+          {task.assignee && (
+            <div className="flex items-center gap-1 shrink-0">
+              {task.assignee.avatar_url ? (
+                <img src={task.assignee.avatar_url} alt={task.assignee.display_name} className="w-4 h-4 rounded-full" />
+              ) : (
+                <div className="w-4 h-4 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <span className="text-[9px] font-semibold text-indigo-600">{task.assignee.display_name.charAt(0)}</span>
+                </div>
+              )}
+              <span className="text-[11px] text-slate-400 hidden min-[480px]:inline">{task.assignee.display_name}</span>
+            </div>
+          )}
           {task.comment_count > 0 && (
-            <div className="flex items-center gap-1">
-              <MessageCircle size={14} className="text-slate-400" />
-              <span className="text-[12px] text-slate-400">{task.comment_count}</span>
+            <div className="flex items-center gap-0.5">
+              <MessageCircle size={12} className="text-slate-400" />
+              <span className="text-[11px] text-slate-400">{task.comment_count}</span>
             </div>
           )}
         </div>
