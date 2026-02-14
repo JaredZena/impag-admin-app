@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  Package, 
-  Users, 
-  UploadCloud, 
-  FileText, 
-  ClipboardList, 
+import {
+  Package,
+  Users,
+  UploadCloud,
+  FileText,
+  ClipboardList,
   Calendar,
+  CheckSquare,
   LogOut,
   Menu,
   X,
@@ -28,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const navigationItems = [
+    { path: '/tasks', label: 'Tareas', icon: <CheckSquare size={20} /> },
     { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
     { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
     { path: '/quotation-upload', label: 'Cargar Productos', icon: <UploadCloud size={20} /> },

@@ -16,7 +16,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       return false;
     }
   });
-  const isFullBleedPage = location.pathname.startsWith('/social-calendar');
+  const isFullBleedPage = location.pathname.startsWith('/social-calendar') || location.pathname.startsWith('/tasks');
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));

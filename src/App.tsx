@@ -13,6 +13,8 @@ import QuotationUploadPage from './components/quotation/QuotationUploadPage';
 import QuotationChatPage from './components/quotation/QuotationChatPage';
 import QuotationHistoryPage from './components/quotation/QuotationHistoryPage';
 import SocialCalendarPage from './components/social-calendar/SocialCalendarPage';
+import TasksPage from './components/tasks/TasksPage';
+import TaskArchivePage from './components/tasks/TaskArchivePage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
@@ -81,11 +83,13 @@ const AppContent: React.FC = () => {
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/tasks/archive" element={<TaskArchivePage />} />
           <Route path="/social-calendar" element={<SocialCalendarPage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
           <Route path="/quotation-chat" element={<QuotationChatPage />} />
           <Route path="/quotation-history/:id?" element={<QuotationHistoryPage />} />
-          <Route path="*" element={<Navigate to="/supplier-products" replace />} />
+          <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
       </ProtectedRoute>
 
