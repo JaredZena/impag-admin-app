@@ -200,8 +200,9 @@ const SupplierProductFormPage: React.FC = () => {
     setError(null);
 
     try {
+      const { product_id, ...formDataWithoutProductId } = formData;
       const submitData = {
-        ...formData,
+        ...formDataWithoutProductId,
         cost: formData.cost === null || formData.cost === 0 ? null : formData.cost,
         lead_time_days: formData.lead_time_days === null || formData.lead_time_days === 0 ? null : formData.lead_time_days,
         shipping_cost_direct: formData.shipping_cost_direct === null || formData.shipping_cost_direct === 0 ? null : formData.shipping_cost_direct,

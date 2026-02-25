@@ -168,6 +168,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onToggleDone, onClick, dragga
 
           <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2">
+              {task.task_number != null && (
+                <span className="shrink-0 text-[10px] font-bold text-indigo-400 bg-indigo-50 rounded px-1.5 py-0.5 mt-0.5 tabular-nums">
+                  #{task.task_number}
+                </span>
+              )}
               <span
                 className={`text-[15px] font-semibold leading-snug line-clamp-2 ${
                   isDone ? 'line-through text-slate-400' : 'text-slate-800'
