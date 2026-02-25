@@ -90,3 +90,18 @@ export interface TasksApiResponse<T> {
   error: string | null;
   message: string | null;
 }
+
+export interface ImportDuplicate {
+  title: string;
+  task_number: number | null;
+  matched_existing_id: number | null;
+  reason: string | null;
+}
+
+export interface ImportResult {
+  created: Task[];
+  duplicates: ImportDuplicate[];
+  total_parsed: number;
+  total_created: number;
+  total_duplicates: number;
+}

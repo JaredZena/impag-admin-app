@@ -10,6 +10,9 @@ import {
   Loader2,
   AlertTriangle,
   RefreshCw,
+  Copy,
+  Upload,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useNotifications } from '@/components/ui/notification';
 import { fetchTasks, fetchUsers, fetchCategories, fetchCurrentUser, updateTaskStatus } from '@/utils/tasksApi';
@@ -17,6 +20,7 @@ import type { Task, TaskUser, TaskCategory, TaskStatus } from '@/types/tasks';
 import TaskCard from './TaskCard';
 import TaskForm from './TaskForm';
 import TaskDetailModal from './TaskDetailModal';
+import TaskImportModal from './TaskImportModal';
 
 type TabKey = 'pending' | 'in_progress' | 'done';
 
@@ -28,8 +32,15 @@ const TAB_CONFIG: { key: TabKey; label: string; dotColor: string }[] = [
 
 const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
-function sortTasks(tasks: Task[]): Task[] {
+type SortMode = 'priority' | 'task_number';
+
+function sortTasks(tasks: Task[], mode: SortMode): Task[] {
   return [...tasks].sort((a, b) => {
+    if (mode === 'task_number') {
+      const na = a.task_number ?? 9999;
+      const nb = b.task_number ?? 9999;
+      return na - nb;
+    }
     const pa = PRIORITY_ORDER[a.priority] ?? 9;
     const pb = PRIORITY_ORDER[b.priority] ?? 9;
     if (pa !== pb) return pa - pb;
@@ -58,10 +69,12 @@ const TasksPage: React.FC = () => {
     (searchParams.get('tab') as TabKey) || 'pending'
   );
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [showFilters, setShowFilters] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>('priority');
 
   // Filters
   const [filterAssignee, setFilterAssignee] = useState<string>(searchParams.get('assigned_to') || '');
@@ -165,6 +178,12 @@ const TasksPage: React.FC = () => {
     addNotification({ type: 'success', title: 'Tarea archivada', duration: 3000 });
   }, [addNotification]);
 
+  const handleTasksImported = useCallback(async (newTasks: Task[]) => {
+    addNotification({ type: 'success', title: `${newTasks.length} tareas importadas`, duration: 4000 });
+    // Full reload to reflect renumbered existing tasks
+    await loadData();
+  }, [addNotification, loadData]);
+
   // ── Drag & Drop (Desktop Board) ────────────────────
 
   const handleDragStart = useCallback((e: React.DragEvent, taskId: number) => {
@@ -228,11 +247,11 @@ const TasksPage: React.FC = () => {
       }
     }
     return {
-      pending: sortTasks(result.pending),
-      in_progress: sortTasks(result.in_progress),
-      done: sortTasks(result.done),
+      pending: sortTasks(result.pending, sortMode),
+      in_progress: sortTasks(result.in_progress, sortMode),
+      done: sortTasks(result.done, sortMode),
     };
-  }, [tasks]);
+  }, [tasks, sortMode]);
 
   const tabCounts = useMemo(() => ({
     pending: tasksByStatus.pending.length,
@@ -290,6 +309,42 @@ const TasksPage: React.FC = () => {
       setPullDistance(0);
     }
   }, [pullDistance, PULL_THRESHOLD, loadData]);
+
+  // ── Export to WhatsApp ───────────────────────────────
+
+  const handleExportTasks = useCallback(() => {
+    const tasksToExport = tasksByStatus[activeTab];
+    if (tasksToExport.length === 0) {
+      addNotification({ type: 'error', title: 'No hay tareas para exportar', duration: 3000 });
+      return;
+    }
+
+    const lines = tasksToExport.map((task, idx) => {
+      const num = task.task_number ?? (idx + 1);
+      let line = `${num}\t${task.title}`;
+      if (task.description) {
+        line += ` ${task.description}`;
+      }
+      if (task.priority === 'urgent') {
+        line += ' (URGENTE)';
+      }
+      if (task.created_at) {
+        const d = new Date(task.created_at);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        line += `\t${dd}/${mm}/${yyyy}`;
+      }
+      return line;
+    });
+
+    const text = lines.join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      addNotification({ type: 'success', title: `${tasksToExport.length} tareas copiadas al portapapeles`, duration: 3000 });
+    }).catch(() => {
+      addNotification({ type: 'error', title: 'Error al copiar', duration: 3000 });
+    });
+  }, [tasksByStatus, activeTab, addNotification]);
 
   // ── Loading State ─────────────────────────────────────
 
@@ -360,6 +415,29 @@ const TasksPage: React.FC = () => {
             <>
               <h1 className="text-xl font-bold text-slate-800 tracking-tight">Tareas</h1>
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setSortMode(s => s === 'priority' ? 'task_number' : 'priority')}
+                  className={`p-2 rounded-xl transition-colors ${
+                    sortMode === 'task_number' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-100'
+                  }`}
+                  title={sortMode === 'priority' ? 'Ordenar por número' : 'Ordenar por prioridad'}
+                >
+                  <ArrowUpDown size={20} />
+                </button>
+                <button
+                  onClick={handleExportTasks}
+                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
+                  title="Copiar lista para WhatsApp"
+                >
+                  <Copy size={20} />
+                </button>
+                <button
+                  onClick={() => setShowImport(true)}
+                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
+                  title="Importar tareas"
+                >
+                  <Upload size={20} />
+                </button>
                 <button
                   onClick={() => navigate('/tasks/archive')}
                   className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
@@ -676,6 +754,13 @@ const TasksPage: React.FC = () => {
           onStatusChanged={(task, newStatus) => {
             handleToggleDone({ ...task, status: newStatus === 'done' ? 'pending' : 'done' } as Task);
           }}
+        />
+      )}
+
+      {showImport && (
+        <TaskImportModal
+          onClose={() => setShowImport(false)}
+          onImported={handleTasksImported}
         />
       )}
     </div>

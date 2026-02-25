@@ -9,6 +9,7 @@ import type {
   CreateCategoryPayload,
   UpdateCategoryPayload,
   TasksApiResponse,
+  ImportResult,
 } from '@/types/tasks';
 
 const TASKS_API_BASE = import.meta.env.VITE_TASKS_API_BASE_URL || 'http://localhost:8001';
@@ -106,6 +107,12 @@ export const deleteTask = (id: number) =>
 
 export const fetchArchivedTasks = () =>
   tasksApiRequest<TasksApiResponse<Task[]>>('/tasks/archive');
+
+export const importTasks = (text: string, assignedTo?: number) =>
+  tasksApiRequest<TasksApiResponse<ImportResult>>('/tasks/import', {
+    method: 'POST',
+    body: JSON.stringify({ text, assigned_to: assignedTo }),
+  });
 
 // ── Comments ───────────────────────────────────────────
 
