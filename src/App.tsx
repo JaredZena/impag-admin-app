@@ -15,6 +15,7 @@ import QuotationHistoryPage from './components/quotation/QuotationHistoryPage';
 import SocialCalendarPage from './components/social-calendar/SocialCalendarPage';
 import TasksPage from './components/tasks/TasksPage';
 import TaskArchivePage from './components/tasks/TaskArchivePage';
+import FilesPage from './components/files/FilesPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
@@ -89,6 +90,7 @@ const AppContent: React.FC = () => {
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
           <Route path="/quotation-chat" element={<QuotationChatPage />} />
           <Route path="/quotation-history/:id?" element={<QuotationHistoryPage />} />
+          <Route path="/files" element={<FilesPage />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
       </ProtectedRoute>

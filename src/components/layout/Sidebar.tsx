@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Calendar,
   CheckSquare,
+  FolderOpen,
   LogOut,
   Menu,
   X,
@@ -35,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
     { path: '/quotation-upload', label: 'Cargar Productos', icon: <UploadCloud size={20} /> },
     { path: '/quotation-history', label: 'Cotizaciones', icon: <FileText size={20} /> },
     { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },
+    { path: '/files', label: 'Archivos', icon: <FolderOpen size={20} /> },
     { path: '/social-calendar', label: 'Calendario Social', icon: <Calendar size={20} /> },
   ];
 
