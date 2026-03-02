@@ -249,8 +249,8 @@ const QuotationUploadPage: React.FC = () => {
   };
 
   return (
-    <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
-      <div className="container mx-auto max-w-5xl px-4 pt-20 pb-12">
+    <div className="w-full min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+      <div className="container mx-auto max-w-5xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
 
         {/* Hero Section */}
         <div className="text-center mb-12">

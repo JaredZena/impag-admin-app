@@ -183,7 +183,7 @@ const SupplierFormPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
+      <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
         <div className="container mx-auto max-w-4xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
           <Card className="p-6 sm:p-8">
             <div className="space-y-6">
@@ -204,7 +204,7 @@ const SupplierFormPage: React.FC = () => {
   }
 
   return (
-    <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
       <div className="container mx-auto max-w-4xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">

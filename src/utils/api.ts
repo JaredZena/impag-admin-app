@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://democratic-cuckoo-impag-f0717e14.koyeb.app';
+const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
 
 // Global session expiration handler - will be set by App.tsx
 let sessionExpirationHandler: (() => void) | null = null;
@@ -10,14 +11,15 @@ export const setSessionExpirationHandler = (handler: () => void) => {
 export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('google_token');
 
-  if (!token) {
+  if (!token && !DISABLE_AUTH) {
     throw new Error('No authentication token found');
   }
 
   // Prepare headers
-  const headers: Record<string, string> = {
-    'Authorization': `Bearer ${token}`,
-  };
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
   // Handle options.headers properly - it could be a Headers object or plain object
   if (options.headers) {

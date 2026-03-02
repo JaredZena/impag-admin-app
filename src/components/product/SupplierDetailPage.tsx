@@ -321,7 +321,7 @@ const SupplierDetailPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
+      <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
         <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
           <div className="mb-4 sm:mb-6">
             <div className="h-8 sm:h-10 w-20 sm:w-24 bg-gray-200 rounded animate-pulse"></div>
@@ -344,7 +344,7 @@ const SupplierDetailPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
+      <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
         <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
           
           <Card className="p-6 sm:p-8 text-center">
@@ -365,7 +365,7 @@ const SupplierDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
       <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
 
         {/* Supplier Name and ID - Left Aligned */}

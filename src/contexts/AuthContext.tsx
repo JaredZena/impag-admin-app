@@ -23,6 +23,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY = 'impag_user';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const ALLOWED_EMAILS = (import.meta.env.VITE_ALLOWED_EMAILS || '').split(',').map((e: string) => e.trim().toLowerCase());
+const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
+
+const DEV_USER: User = {
+  email: 'dev@local.test',
+  name: 'Dev User',
+  sub: 'dev-local',
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -31,9 +38,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Restore user from localStorage and validate token
   useEffect(() => {
+    if (DISABLE_AUTH) {
+      setUser(DEV_USER);
+      setIsLoading(false);
+      return;
+    }
+
     const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
     const token = localStorage.getItem('google_token');
-    
+
     if (stored && token) {
       try {
         const userData = JSON.parse(stored);

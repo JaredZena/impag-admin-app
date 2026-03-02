@@ -70,7 +70,6 @@ const SupplierProductManagementPage: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<{id: number; name: string}[]>([]);
-  const [showAddDialog, setShowAddDialog] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [skip, setSkip] = useState(0);
   const [categoryMap, setCategoryMap] = useState<Record<number, string>>({});
@@ -354,7 +353,7 @@ const SupplierProductManagementPage: React.FC = () => {
   });
 
   const handleAddRelationship = () => {
-    setShowAddDialog(true);
+    navigate('/quotation-upload');
   };
 
   const handleEditRelationship = (relationshipId: number) => {
@@ -386,8 +385,8 @@ const SupplierProductManagementPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-7xl px-4 pt-20 pb-8">
+      <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
+        <div className="container mx-auto max-w-7xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
           <div className="mb-8">
             <div className="h-10 w-64 bg-gray-200 rounded animate-pulse mb-4"></div>
             <div className="h-6 w-96 bg-gray-200 rounded animate-pulse"></div>
@@ -406,8 +405,8 @@ const SupplierProductManagementPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-7xl px-4 pt-20 pb-8">
+      <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
+        <div className="container mx-auto max-w-7xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
           <Card className="p-8 text-center">
             <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
               <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -439,8 +438,8 @@ const SupplierProductManagementPage: React.FC = () => {
   }
 
   return (
-    <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-      <div className="container mx-auto max-w-7xl px-4 pt-20 pb-8">
+    <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
+      <div className="container mx-auto max-w-7xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -814,35 +813,6 @@ const SupplierProductManagementPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Add Dialog would go here - simplified for now */}
-        {showAddDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full">
-              <h3 className="text-lg font-semibold mb-4">Agregar Nuevo Producto</h3>
-              <p className="text-gray-600 mb-4">
-                Para agregar un nuevo producto, utiliza el formulario de edición completo.
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => {
-                    setShowAddDialog(false);
-                    navigate('/supplier-product-admin/new');
-                  }}
-                  className="bg-green-600 hover:bg-green-700 text-white flex-1"
-                >
-                  Ir al Formulario
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAddDialog(false)}
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

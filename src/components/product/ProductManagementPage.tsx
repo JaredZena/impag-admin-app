@@ -437,7 +437,7 @@ const ProductManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="w-screen min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
       <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
         {/* Page Header */}
         <div className="mb-6 sm:mb-8">

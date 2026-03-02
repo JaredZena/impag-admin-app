@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Package,
   Users,
-  UploadCloud,
   FileText,
   ClipboardList,
   Calendar,
@@ -33,7 +32,6 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
     { path: '/tasks', label: 'Tareas', icon: <CheckSquare size={20} /> },
     { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
     { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
-    { path: '/quotation-upload', label: 'Cargar Productos', icon: <UploadCloud size={20} /> },
     { path: '/quotation-history', label: 'Cotizaciones', icon: <FileText size={20} /> },
     { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },
     { path: '/files', label: 'Archivos', icon: <FolderOpen size={20} /> },

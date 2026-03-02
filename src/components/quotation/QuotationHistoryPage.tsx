@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import Navigation from '@/components/ui/Navigation';
+
 import { apiRequest } from '@/utils/api';
 import dayjs from 'dayjs';
 import { Button } from '@/components/ui/button';
@@ -133,48 +133,45 @@ const QuotationHistoryPage: React.FC = () => {
     const dualQuotation = parseDualQuotationResponse(responseText);
 
     return (
-      <>
-        <Navigation />
-        <div className="flex flex-col min-h-screen max-w-[1400px] mx-auto px-3 py-2 pb-4 bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 sm:px-4 sm:py-3 md:px-6 md:py-4 md:pb-6">
-          <div className="pt-16 sm:pt-20 md:pt-16 mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2 sm:text-3xl">
-                  {selectedQuotation.title || 'Cotización'}
-                </h1>
-                <p className="text-sm text-gray-500">
-                  {dayjs(selectedQuotation.created_at).format('DD/MM/YYYY HH:mm')}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBackToList}
-                >
-                  ← Volver
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDelete(selectedQuotation.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  Eliminar
-                </Button>
-              </div>
-            </div>
+      <div className="max-w-7xl mx-auto space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2 sm:text-3xl">
+              {selectedQuotation.title || 'Cotización'}
+            </h1>
+            <p className="text-sm text-gray-500">
+              {dayjs(selectedQuotation.created_at).format('DD/MM/YYYY HH:mm')}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBackToList}
+            >
+              ← Volver
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDelete(selectedQuotation.id)}
+              className="text-red-600 hover:text-red-700"
+            >
+              Eliminar
+            </Button>
+          </div>
+        </div>
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-                {error}
-              </div>
-            )}
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+            {error}
+          </div>
+        )}
 
-            <div className="mb-4 p-4 bg-white rounded-xl border border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-2">Consulta Original:</h3>
-              <p className="text-gray-700">{selectedQuotation.user_query}</p>
-            </div>
+        <div className="p-4 bg-white rounded-xl border border-gray-200">
+          <h3 className="font-semibold text-gray-900 mb-2">Consulta Original:</h3>
+          <p className="text-gray-700">{selectedQuotation.user_query}</p>
+        </div>
 
             {dualQuotation.internal && dualQuotation.customer ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -460,112 +457,105 @@ const QuotationHistoryPage: React.FC = () => {
                 </div>
               </Card>
             )}
-          </div>
-        </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <Navigation />
-      <div className="flex flex-col min-h-screen max-w-[1200px] mx-auto px-3 py-2 pb-4 bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 sm:px-4 sm:py-3 md:px-6 md:py-4 md:pb-6">
-        <div className="pt-16 sm:pt-20 md:pt-16 mb-4 sm:mb-5 md:mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center tracking-tight sm:text-3xl md:text-3xl md:mb-3 bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                Historial de Cotizaciones
-              </h1>
-              <p className="text-xs text-gray-500 text-center sm:text-sm">
-                Accede a todas tus cotizaciones generadas anteriormente
-              </p>
-            </div>
-            <Button
-              onClick={() => {
-                sessionStorage.removeItem('quotation_chat_messages');
-                navigate('/quotation-chat');
-              }}
-              className="bg-blue-600 text-white hover:bg-blue-700"
-            >
-              Nueva Cotización
-            </Button>
-          </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+            Historial de Cotizaciones
+          </h1>
+          <p className="text-xs text-gray-500 sm:text-sm mt-1">
+            Accede a todas tus cotizaciones generadas anteriormente
+          </p>
         </div>
+        <Button
+          onClick={() => {
+            sessionStorage.removeItem('quotation_chat_messages');
+            navigate('/quotation-chat');
+          }}
+          className="bg-blue-600 text-white hover:bg-blue-700"
+        >
+          Nueva Cotización
+        </Button>
+      </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-            {error}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
+      {isLoading ? (
+        <Card className="p-8 text-center">
+          <div className="flex items-center justify-center gap-2 text-gray-600">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.32s]"></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.16s]"></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+            <span className="ml-2">Cargando cotizaciones...</span>
           </div>
-        )}
-
-        {isLoading ? (
-          <Card className="p-8 text-center">
-            <div className="flex items-center justify-center gap-2 text-gray-600">
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.32s]"></div>
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.16s]"></div>
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-              <span className="ml-2">Cargando cotizaciones...</span>
-            </div>
-          </Card>
-        ) : quotations.length === 0 ? (
-          <Card className="p-8 text-center">
-            <div className="text-gray-500 mb-4">
-              <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p className="text-lg font-semibold mb-2">No hay cotizaciones guardadas</p>
-              <p className="text-sm">Genera tu primera cotización para comenzar</p>
-            </div>
-            <Button
-              onClick={() => {
-                sessionStorage.removeItem('quotation_chat_messages');
-                navigate('/quotation-chat');
-              }}
-              className="bg-blue-600 text-white hover:bg-blue-700"
-            >
-              Generar Cotización
-            </Button>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {quotations.map((quotation) => (
-              <Card key={quotation.id} className="p-4 hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">
-                      {quotation.title || 'Cotización sin título'}
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                      {quotation.user_query}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>{dayjs(quotation.created_at).format('DD/MM/YYYY HH:mm')}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewQuotation(quotation)}
-                    >
-                      Ver
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(quotation.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      Eliminar
-                    </Button>
+        </Card>
+      ) : quotations.length === 0 ? (
+        <Card className="p-8 text-center">
+          <div className="text-gray-500 mb-4">
+            <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-lg font-semibold mb-2">No hay cotizaciones guardadas</p>
+            <p className="text-sm">Genera tu primera cotización para comenzar</p>
+          </div>
+          <Button
+            onClick={() => {
+              sessionStorage.removeItem('quotation_chat_messages');
+              navigate('/quotation-chat');
+            }}
+            className="bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Generar Cotización
+          </Button>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {quotations.map((quotation) => (
+            <Card key={quotation.id} className="p-4 hover:shadow-lg transition-shadow">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    {quotation.title || 'Cotización sin título'}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                    {quotation.user_query}
+                  </p>
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <span>{dayjs(quotation.created_at).format('DD/MM/YYYY HH:mm')}</span>
                   </div>
                 </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    </>
+                <div className="flex gap-2 ml-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleViewQuotation(quotation)}
+                  >
+                    Ver
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(quotation.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    Eliminar
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 

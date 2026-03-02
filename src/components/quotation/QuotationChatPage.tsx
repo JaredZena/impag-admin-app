@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiRequest } from '@/utils/api';
-import Navigation from '@/components/ui/Navigation';
+
 import dayjs from 'dayjs';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -205,10 +205,8 @@ const QuotationChatPage: React.FC = () => {
 
   return (
     <>
-      <Navigation />
-      <div className="flex flex-col min-h-screen max-w-[1200px] mx-auto px-3 py-2 pb-4 bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 sm:px-4 sm:py-3 md:px-6 md:py-4 md:pb-6">
-        {/* Header with better mobile spacing */}
-        <div className="pt-16 sm:pt-20 md:pt-16 mb-4 sm:mb-5 md:mb-6">
+      <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50">
+        <div className="container mx-auto max-w-7xl px-3 sm:px-4 md:px-6 lg:px-8 pt-20 pb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center tracking-tight sm:text-3xl md:text-3xl md:mb-3 bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
             Generar Cotización con IA
           </h1>
@@ -246,7 +244,7 @@ const QuotationChatPage: React.FC = () => {
         )}
 
         {/* Messages container with improved mobile height */}
-        <Card className="flex-1 overflow-y-auto overflow-x-hidden p-3 bg-white rounded-2xl shadow-lg mb-3 flex flex-col gap-3 min-h-0 sm:p-4 sm:gap-4 sm:mb-4 sm:rounded-2xl md:p-6 md:gap-5" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+        <Card className="flex-1 overflow-y-auto p-3 bg-white rounded-2xl shadow-lg mb-3 flex flex-col gap-3 min-h-0 sm:p-4 sm:gap-4 sm:mb-4 sm:rounded-2xl md:p-6 md:gap-5" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           {messages.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 text-center px-4 py-8 sm:px-6 sm:py-12 md:px-6 md:py-12">
               <div className="relative mb-4 sm:mb-5 md:mb-6">

@@ -125,7 +125,7 @@ const SupplierManagementPage: React.FC = () => {
   };
 
   const handleAddSupplier = () => {
-    navigate('/supplier-admin/new');
+    navigate('/quotation-upload');
   };
 
   // Handlers for search/filter changes
@@ -135,8 +135,8 @@ const SupplierManagementPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
+      <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
+        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
           {/* Loading skeleton */}
           <div className="mb-6 sm:mb-8">
             <div className="h-8 sm:h-10 w-48 bg-gray-200 rounded animate-pulse mb-4"></div>
@@ -162,8 +162,8 @@ const SupplierManagementPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
-        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8">
+      <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
+        <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
           <Card className="p-6 sm:p-8 text-center shadow-lg border-0 rounded-xl border-red-200 bg-red-50">
             <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 bg-red-100 rounded-full flex items-center justify-center">
               <svg className="w-6 h-6 sm:w-8 sm:h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,7 +191,7 @@ const SupplierManagementPage: React.FC = () => {
   }
 
   return (
-    <div className="w-screen min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50">
       <div className="container mx-auto max-w-7xl 2xl:max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 pt-20 pb-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
