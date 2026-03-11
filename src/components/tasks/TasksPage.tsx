@@ -313,13 +313,22 @@ const TasksPage: React.FC = () => {
   // ── Export to WhatsApp ───────────────────────────────
 
   const handleExportTasks = useCallback(() => {
-    const tasksToExport = tasksByStatus[activeTab];
-    if (tasksToExport.length === 0) {
+    const allTasks = [
+      ...tasksByStatus.pending,
+      ...tasksByStatus.in_progress,
+      ...tasksByStatus.done,
+    ].sort((a, b) => {
+      const na = a.task_number ?? Infinity;
+      const nb = b.task_number ?? Infinity;
+      return na - nb;
+    });
+
+    if (allTasks.length === 0) {
       addNotification({ type: 'error', title: 'No hay tareas para exportar', duration: 3000 });
       return;
     }
 
-    const lines = tasksToExport.map((task, idx) => {
+    const lines = allTasks.map((task, idx) => {
       const num = task.task_number ?? (idx + 1);
       let line = `${num}\t${task.title}`;
       if (task.description) {
@@ -327,6 +336,11 @@ const TasksPage: React.FC = () => {
       }
       if (task.priority === 'urgent') {
         line += ' (URGENTE)';
+      }
+      if (task.status === 'in_progress') {
+        line += ' [EN CURSO]';
+      } else if (task.status === 'done') {
+        line += ' [COMPLETADO]';
       }
       if (task.created_at) {
         const d = new Date(task.created_at);
@@ -340,11 +354,11 @@ const TasksPage: React.FC = () => {
 
     const text = lines.join('\n');
     navigator.clipboard.writeText(text).then(() => {
-      addNotification({ type: 'success', title: `${tasksToExport.length} tareas copiadas al portapapeles`, duration: 3000 });
+      addNotification({ type: 'success', title: `${allTasks.length} tareas copiadas al portapapeles`, duration: 3000 });
     }).catch(() => {
       addNotification({ type: 'error', title: 'Error al copiar', duration: 3000 });
     });
-  }, [tasksByStatus, activeTab, addNotification]);
+  }, [tasksByStatus, addNotification]);
 
   // ── Loading State ─────────────────────────────────────
 
