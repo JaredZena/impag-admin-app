@@ -4,12 +4,17 @@ import {
   Download,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   FileText,
   File as FileIcon,
   Loader2,
+  Calendar,
+  User,
+  Tag,
+  Info,
 } from 'lucide-react';
 import { getFileViewUrl, getFileDownloadUrl } from '@/utils/filesApi';
-import { FILE_CATEGORY_LABELS } from '@/types/files';
+import { FILE_CATEGORY_LABELS, CATEGORY_SUBTYPES } from '@/types/files';
 import type { FileMetadata, FileCategory } from '@/types/files';
 
 function getCategoryColor(category: FileCategory): string {
@@ -38,6 +43,36 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatDocDate(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function getSubtypeLabel(category: FileCategory, subtype: string | null): string | null {
+  if (!subtype) return null;
+  const options = CATEGORY_SUBTYPES[category];
+  if (!options) return null;
+  const match = options.find(o => o.value === subtype);
+  return match ? match.label : subtype;
+}
+
+function getStatusBadge(status: string | null): { label: string; className: string } | null {
+  if (!status || status === 'skipped') return null;
+  switch (status) {
+    case 'pending': return { label: 'Pendiente', className: 'bg-yellow-50 text-yellow-700 border-yellow-200' };
+    case 'processing': return { label: 'Procesando', className: 'bg-yellow-50 text-yellow-700 border-yellow-200' };
+    case 'completed': return { label: 'Completado', className: 'bg-green-50 text-green-700 border-green-200' };
+    case 'failed': return { label: 'Error', className: 'bg-red-50 text-red-700 border-red-200' };
+    default: return null;
+  }
+}
+
 interface FileViewerPanelProps {
   files: FileMetadata[];
   currentIndex: number;
@@ -54,6 +89,7 @@ const FileViewerPanel: React.FC<FileViewerPanelProps> = ({
   const [viewUrl, setViewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [textContent, setTextContent] = useState<string | null>(null);
+  const [showMeta, setShowMeta] = useState(false);
 
   const file = files[currentIndex];
   const hasPrev = currentIndex > 0;
@@ -175,14 +211,132 @@ const FileViewerPanel: React.FC<FileViewerPanelProps> = ({
           </div>
         </div>
 
-        {/* File info */}
-        <div className="px-4 py-2.5 border-b border-slate-100">
-          <p className="text-sm font-medium text-slate-900 truncate" title={file.original_filename}>
-            {file.original_filename}
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {formatFileSize(file.file_size_bytes)} · {file.content_type}
-          </p>
+        {/* File info + metadata */}
+        <div className="border-b border-slate-100">
+          <div className="px-4 py-2.5">
+            <p className="text-sm font-medium text-slate-900 truncate" title={file.original_filename}>
+              {file.original_filename}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {formatFileSize(file.file_size_bytes)} · {file.content_type}
+            </p>
+          </div>
+
+          {/* Metadata toggle */}
+          <button
+            onClick={() => setShowMeta(!showMeta)}
+            className="w-full flex items-center gap-1.5 px-4 py-1.5 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <ChevronRight size={12} className={`transition-transform ${showMeta ? 'rotate-90' : ''}`} />
+            <Info size={12} />
+            Metadata
+          </button>
+
+          {/* Collapsible metadata */}
+          {showMeta && (
+            <div className="px-4 pb-3 space-y-2 text-xs">
+              {/* Document date */}
+              <div className="flex items-start gap-2">
+                <Calendar size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-slate-400">Fecha documento:</span>{' '}
+                  <span className="text-slate-700 font-medium">
+                    {formatDocDate(file.document_date) || 'Sin fecha'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Subtype */}
+              {file.subtype && (
+                <div className="flex items-start gap-2">
+                  <Tag size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="text-slate-400">Tipo:</span>{' '}
+                    <span className="text-slate-700">{getSubtypeLabel(file.category, file.subtype) || file.subtype}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {file.description && (
+                <div className="flex items-start gap-2">
+                  <FileText size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="text-slate-400">Descripción:</span>{' '}
+                    <span className="text-slate-700">{file.description}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {file.tags && (
+                <div className="flex items-start gap-2">
+                  <Tag size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="text-slate-400">Tags:</span>{' '}
+                    <span className="text-slate-700">{file.tags}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Uploaded by */}
+              <div className="flex items-start gap-2">
+                <User size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-slate-400">Subido por:</span>{' '}
+                  <span className="text-slate-700">{file.uploaded_by_name || file.uploaded_by_email}</span>
+                </div>
+              </div>
+
+              {/* Created at */}
+              <div className="flex items-start gap-2">
+                <Calendar size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-slate-400">Creado:</span>{' '}
+                  <span className="text-slate-700">{formatDate(file.created_at)}</span>
+                </div>
+              </div>
+
+              {/* Processing status */}
+              {(() => {
+                const badge = getStatusBadge(file.processing_status);
+                if (!badge) return null;
+                return (
+                  <div className="flex items-start gap-2">
+                    <Info size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400">Procesamiento:</span>
+                      <span className={`px-1.5 py-0.5 rounded border text-[10px] ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                      {file.chunk_count ? (
+                        <span className="text-slate-500">({file.chunk_count} chunks)</span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Processing error */}
+              {file.processing_status === 'failed' && file.processing_error && (
+                <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-[11px]">
+                  {file.processing_error}
+                </div>
+              )}
+
+              {/* IDs (supplier, quotation, task) */}
+              {(file.supplier_id || file.quotation_id || file.task_id) && (
+                <div className="flex items-start gap-2 pt-1 border-t border-slate-100">
+                  <Info size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                  <div className="flex flex-wrap gap-2 text-slate-500">
+                    {file.supplier_id && <span>Proveedor #{file.supplier_id}</span>}
+                    {file.quotation_id && <span>Cotización #{file.quotation_id}</span>}
+                    {file.task_id && <span>Tarea #{file.task_id}</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Preview content */}
