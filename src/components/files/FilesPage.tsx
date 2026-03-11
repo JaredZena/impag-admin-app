@@ -41,6 +41,7 @@ import { FILE_CATEGORY_LABELS, CATEGORY_SUBTYPES } from '@/types/files';
 import SearchResults from './SearchResults';
 import FileViewerPanel from './FileViewerModal';
 import LogisticsPanel from './LogisticsPanel';
+import { DocumentDateHeatmap } from './DocumentDateHeatmap';
 
 const ALL_CATEGORIES: FileCategory[] = [
   'cotizacion',
@@ -413,6 +414,7 @@ const FilesPage: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [logisticsFileId, setLogisticsFileId] = useState<number | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [heatmapFiles, setHeatmapFiles] = useState<FileMetadata[]>([]);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadFiles = useCallback(async (append = false) => {
@@ -453,9 +455,18 @@ const FilesPage: React.FC = () => {
       if (filterSubtype) params.subtype = filterSubtype;
       if (sortBy) params.sort_by = sortBy;
       if (searchQuery.trim()) params.search = searchQuery.trim();
-      const data = await fetchFiles(params);
+
+      const heatmapParams: FileListParams = { limit: 2000 };
+      if (filterCategory) heatmapParams.category = filterCategory;
+      if (filterSubtype) heatmapParams.subtype = filterSubtype;
+
+      const [data, allData] = await Promise.all([
+        fetchFiles(params),
+        fetchFiles(heatmapParams),
+      ]);
       setHasMore(data.length === PAGE_SIZE);
       setFiles(data);
+      setHeatmapFiles(allData);
     } catch (err) {
       console.error('Failed to load files:', err);
       addNotification({ type: 'error', title: 'Error', message: 'No se pudieron cargar los archivos' });
@@ -571,6 +582,9 @@ const FilesPage: React.FC = () => {
               </Button>
             </div>
           </div>
+
+          {/* Heatmap */}
+          {!searchQuery.trim() && <DocumentDateHeatmap files={heatmapFiles} />}
 
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
