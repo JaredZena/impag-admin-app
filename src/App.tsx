@@ -13,6 +13,7 @@ import QuotationUploadPage from './components/quotation/QuotationUploadPage';
 import QuotationChatPage from './components/quotation/QuotationChatPage';
 import QuotationHistoryPage from './components/quotation/QuotationHistoryPage';
 import SocialCalendarPage from './components/social-calendar/SocialCalendarPage';
+import TikTokPage from './components/tiktok/TikTokPage';
 import TasksPage from './components/tasks/TasksPage';
 import TaskArchivePage from './components/tasks/TaskArchivePage';
 import FilesPage from './components/files/FilesPage';
@@ -87,6 +88,7 @@ const AppContent: React.FC = () => {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/archive" element={<TaskArchivePage />} />
           <Route path="/social-calendar" element={<SocialCalendarPage />} />
+          <Route path="/tiktok" element={<TikTokPage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
           <Route path="/quotation-chat" element={<QuotationChatPage />} />
           <Route path="/quotation-history/:id?" element={<QuotationHistoryPage />} />

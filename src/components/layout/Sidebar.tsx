@@ -11,7 +11,8 @@ import {
   Menu,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Music
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
     { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },
     { path: '/files', label: 'Archivos', icon: <FolderOpen size={20} /> },
     { path: '/social-calendar', label: 'Calendario Social', icon: <Calendar size={20} /> },
+    { path: '/tiktok', label: 'TikTok Studio', icon: <Music size={20} /> },
   ];
 
   const isActive = (path: string) => {
