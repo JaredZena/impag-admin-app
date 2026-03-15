@@ -12,40 +12,50 @@ export default defineConfig(({ mode }) => ({
   server: {
     proxy: {
       "/api": {
-        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
       "/products": {
-        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
         changeOrigin: true,
         secure: true,
       },
       "/categories": {
-        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
         changeOrigin: true,
         secure: true,
       },
       "/suppliers": {
-        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
         changeOrigin: true,
         secure: true,
       },
       "/variants": {
-        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
         changeOrigin: true,
         secure: true,
       },
       "/quotations": {
-        target: "https://democratic-cuckoo-impag-f0717e14.koyeb.app",
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
         changeOrigin: true,
         secure: true,
       },
-      "/tasks-api": {
-        target: "http://localhost:8001",
+      "/tasks": {
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/tasks-api/, ""),
+        secure: true,
+      },
+      "/task-categories": {
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
+        changeOrigin: true,
+        secure: true,
+      },
+      "/task-users": {
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
+        changeOrigin: true,
+        secure: true,
       },
     },
     hmr: {

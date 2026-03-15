@@ -12,7 +12,7 @@ import type {
   ImportResult,
 } from '@/types/tasks';
 
-const TASKS_API_BASE = import.meta.env.VITE_TASKS_API_BASE_URL || 'http://localhost:8001';
+const TASKS_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const tasksApiRequest = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
   const token = localStorage.getItem('google_token');
@@ -67,10 +67,10 @@ const tasksApiRequest = async <T>(endpoint: string, options: RequestInit = {}): 
 // ── Users ──────────────────────────────────────────────
 
 export const fetchUsers = () =>
-  tasksApiRequest<TasksApiResponse<TaskUser[]>>('/users/');
+  tasksApiRequest<TasksApiResponse<TaskUser[]>>('/task-users');
 
 export const fetchCurrentUser = () =>
-  tasksApiRequest<TasksApiResponse<TaskUser>>('/users/me');
+  tasksApiRequest<TasksApiResponse<TaskUser>>('/task-users/me');
 
 // ── Tasks ──────────────────────────────────────────────
 
@@ -139,27 +139,27 @@ export const deleteComment = (taskId: number, commentId: number) =>
 // ── Categories ─────────────────────────────────────────
 
 export const fetchCategories = () =>
-  tasksApiRequest<TasksApiResponse<TaskCategory[]>>('/categories/');
+  tasksApiRequest<TasksApiResponse<TaskCategory[]>>('/task-categories');
 
 export const createCategory = (payload: CreateCategoryPayload) =>
-  tasksApiRequest<TasksApiResponse<TaskCategory>>('/categories/', {
+  tasksApiRequest<TasksApiResponse<TaskCategory>>('/task-categories', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 
 export const updateCategory = (id: number, payload: UpdateCategoryPayload) =>
-  tasksApiRequest<TasksApiResponse<TaskCategory>>(`/categories/${id}`, {
+  tasksApiRequest<TasksApiResponse<TaskCategory>>(`/task-categories/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
 
 export const deleteCategory = (id: number) =>
-  tasksApiRequest<TasksApiResponse<{ id: number }>>(`/categories/${id}`, {
+  tasksApiRequest<TasksApiResponse<{ id: number }>>(`/task-categories/${id}`, {
     method: 'DELETE',
   });
 
 export const reorderCategories = (order: number[]) =>
-  tasksApiRequest<TasksApiResponse<null>>('/categories/reorder', {
+  tasksApiRequest<TasksApiResponse<null>>('/task-categories/reorder', {
     method: 'PUT',
     body: JSON.stringify({ order }),
   });

@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://democratic-cuckoo-impag-f0717e14.koyeb.app';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
 
 // Global session expiration handler - will be set by App.tsx
