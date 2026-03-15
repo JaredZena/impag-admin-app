@@ -76,14 +76,14 @@ export const fetchCurrentUser = () =>
 
 export const fetchTasks = (params?: Record<string, string>) => {
   const query = params ? '?' + new URLSearchParams(params).toString() : '';
-  return tasksApiRequest<TasksApiResponse<Task[]>>(`/tasks/${query}`);
+  return tasksApiRequest<TasksApiResponse<Task[]>>(`/tasks${query}`);
 };
 
 export const fetchTask = (id: number) =>
   tasksApiRequest<TasksApiResponse<TaskWithComments>>(`/tasks/${id}`);
 
 export const createTask = (payload: CreateTaskPayload) =>
-  tasksApiRequest<TasksApiResponse<Task>>('/tasks/', {
+  tasksApiRequest<TasksApiResponse<Task>>('/tasks', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
