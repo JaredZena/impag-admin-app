@@ -138,6 +138,61 @@ export interface WhatsAppImportResponse {
   date_range: { start?: string; end?: string };
 }
 
+// ─── WhatsApp Bulk Import Types ─────────────────────────────
+
+export interface WhatsAppBulkConversation {
+  chat_name: string;
+  file_id: number | null;
+  messages_total: number;
+  messages_new: number;
+  messages_skipped: number;
+  participants: string[];
+  date_range: { start?: string; end?: string };
+  media_refs_count: number;
+  new_media_refs: number;
+  media_files_stored: number;
+  conversation_classification: {
+    customer_name: string | null;
+    customer_type: string;
+    conversation_type: string;
+    products_discussed: string[];
+    locations_mentioned: string[];
+    status: string;
+    summary: string;
+    tags: string[];
+    key_participants: Record<string, string>;
+  } | null;
+  media_classifications: {
+    filename: string | null;
+    classification: {
+      classification: string;
+      description: string;
+      customer_reference: string | null;
+      product_references: string[];
+      tags: string[];
+    };
+  }[];
+  error?: string;
+}
+
+export interface WhatsAppBulkSummary {
+  conversations_count: number;
+  messages_total: number;
+  messages_new: number;
+  messages_skipped: number;
+  media_refs_found: number;
+  media_files_in_zip: number;
+  media_files_stored: number;
+}
+
+export interface WhatsAppBulkResponse {
+  conversations: WhatsAppBulkConversation[];
+  media_files_processed: number;
+  media_files_classified: number;
+  summary: WhatsAppBulkSummary;
+  error?: string;
+}
+
 export const FILE_CATEGORY_LABELS: Record<FileCategory, string> = {
   'cotizacion': 'Cotización',
   'nota': 'Nota',

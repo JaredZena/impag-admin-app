@@ -10,6 +10,7 @@ import type {
   BulkUploadPayload,
   BulkUploadResponse,
   WhatsAppImportResponse,
+  WhatsAppBulkResponse,
   FileViewResponse,
 } from '@/types/files';
 
@@ -97,6 +98,16 @@ export const importWhatsAppChat = async (file: File, description?: string, tags?
   if (tags) formData.append('tags', tags);
   if (supplierId !== undefined) formData.append('supplier_id', String(supplierId));
   return apiRequest('/files/import-whatsapp', { method: 'POST', body: formData });
+};
+
+export const importWhatsAppBulk = async (
+  file: File,
+  skipClassification: boolean = false,
+): Promise<WhatsAppBulkResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (skipClassification) formData.append('skip_classification', 'true');
+  return apiRequest('/files/import-whatsapp-bulk', { method: 'POST', body: formData });
 };
 
 export const fetchLogisticsByFile = async (fileId: number) => {
