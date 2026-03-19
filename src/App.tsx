@@ -16,6 +16,9 @@ import SocialCalendarPage from './components/social-calendar/SocialCalendarPage'
 import TikTokPage from './components/tiktok/TikTokPage';
 import TasksPage from './components/tasks/TasksPage';
 import TaskArchivePage from './components/tasks/TaskArchivePage';
+import QuotesPage from './components/quotes/QuotesPage';
+import QuoteForm from './components/quotes/QuoteForm';
+import QuoteDetailPage from './components/quotes/QuoteDetailPage';
 import FilesPage from './components/files/FilesPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -87,6 +90,9 @@ const AppContent: React.FC = () => {
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/archive" element={<TaskArchivePage />} />
+          <Route path="/quotes" element={<QuotesPage />} />
+          <Route path="/quotes/new" element={<QuoteForm />} />
+          <Route path="/quotes/:id" element={<QuoteDetailPage />} />
           <Route path="/social-calendar" element={<SocialCalendarPage />} />
           <Route path="/tiktok" element={<TikTokPage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />

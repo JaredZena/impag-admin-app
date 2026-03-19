@@ -12,7 +12,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Music
+  Music,
+  FileBarChart
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,6 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
 
   const navigationItems = [
     { path: '/tasks', label: 'Tareas', icon: <CheckSquare size={20} /> },
+    { path: '/quotes', label: 'Cotizaciones B2B', icon: <FileBarChart size={20} /> },
     { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
     { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
     { path: '/quotation-history', label: 'Cotizaciones', icon: <FileText size={20} /> },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import NotificationBell from '@/components/quotes/NotificationBell';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -29,10 +30,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         toggleCollapse={() => setIsCollapsed(!isCollapsed)} 
       />
       
-      <main 
+      {/* Top bar with notification bell */}
+      <div className={`fixed top-0 right-0 z-40 h-16 flex items-center pr-6 transition-all duration-300 ${isCollapsed ? 'left-0 md:left-20' : 'left-0 md:left-64'}`}>
+        <div className="ml-auto">
+          <NotificationBell />
+        </div>
+      </div>
+
+      <main
         className={`
           transition-all duration-300 ease-in-out min-h-screen
-          ml-0 
+          ml-0
           ${isCollapsed ? 'md:ml-20' : 'md:ml-64'}
         `}
       >
