@@ -173,7 +173,12 @@ const QuotationChatPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Failed to send message:', err);
-      setError(err?.message || 'Error al generar la cotización. Por favor, intenta nuevamente.');
+      const msg = err?.message || '';
+      if (msg.includes('ANTHROPIC_CREDITS_EXHAUSTED') || msg.includes('credit balance')) {
+        setError('Los créditos de Claude API se agotaron. Recarga en console.anthropic.com/settings/billing y activa auto-reload.');
+      } else {
+        setError(msg || 'Error al generar la cotización. Por favor, intenta nuevamente.');
+      }
     } finally {
       setIsLoading(false);
     }
