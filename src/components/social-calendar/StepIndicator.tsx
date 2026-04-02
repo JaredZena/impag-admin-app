@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 interface StepIndicatorProps {
   active: boolean;
@@ -9,57 +10,34 @@ interface StepIndicatorProps {
 
 const StepIndicator: React.FC<StepIndicatorProps> = ({ active, completed, label }) => {
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '1rem'
-    }}>
-      <div style={{
-        width: '32px',
-        height: '32px',
-        borderRadius: '50%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: completed 
-          ? 'rgba(74, 222, 128, 0.2)' 
-          : active 
-            ? 'rgba(139, 92, 246, 0.3)' 
-            : 'rgba(255, 255, 255, 0.1)',
-        border: `2px solid ${completed 
-          ? '#4ade80' 
-          : active 
-            ? '#8b5cf6' 
-            : 'rgba(255, 255, 255, 0.2)'}`,
-        color: completed 
-          ? '#4ade80' 
-          : active 
-            ? '#c4b5fd' 
-            : '#64748b',
-        transition: 'all 0.3s',
-        flexShrink: 0
-      }} className={active && !completed ? 'step-active' : ''}>
+    <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          'w-8 h-8 rounded-full flex items-center justify-center border-2 flex-shrink-0 transition-all duration-300',
+          completed && 'bg-green-400/20 border-green-400 text-green-400',
+          active && !completed && 'bg-violet-500/30 border-violet-400 animate-pulse',
+          !active && !completed && 'bg-white/5 border-white/20 text-slate-500'
+        )}
+      >
         {completed ? (
-          <Check size={18} />
+          <Check size={16} className="text-green-400" />
         ) : (
-          <div style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: active ? '#c4b5fd' : '#64748b'
-          }} />
+          <div
+            className={cn(
+              'w-2 h-2 rounded-full transition-all duration-300',
+              active ? 'bg-violet-300' : 'bg-slate-500'
+            )}
+          />
         )}
       </div>
-      <span style={{
-        fontSize: '0.9rem',
-        color: completed 
-          ? '#4ade80' 
-          : active 
-            ? '#e2e8f0' 
-            : '#64748b',
-        fontWeight: active || completed ? 600 : 400,
-        transition: 'all 0.3s'
-      }}>
+      <span
+        className={cn(
+          'text-sm transition-all duration-300',
+          completed && 'text-green-400 font-semibold',
+          active && !completed && 'text-slate-100 font-semibold',
+          !active && !completed && 'text-slate-500 font-normal'
+        )}
+      >
         {label}
       </span>
     </div>
@@ -67,9 +45,3 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({ active, completed, label 
 };
 
 export default StepIndicator;
-
-
-
-
-
-

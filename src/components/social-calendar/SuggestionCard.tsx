@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  Copy, 
-  Check, 
-  Instagram, 
-  Facebook, 
-  MessageCircle, 
-  Video, 
-  Share2, 
+import {
+  Copy,
+  Check,
+  Instagram,
+  Facebook,
+  MessageCircle,
+  Video,
+  Share2,
   Clock,
   ChevronDown,
   ChevronUp,
@@ -15,8 +15,13 @@ import {
   Music,
   Image as ImageIcon,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Package,
+  CalendarCheck,
+  ClipboardList,
+  CheckCircle2,
 } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { Suggestion, SuggestionStatus, Channel, TAG_LABELS, POST_TYPE_LABELS } from '../../types/socialCalendar';
 import './SocialCalendar.css';
 
@@ -26,80 +31,27 @@ interface SuggestionCardProps {
   onFeedbackChange?: (id: string, feedback: 'like' | 'dislike' | null) => void;
 }
 
-// Channel configuration for display
-const CHANNEL_CONFIG: Record<Channel, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
-  'wa-status': { 
-    label: 'WhatsApp Status', 
-    icon: <MessageCircle size={16} />, 
-    color: '#25D366',
-    bgColor: 'rgba(37, 211, 102, 0.15)'
-  },
-  'wa-broadcast': { 
-    label: 'WA Difusión', 
-    icon: <Share2 size={16} />, 
-    color: '#25D366',
-    bgColor: 'rgba(37, 211, 102, 0.15)'
-  },
-  'wa-message': { 
-    label: 'WA Mensaje', 
-    icon: <MessageCircle size={16} />, 
-    color: '#25D366',
-    bgColor: 'rgba(37, 211, 102, 0.15)'
-  },
-  'fb-post': { 
-    label: 'FB + IG Post', 
-    icon: <Facebook size={16} />, 
-    color: '#1877F2',
-    bgColor: 'rgba(24, 119, 242, 0.15)'
-  },
-  'fb-reel': { 
-    label: 'FB + IG Reel', 
-    icon: <Video size={16} />, 
-    color: '#E4405F',
-    bgColor: 'rgba(228, 64, 95, 0.15)'
-  },
-  'ig-post': { 
-    label: 'IG Post', 
-    icon: <Instagram size={16} />, 
-    color: '#E4405F',
-    bgColor: 'rgba(228, 64, 95, 0.15)'
-  },
-  'ig-reel': { 
-    label: 'IG Reel', 
-    icon: <Video size={16} />, 
-    color: '#E4405F',
-    bgColor: 'rgba(228, 64, 95, 0.15)'
-  },
-  'tiktok': { 
-    label: 'TikTok', 
-    icon: <Video size={16} />, 
-    color: '#000000',
-    bgColor: 'rgba(255, 255, 255, 0.1)'
-  }
+const CHANNEL_CONFIG: Record<Channel, { label: string; icon: React.ReactNode; colorClass: string; bgClass: string }> = {
+  'wa-status':    { label: 'WhatsApp Status', icon: <MessageCircle size={14} />, colorClass: 'text-green-400',  bgClass: 'bg-green-400/10 border-green-400/25' },
+  'wa-broadcast': { label: 'WA Difusión',     icon: <Share2 size={14} />,        colorClass: 'text-green-400',  bgClass: 'bg-green-400/10 border-green-400/25' },
+  'wa-message':   { label: 'WA Mensaje',      icon: <MessageCircle size={14} />, colorClass: 'text-green-400',  bgClass: 'bg-green-400/10 border-green-400/25' },
+  'fb-post':      { label: 'FB + IG Post',    icon: <Facebook size={14} />,      colorClass: 'text-blue-400',   bgClass: 'bg-blue-400/10 border-blue-400/25' },
+  'fb-reel':      { label: 'FB + IG Reel',    icon: <Video size={14} />,         colorClass: 'text-pink-400',   bgClass: 'bg-pink-400/10 border-pink-400/25' },
+  'ig-post':      { label: 'IG Post',         icon: <Instagram size={14} />,     colorClass: 'text-pink-400',   bgClass: 'bg-pink-400/10 border-pink-400/25' },
+  'ig-reel':      { label: 'IG Reel',         icon: <Video size={14} />,         colorClass: 'text-pink-400',   bgClass: 'bg-pink-400/10 border-pink-400/25' },
+  'tiktok':       { label: 'TikTok',          icon: <Video size={14} />,         colorClass: 'text-slate-200',  bgClass: 'bg-white/5 border-white/15' },
 };
 
-// Status colors and labels
-const STATUS_CONFIG: Record<SuggestionStatus, { label: string; color: string; bgColor: string }> = {
-  'planned': { 
-    label: '📋 Planeado', 
-    color: '#fcd34d',
-    bgColor: 'rgba(252, 211, 77, 0.15)'
-  },
-  'scheduled': { 
-    label: '📅 Agendado', 
-    color: '#60a5fa',
-    bgColor: 'rgba(96, 165, 250, 0.15)'
-  },
-  'done': { 
-    label: '✅ Publicado', 
-    color: '#4ade80',
-    bgColor: 'rgba(74, 222, 128, 0.15)'
-  }
+const STATUS_CONFIG: Record<SuggestionStatus, { label: string; icon: React.ReactNode; colorClass: string; bgClass: string; borderClass: string }> = {
+  planned:   { label: 'Planeado',  icon: <ClipboardList size={12} />,  colorClass: 'text-amber-300',  bgClass: 'bg-amber-300/15',  borderClass: 'border-amber-300/40' },
+  scheduled: { label: 'Agendado',  icon: <CalendarCheck size={12} />,  colorClass: 'text-blue-400',   bgClass: 'bg-blue-400/15',   borderClass: 'border-blue-400/40' },
+  done:      { label: 'Publicado', icon: <CheckCircle2 size={12} />,   colorClass: 'text-green-400',  bgClass: 'bg-green-400/15',  borderClass: 'border-green-400/40' },
 };
 
 const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusChange, onFeedbackChange }) => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [currentFeedback, setCurrentFeedback] = useState<'like' | 'dislike' | null>(suggestion.userFeedback || null);
 
   const handleCopy = (text: string, field: string) => {
@@ -108,444 +60,293 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Get the primary channel (first one)
   const primaryChannel = suggestion.channels[0];
   const channelConfig = CHANNEL_CONFIG[primaryChannel] || CHANNEL_CONFIG['fb-post'];
 
-  // Extract carousel slides from instructions if present
   const carouselSlidesMatch = suggestion.instructions?.match(/Carrusel \((\d+) slides\):/);
   const hasCarousel = carouselSlidesMatch !== null;
-  
-  // Check if needs music
   const needsMusic = suggestion.instructions?.includes('🎵');
-  
-  // Extract topic from caption (first line, remove emojis)
-  const extractTopic = (caption: string): string => {
-    if (!caption) return '';
-    const firstLine = caption.split('\n')[0].trim();
-    // Remove emojis and clean up
-    return firstLine.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim() || firstLine.trim();
-  };
-  const topic = extractTopic(suggestion.caption);
-  
-  // Get product name and stock status (first product if available)
+
   const firstProduct = suggestion.products[0] || null;
   const productName = firstProduct?.name || null;
   const productInStock = firstProduct?.inStock !== undefined ? firstProduct.inStock : null;
 
+  const activeStatus = STATUS_CONFIG[suggestion.status];
+
   return (
-    <div className="suggestion-card">
-      {/* Header Row: Status + Channel + Time */}
-      <div className="card-meta-row" style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1rem',
-        flexWrap: 'wrap',
-        gap: '0.5rem'
-      }}>
-        {/* Left: Status Selector */}
-        <div className="status-selector" style={{
-          display: 'flex',
-          gap: '0.25rem',
-          backgroundColor: 'rgba(15, 23, 42, 0.8)',
-          padding: '0.25rem',
-          borderRadius: '0.5rem'
-        }}>
-          {(['planned', 'scheduled', 'done'] as SuggestionStatus[]).map(status => {
-            const config = STATUS_CONFIG[status];
-            const isActive = suggestion.status === status;
-            return (
-              <button
-                key={status}
-                onClick={() => onStatusChange(suggestion.id, status)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.375rem 0.75rem',
-                  borderRadius: '0.375rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  transition: 'all 0.2s',
-                  backgroundColor: isActive ? config.bgColor : 'transparent',
-                  color: isActive ? config.color : '#64748b',
-                  borderWidth: isActive ? '1px' : '1px',
-                  borderStyle: 'solid',
-                  borderColor: isActive ? `${config.color}40` : 'transparent'
-                }}
-              >
-                {config.label}
-              </button>
-            );
-          })}
+    <div className="suggestion-card group rounded-xl border border-slate-700/40 bg-slate-800/60 backdrop-blur-sm mb-4 transition-all duration-200 hover:border-blue-500/25 hover:bg-slate-800/80">
+
+      {/* ── Collapsed Header (always visible) ─────────────────────── */}
+      <div className="p-4">
+
+        {/* Row 1: Status selector + Channel + Time */}
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          {/* Status toggle group */}
+          <div className="flex gap-0.5 bg-slate-900/70 p-1 rounded-lg">
+            {(['planned', 'scheduled', 'done'] as SuggestionStatus[]).map(status => {
+              const cfg = STATUS_CONFIG[status];
+              const isActive = suggestion.status === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => onStatusChange(suggestion.id, status)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold border transition-all duration-150 cursor-pointer',
+                    isActive
+                      ? `${cfg.colorClass} ${cfg.bgClass} ${cfg.borderClass}`
+                      : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-700/50'
+                  )}
+                >
+                  {cfg.icon}
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Channel badge + Time */}
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold',
+              channelConfig.colorClass, channelConfig.bgClass
+            )}>
+              {channelConfig.icon}
+              <span>{channelConfig.label}</span>
+              {hasCarousel && (
+                <span className="flex items-center gap-0.5 ml-1 bg-white/10 px-1.5 py-0.5 rounded-full text-[10px]">
+                  <ImageIcon size={9} /> Carrusel
+                </span>
+              )}
+              {needsMusic && <Music size={12} className="ml-1 opacity-75" />}
+            </div>
+
+            {suggestion.postingTime && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-semibold">
+                <Clock size={12} />
+                {suggestion.postingTime}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right: Channel + Time */}
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {/* Channel Badge - Large and Prominent */}
-          <div className="channel-badge" style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 0.75rem',
-            borderRadius: '0.5rem',
-            backgroundColor: channelConfig.bgColor,
-            border: `1px solid ${channelConfig.color}40`,
-            color: channelConfig.color,
-            fontWeight: 600,
-            fontSize: '0.85rem'
-          }}>
-            {channelConfig.icon}
-            <span>{channelConfig.label}</span>
-            {hasCarousel && (
-              <span style={{ 
-                marginLeft: '0.25rem',
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                padding: '0.125rem 0.375rem',
-                borderRadius: '999px',
-                fontSize: '0.7rem'
-              }}>
-                <ImageIcon size={10} style={{ marginRight: '0.25rem' }} />
-                Carrusel
-              </span>
-            )}
-            {needsMusic && (
-              <span style={{ marginLeft: '0.25rem', opacity: 0.8, display: 'flex' }}><Music size={14} /></span>
+        {/* Row 2: Post type + Product + AI badge */}
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-2.5 py-1">
+            {POST_TYPE_LABELS[suggestion.postType]}
+          </span>
+          {productName && (
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-green-300 bg-green-400/10 border border-green-400/25 rounded-full px-2.5 py-1">
+              <Package size={11} />
+              {productName}
+              {productInStock !== null && (
+                <span className={cn(
+                  'text-[10px] font-semibold px-1.5 py-0.5 rounded-full border',
+                  productInStock
+                    ? 'text-green-400 bg-green-400/15 border-green-400/30'
+                    : 'text-red-400 bg-red-400/15 border-red-400/30'
+                )}>
+                  {productInStock ? 'En stock' : 'Sin stock'}
+                </span>
+              )}
+            </span>
+          )}
+          {suggestion.generationSource === 'llm' && (
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-violet-300 bg-violet-500/15 border border-violet-500/25 rounded-full px-2 py-0.5">
+              <Sparkles size={9} /> IA
+            </span>
+          )}
+        </div>
+
+        {/* Row 3: Hook title */}
+        <h3 className="text-[15px] font-semibold text-slate-100 leading-snug mb-3">
+          {suggestion.hook}
+        </h3>
+
+        {/* Row 4: Caption (clamped) */}
+        <div className="relative">
+          <pre className={cn(
+            'text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-sans',
+            !isExpanded && 'line-clamp-3'
+          )}>
+            {suggestion.caption}
+          </pre>
+          {!isExpanded && (
+            <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-slate-800/80 to-transparent pointer-events-none" />
+          )}
+        </div>
+
+        {/* Row 5: Action bar */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-700/40 gap-2 flex-wrap">
+          {/* Left: Copy caption + Feedback */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleCopy(suggestion.caption, 'caption')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700/50 border border-slate-600/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700 text-xs font-medium transition-all duration-150 cursor-pointer"
+              title="Copiar caption"
+            >
+              {copiedField === 'caption'
+                ? <><Check size={13} className="text-green-400" /> Copiado</>
+                : <><Copy size={13} /> Copiar</>
+              }
+            </button>
+
+            {onFeedbackChange && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    const next = currentFeedback === 'like' ? null : 'like';
+                    setCurrentFeedback(next);
+                    onFeedbackChange(suggestion.id, next);
+                  }}
+                  className={cn(
+                    'p-1.5 rounded-lg border transition-all duration-150 cursor-pointer',
+                    currentFeedback === 'like'
+                      ? 'text-green-400 bg-green-400/15 border-green-400/40'
+                      : 'text-slate-500 border-slate-700/50 hover:text-green-400 hover:bg-green-400/10 hover:border-green-400/30'
+                  )}
+                  title="Me gusta"
+                >
+                  <ThumbsUp size={14} />
+                </button>
+                <button
+                  onClick={() => {
+                    const next = currentFeedback === 'dislike' ? null : 'dislike';
+                    setCurrentFeedback(next);
+                    onFeedbackChange(suggestion.id, next);
+                  }}
+                  className={cn(
+                    'p-1.5 rounded-lg border transition-all duration-150 cursor-pointer',
+                    currentFeedback === 'dislike'
+                      ? 'text-red-400 bg-red-400/15 border-red-400/40'
+                      : 'text-slate-500 border-slate-700/50 hover:text-red-400 hover:bg-red-400/10 hover:border-red-400/30'
+                  )}
+                  title="No me gusta"
+                >
+                  <ThumbsDown size={14} />
+                </button>
+              </div>
             )}
           </div>
 
-          {/* Posting Time */}
-          {suggestion.postingTime && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.375rem',
-              padding: '0.5rem 0.75rem',
-              borderRadius: '0.5rem',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
-              color: '#93c5fd',
-              fontWeight: 600,
-              fontSize: '0.85rem'
-            }}>
-              <Clock size={14} />
-              <span>{suggestion.postingTime}</span>
+          {/* Right: Expand toggle */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors duration-150 cursor-pointer"
+          >
+            {isExpanded ? (
+              <><ChevronUp size={14} /> Menos</>
+            ) : (
+              <><ChevronDown size={14} /> Ver más</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Expanded Detail Section ────────────────────────────────── */}
+      {isExpanded && (
+        <div className="border-t border-slate-700/40 px-4 pb-4 pt-3 space-y-3">
+
+          {/* Tags */}
+          {suggestion.tags.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {suggestion.tags.map(tag => (
+                <span key={tag} className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-300">
+                  {TAG_LABELS[tag]}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Instructions */}
+          {suggestion.instructions && (
+            <div className="rounded-lg bg-slate-900/50 border-l-2 border-blue-500 p-3">
+              <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">
+                <Info size={11} /> Estrategia & Instrucciones
+              </span>
+              <div className="text-xs text-slate-400 leading-relaxed space-y-0.5">
+                {suggestion.instructions.split('\n').map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Full caption */}
+          <div className="rounded-lg bg-slate-900/50 p-3 relative">
+            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2 block">
+              Caption / Copy
+            </span>
+            <pre className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap font-sans pr-8">
+              {suggestion.caption}
+            </pre>
+            <button
+              className="absolute top-3 right-3 p-1.5 rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/10 transition-all duration-150 cursor-pointer"
+              onClick={() => handleCopy(suggestion.caption, 'caption-full')}
+              title="Copiar texto"
+            >
+              {copiedField === 'caption-full' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+            </button>
+          </div>
+
+          {/* Image prompt (collapsible) */}
+          <div className="rounded-lg bg-slate-900/50 p-3 relative">
+            <button
+              className="flex items-center justify-between w-full cursor-pointer"
+              onClick={() => setShowPrompt(!showPrompt)}
+            >
+              <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+                <ImageIcon size={11} />
+                {hasCarousel ? `Prompts de Imágenes (${carouselSlidesMatch?.[1]} slides)` : 'AI Image Prompt'}
+              </span>
+              {showPrompt ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
+            </button>
+
+            {showPrompt && (
+              <div className="mt-2 pt-2 border-t border-white/5 text-xs text-slate-400 leading-relaxed space-y-0.5">
+                <p className="text-slate-500 mb-1.5">
+                  Copia {hasCarousel ? 'cada prompt' : 'este prompt'} y pégalo en Midjourney, DALL-E 3 o Adobe Firefly.
+                </p>
+                {suggestion.imagePrompt.split('\n').map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            )}
+
+            <button
+              className="absolute top-3 right-3 p-1.5 rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/10 transition-all duration-150 cursor-pointer"
+              onClick={() => handleCopy(suggestion.imagePrompt, 'prompt')}
+              title="Copiar prompt"
+            >
+              {copiedField === 'prompt' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+            </button>
+          </div>
+
+          {/* Multi-product list (only if more than 1 or has specs) */}
+          {(suggestion.products.length > 1 || (suggestion.products.length === 1 && (suggestion.products[0].specs?.length ?? 0) > 0)) && (
+            <div className="text-xs text-slate-500 space-y-1">
+              <span className="text-slate-400 font-medium block">Productos relacionados:</span>
+              {suggestion.products.map(p => (
+                <div key={p.id} className="flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-400">• {p.name}</span>
+                  {p.inStock !== undefined && (
+                    <span className={cn(
+                      'text-[10px] font-semibold px-1.5 py-0.5 rounded-full border',
+                      p.inStock
+                        ? 'text-green-400 bg-green-400/10 border-green-400/25'
+                        : 'text-red-400 bg-red-400/10 border-red-400/25'
+                    )}>
+                      {p.inStock ? 'En stock' : 'Sin stock'}
+                    </span>
+                  )}
+                  {p.specs && p.specs.length > 0 && (
+                    <span className="text-slate-600 truncate max-w-[150px]">({p.specs[0]})</span>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
-      </div>
-
-      {/* Topic Badge - Very Visible */}
-      {topic && (
-        <div style={{
-          marginBottom: '0.75rem',
-          padding: '0.5rem 0.75rem',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          border: '1px solid rgba(59, 130, 246, 0.3)',
-          borderRadius: '0.5rem',
-          borderLeft: '4px solid #3b82f6'
-        }}>
-          <div style={{ 
-            fontSize: '0.7rem', 
-            color: '#93c5fd', 
-            fontWeight: 600, 
-            marginBottom: '0.25rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-          }}>
-            Tema
-          </div>
-          <div style={{ 
-            fontSize: '0.9rem', 
-            color: '#e0e7ff', 
-            fontWeight: 500 
-          }}>
-            {topic}
-          </div>
-        </div>
       )}
-
-      {/* Post Type + Product Name + AI Badge */}
-      <div className="card-header" style={{ marginBottom: '1rem' }}>
-        <div style={{ width: '100%' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-            <span className="post-type-badge" style={{ fontSize: '0.8rem', padding: '0.375rem 0.75rem' }}>
-              {POST_TYPE_LABELS[suggestion.postType]}
-            </span>
-            {productName && (
-              <span style={{ 
-                fontSize: '0.75rem', 
-                padding: '0.375rem 0.75rem', 
-                borderRadius: '999px',
-                backgroundColor: 'rgba(34, 197, 94, 0.15)', 
-                color: '#86efac',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.375rem',
-                fontWeight: 600
-              }}>
-                📦 {productName}
-                {productInStock !== null && (
-                  <span style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    fontSize: '0.7rem',
-                    padding: '0.125rem 0.375rem',
-                    borderRadius: '999px',
-                    backgroundColor: productInStock 
-                      ? 'rgba(74, 222, 128, 0.2)' 
-                      : 'rgba(239, 68, 68, 0.2)',
-                    color: productInStock 
-                      ? '#4ade80' 
-                      : '#ef4444',
-                    border: `1px solid ${productInStock 
-                      ? 'rgba(74, 222, 128, 0.4)' 
-                      : 'rgba(239, 68, 68, 0.4)'}`,
-                    fontWeight: 600,
-                    marginLeft: '0.25rem'
-                  }}>
-                    {productInStock ? '✅ En stock' : '⚠️ Sin stock'}
-                  </span>
-                )}
-              </span>
-            )}
-            {suggestion.generationSource === 'llm' && (
-              <span style={{ 
-                fontSize: '0.65rem', 
-                padding: '0.125rem 0.5rem', 
-                borderRadius: '999px',
-                backgroundColor: 'rgba(139, 92, 246, 0.2)', 
-                color: '#c4b5fd',
-                border: '1px solid rgba(139, 92, 246, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                fontWeight: 600
-              }}>
-                <Sparkles size={10} /> IA Potenciada
-              </span>
-            )}
-          </div>
-          <h3 className="suggestion-title">{suggestion.hook}</h3>
-          <div className="tag-list">
-            {suggestion.tags.map(tag => (
-              <span key={tag} className="suggestion-tag">
-                {TAG_LABELS[tag]}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      {/* Instructions / Strategy */}
-      {suggestion.instructions && (
-        <div className="content-section" style={{ borderLeft: '3px solid #3b82f6' }}>
-          <span className="content-label flex items-center gap-2">
-            <Info size={12} /> Estrategia & Instrucciones
-          </span>
-          <div className="content-text" style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
-            {suggestion.instructions.split('\n').map((line, i) => (
-              <div key={i}>{line}</div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Main Copy */}
-      <div className="content-section">
-        <span className="content-label">Caption / Copy</span>
-        <pre className="content-text" style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{suggestion.caption}</pre>
-        <button 
-          className="copy-btn"
-          onClick={() => handleCopy(suggestion.caption, 'caption')}
-          title="Copiar texto"
-        >
-          {copiedField === 'caption' ? <Check size={16} color="#4ade80" /> : <Copy size={16} />}
-        </button>
-      </div>
-
-      {/* Image Prompt(s) - Show individually for carousels */}
-      <div className="content-section">
-        <div 
-          className="flex justify-between items-center cursor-pointer" 
-          onClick={() => setShowPrompt(!showPrompt)}
-        >
-          <span className="content-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ImageIcon size={12} />
-            {hasCarousel ? `Prompts de Imágenes (${carouselSlidesMatch?.[1]} slides)` : 'AI Image Prompt'}
-          </span>
-          {showPrompt ? <ChevronUp size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" />}
-        </div>
-        
-        {showPrompt && (
-          <div className="content-text mt-2 animate-fade-in" style={{ fontSize: '0.75rem', color: '#94a3b8', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem' }}>
-            <div style={{ marginBottom: '0.5rem' }}>
-              ℹ️ Copia {hasCarousel ? 'cada prompt' : 'este prompt'} y pégalo en Midjourney, DALL-E 3 o Adobe Firefly.
-            </div>
-            {suggestion.imagePrompt.split('\n').map((line, i) => (
-              <div key={i}>{line}</div>
-            ))}
-          </div>
-        )}
-        
-        <button 
-          className="copy-btn"
-          onClick={() => handleCopy(suggestion.imagePrompt, 'prompt')}
-          title="Copiar prompt"
-        >
-          {copiedField === 'prompt' ? <Check size={16} color="#4ade80" /> : <Copy size={16} />}
-        </button>
-      </div>
-
-      {/* Footer: Products + Feedback */}
-      <div className="action-bar" style={{ 
-        marginTop: '1rem', 
-        paddingTop: '1rem', 
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: '1rem'
-      }}>
-        {/* Products */}
-        {(suggestion.products.length > 1 || (suggestion.products.length === 1 && suggestion.products[0].specs && suggestion.products[0].specs.length > 0)) ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.8rem', color: '#64748b', flex: 1 }}>
-            <span style={{ fontWeight: 500, color: '#94a3b8' }}>Productos relacionados:</span>
-            {suggestion.products.map(p => (
-              <div key={p.id} className="flex items-center gap-1" style={{ flexWrap: 'wrap' }}>
-                 <span>• {p.name}</span>
-                 {p.inStock !== undefined && (
-                   <span style={{
-                     fontSize: '0.7rem',
-                     padding: '0.125rem 0.375rem',
-                     borderRadius: '999px',
-                     backgroundColor: p.inStock 
-                       ? 'rgba(74, 222, 128, 0.15)' 
-                       : 'rgba(239, 68, 68, 0.15)',
-                     color: p.inStock 
-                       ? '#4ade80' 
-                       : '#ef4444',
-                     border: `1px solid ${p.inStock 
-                       ? 'rgba(74, 222, 128, 0.3)' 
-                       : 'rgba(239, 68, 68, 0.3)'}`,
-                     fontWeight: 600,
-                     display: 'inline-flex',
-                     alignItems: 'center',
-                     gap: '0.25rem'
-                   }}>
-                     {p.inStock ? '✅' : '⚠️'}
-                     {p.inStock ? 'En stock' : 'Sin stock'}
-                   </span>
-                 )}
-                 {p.specs && p.specs.length > 0 && (
-                   <span className="text-xs opacity-70" style={{ 
-                      maxWidth: '150px', 
-                      whiteSpace: 'nowrap', 
-                      overflow: 'hidden', 
-                      textOverflow: 'ellipsis',
-                      display: 'inline-block',
-                      verticalAlign: 'bottom'
-                   }}>
-                     ({p.specs[0]})
-                   </span>
-                 )}
-              </div>
-            ))}
-          </div>
-        ) : <div style={{ flex: 1 }} />}
-        
-        {/* Feedback buttons */}
-        {onFeedbackChange && (
-          <div style={{
-            display: 'flex',
-            gap: '0.5rem',
-            alignItems: 'center'
-          }}>
-            <span style={{ 
-              fontSize: '0.75rem', 
-              color: '#64748b',
-              marginRight: '0.25rem'
-            }}>
-              ¿Te gusta este post?
-            </span>
-            <button
-              onClick={() => {
-                const newFeedback = currentFeedback === 'like' ? null : 'like';
-                setCurrentFeedback(newFeedback);
-                onFeedbackChange(suggestion.id, newFeedback);
-              }}
-              style={{
-                padding: '0.375rem 0.75rem',
-                borderRadius: '0.375rem',
-                border: `1px solid ${currentFeedback === 'like' ? 'rgba(74, 222, 128, 0.5)' : 'rgba(255, 255, 255, 0.1)'}`,
-                backgroundColor: currentFeedback === 'like' ? 'rgba(74, 222, 128, 0.2)' : 'transparent',
-                color: currentFeedback === 'like' ? '#4ade80' : '#64748b',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                transition: 'all 0.2s',
-                fontSize: '0.875rem'
-              }}
-              onMouseOver={(e) => {
-                if (currentFeedback !== 'like') {
-                  e.currentTarget.style.backgroundColor = 'rgba(74, 222, 128, 0.1)';
-                  e.currentTarget.style.borderColor = 'rgba(74, 222, 128, 0.3)';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentFeedback !== 'like') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                }
-              }}
-              title="Me gusta este post"
-            >
-              <ThumbsUp size={16} />
-            </button>
-            <button
-              onClick={() => {
-                const newFeedback = currentFeedback === 'dislike' ? null : 'dislike';
-                setCurrentFeedback(newFeedback);
-                onFeedbackChange(suggestion.id, newFeedback);
-              }}
-              style={{
-                padding: '0.375rem 0.75rem',
-                borderRadius: '0.375rem',
-                border: `1px solid ${currentFeedback === 'dislike' ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.1)'}`,
-                backgroundColor: currentFeedback === 'dislike' ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-                color: currentFeedback === 'dislike' ? '#ef4444' : '#64748b',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                transition: 'all 0.2s',
-                fontSize: '0.875rem'
-              }}
-              onMouseOver={(e) => {
-                if (currentFeedback !== 'dislike') {
-                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentFeedback !== 'dislike') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                }
-              }}
-              title="No me gusta este post"
-            >
-              <ThumbsDown size={16} />
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
 };
