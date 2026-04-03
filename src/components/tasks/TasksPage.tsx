@@ -13,9 +13,10 @@ import {
   Copy,
   Upload,
   ArrowUpDown,
+  Sparkles,
 } from 'lucide-react';
 import { useNotifications } from '@/components/ui/notification';
-import { fetchTasks, fetchUsers, fetchCategories, fetchCurrentUser, updateTaskStatus } from '@/utils/tasksApi';
+import { fetchTasks, fetchUsers, fetchCategories, fetchCurrentUser, updateTaskStatus, autoClassifyTasks } from '@/utils/tasksApi';
 import type { Task, TaskUser, TaskCategory, TaskStatus } from '@/types/tasks';
 import TaskCard from './TaskCard';
 import TaskForm from './TaskForm';
@@ -51,6 +52,24 @@ function sortTasks(tasks: Task[], mode: SortMode): Task[] {
   });
 }
 
+type CategoryGroup = { category: TaskCategory | null; tasks: Task[] };
+
+function groupTasksByCategory(tasks: Task[], categories: TaskCategory[]): CategoryGroup[] {
+  const map = new Map<number | null, Task[]>();
+  for (const task of tasks) {
+    const key = task.category_id ?? null;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(task);
+  }
+  const result: CategoryGroup[] = [];
+  const sorted = [...categories].sort((a, b) => a.sort_order - b.sort_order);
+  for (const cat of sorted) {
+    if (map.has(cat.id)) result.push({ category: cat, tasks: map.get(cat.id)! });
+  }
+  if (map.has(null)) result.push({ category: null, tasks: map.get(null)! });
+  return result;
+}
+
 const TasksPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -80,6 +99,8 @@ const TasksPage: React.FC = () => {
   const [filterAssignee, setFilterAssignee] = useState<string>(searchParams.get('assigned_to') || '');
   const [filterPriority, setFilterPriority] = useState<string>(searchParams.get('priority') || '');
   const [filterCategory, setFilterCategory] = useState<string>(searchParams.get('category_id') || '');
+
+  const [classifying, setClassifying] = useState(false);
 
   // Drag & drop (desktop board)
   const [draggingTaskId, setDraggingTaskId] = useState<number | null>(null);
@@ -182,6 +203,33 @@ const TasksPage: React.FC = () => {
     addNotification({ type: 'success', title: `${newTasks.length} tareas importadas`, duration: 4000 });
     // Full reload to reflect renumbered existing tasks
     await loadData();
+  }, [addNotification, loadData]);
+
+  const handleClassify = useCallback(async () => {
+    setClassifying(true);
+    try {
+      const res = await autoClassifyTasks();
+      const { classified, no_match } = res.data;
+      if (classified === 0) {
+        addNotification({ type: 'success', title: 'Todas las tareas ya tienen categoría', duration: 3000 });
+      } else {
+        addNotification({
+          type: 'success',
+          title: `${classified} tareas clasificadas${no_match > 0 ? `, ${no_match} sin coincidencia` : ''}`,
+          duration: 4000,
+        });
+        await loadData();
+      }
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('Espera')) {
+        addNotification({ type: 'error', title: msg, duration: 6000 });
+      } else {
+        addNotification({ type: 'error', title: 'Error al clasificar tareas', duration: 5000 });
+      }
+    } finally {
+      setClassifying(false);
+    }
   }, [addNotification, loadData]);
 
   // ── Drag & Drop (Desktop Board) ────────────────────
@@ -313,52 +361,61 @@ const TasksPage: React.FC = () => {
   // ── Export to WhatsApp ───────────────────────────────
 
   const handleExportTasks = useCallback(() => {
-    const allTasks = [
-      ...tasksByStatus.pending,
-      ...tasksByStatus.in_progress,
-      ...tasksByStatus.done,
-    ].sort((a, b) => {
-      const na = a.task_number ?? Infinity;
-      const nb = b.task_number ?? Infinity;
-      return na - nb;
-    });
+    const statusSections: { label: string; key: TabKey }[] = [
+      { label: 'PENDIENTES', key: 'pending' },
+      { label: 'EN CURSO', key: 'in_progress' },
+      { label: 'COMPLETADAS', key: 'done' },
+    ];
 
-    if (allTasks.length === 0) {
+    const sections: string[] = [];
+    let totalTasks = 0;
+
+    for (const { label, key } of statusSections) {
+      const statusTasks = tasksByStatus[key];
+      if (statusTasks.length === 0) continue;
+
+      const sectionLines: string[] = [`*${label}*`];
+      const groups = groupTasksByCategory(statusTasks, categories);
+
+      for (const { category, tasks: groupTasks } of groups) {
+        sectionLines.push('');
+        sectionLines.push(category ? category.name.toUpperCase() : 'SIN CATEGORÍA');
+        let counter = 1;
+        for (const task of groupTasks) {
+          const num = task.task_number ?? counter;
+          let line = `${num}. ${task.title}`;
+          if (task.description) line += ` ${task.description}`;
+          if (task.priority === 'urgent') line += ' (URGENTE)';
+          if (task.due_date) {
+            const [yyyy, mm, dd] = task.due_date.split('-');
+            line += `\t${dd}/${mm}/${yyyy}`;
+          } else if (task.created_at) {
+            const d = new Date(task.created_at);
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const yyyy = d.getFullYear();
+            line += `\t${dd}/${mm}/${yyyy}`;
+          }
+          sectionLines.push(line);
+          counter++;
+          totalTasks++;
+        }
+      }
+      sections.push(sectionLines.join('\n'));
+    }
+
+    if (totalTasks === 0) {
       addNotification({ type: 'error', title: 'No hay tareas para exportar', duration: 3000 });
       return;
     }
 
-    const lines = allTasks.map((task, idx) => {
-      const num = task.task_number ?? (idx + 1);
-      let line = `${num}\t${task.title}`;
-      if (task.description) {
-        line += ` ${task.description}`;
-      }
-      if (task.priority === 'urgent') {
-        line += ' (URGENTE)';
-      }
-      if (task.status === 'in_progress') {
-        line += ' [EN CURSO]';
-      } else if (task.status === 'done') {
-        line += ' [COMPLETADO]';
-      }
-      if (task.created_at) {
-        const d = new Date(task.created_at);
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yyyy = d.getFullYear();
-        line += `\t${dd}/${mm}/${yyyy}`;
-      }
-      return line;
-    });
-
-    const text = lines.join('\n');
+    const text = sections.join('\n\n');
     navigator.clipboard.writeText(text).then(() => {
-      addNotification({ type: 'success', title: `${allTasks.length} tareas copiadas al portapapeles`, duration: 3000 });
+      addNotification({ type: 'success', title: `${totalTasks} tareas copiadas al portapapeles`, duration: 3000 });
     }).catch(() => {
       addNotification({ type: 'error', title: 'Error al copiar', duration: 3000 });
     });
-  }, [tasksByStatus, addNotification]);
+  }, [tasksByStatus, categories, addNotification]);
 
   // ── Loading State ─────────────────────────────────────
 
@@ -437,6 +494,17 @@ const TasksPage: React.FC = () => {
                   title={sortMode === 'priority' ? 'Ordenar por número' : 'Ordenar por prioridad'}
                 >
                   <ArrowUpDown size={20} />
+                </button>
+                <button
+                  onClick={handleClassify}
+                  disabled={classifying}
+                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-40"
+                  title="Clasificar tareas con IA"
+                >
+                  {classifying
+                    ? <Loader2 size={20} className="animate-spin" />
+                    : <Sparkles size={20} />
+                  }
                 </button>
                 <button
                   onClick={handleExportTasks}
@@ -657,7 +725,7 @@ const TasksPage: React.FC = () => {
               </span>
             </div>
             {/* Column body */}
-            <div className={`rounded-2xl p-3 min-h-[300px] space-y-3 transition-colors duration-200 ${
+            <div className={`rounded-2xl p-3 min-h-[300px] transition-colors duration-200 ${
               dragOverColumn === tab.key
                 ? 'bg-indigo-50/50 ring-2 ring-indigo-300/50 ring-inset'
                 : 'bg-white/20 backdrop-blur-[2px]'
@@ -667,17 +735,31 @@ const TasksPage: React.FC = () => {
                   {dragOverColumn === tab.key ? 'Soltar aquí' : 'No hay tareas'}
                 </div>
               ) : (
-                tasksByStatus[tab.key].map(task => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onToggleDone={handleToggleDone}
-                    onClick={setSelectedTask}
-                    draggable
-                    isDragging={draggingTaskId === task.id}
-                    onDragStart={e => handleDragStart(e, task.id)}
-                    onDragEnd={handleDragEnd}
-                  />
+                groupTasksByCategory(tasksByStatus[tab.key], categories).map(({ category, tasks: groupTasks }) => (
+                  <div key={category?.id ?? 'uncategorized'} className="mb-4">
+                    <div className="flex items-center gap-1.5 mb-2 px-1">
+                      {category && (
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: category.color }} />
+                      )}
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {category ? category.name : 'Sin Categoría'}
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {groupTasks.map(task => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          onToggleDone={handleToggleDone}
+                          onClick={setSelectedTask}
+                          draggable
+                          isDragging={draggingTaskId === task.id}
+                          onDragStart={e => handleDragStart(e, task.id)}
+                          onDragEnd={handleDragEnd}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))
               )}
             </div>
@@ -704,7 +786,7 @@ const TasksPage: React.FC = () => {
           />
         </div>
 
-        <div className="py-3 space-y-3">
+        <div className="py-3">
           {currentTasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh]">
               <div className="w-24 h-24 rounded-full bg-indigo-50 flex items-center justify-center">
@@ -720,13 +802,28 @@ const TasksPage: React.FC = () => {
               </p>
             </div>
           ) : (
-            currentTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onToggleDone={handleToggleDone}
-                onClick={setSelectedTask}
-              />
+            groupTasksByCategory(currentTasks, categories).map(({ category, tasks: groupTasks }) => (
+              <div key={category?.id ?? 'uncategorized'} className="mb-2">
+                <div className="flex items-center gap-2 px-4 py-2 sticky top-[104px] z-10 bg-[#f8f9fc]/90 backdrop-blur-sm">
+                  {category && (
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: category.color }} />
+                  )}
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                    {category ? category.name : 'Sin Categoría'}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">({groupTasks.length})</span>
+                </div>
+                <div className="space-y-3">
+                  {groupTasks.map(task => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onToggleDone={handleToggleDone}
+                      onClick={setSelectedTask}
+                    />
+                  ))}
+                </div>
+              </div>
             ))
           )}
         </div>

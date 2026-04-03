@@ -114,6 +114,12 @@ export const importTasks = (text: string, assignedTo?: number) =>
     body: JSON.stringify({ text, assigned_to: assignedTo }),
   });
 
+export const autoClassifyTasks = (reclassifyAll = false) =>
+  tasksApiRequest<TasksApiResponse<{ classified: number; skipped: number; no_match: number }>>('/tasks/auto-classify', {
+    method: 'POST',
+    body: JSON.stringify({ reclassify_all: reclassifyAll }),
+  });
+
 // ── Comments ───────────────────────────────────────────
 
 export const fetchComments = (taskId: number) =>
