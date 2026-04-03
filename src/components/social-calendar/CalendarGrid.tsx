@@ -14,42 +14,31 @@ interface CalendarGridProps {
 const WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
 
 const CalendarGrid: React.FC<CalendarGridProps> = ({
-  currentMonth,
-  onMonthChange,
-  selectedDate,
-  onSelectDate,
-  statusMap
+  currentMonth, onMonthChange, selectedDate, onSelectDate, statusMap
 }) => {
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    return new Date(year, month + 1, 0).getDate();
-  };
+  const getDaysInMonth = (date: Date) =>
+    new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 
   const getFirstDayOfMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    let day = new Date(year, month, 1).getDay();
-    day = day === 0 ? 6 : day - 1;
-    return day;
+    let day = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+    return day === 0 ? 6 : day - 1;
   };
 
   const handlePrevMonth = () => {
-    const newDate = new Date(currentMonth);
-    newDate.setMonth(newDate.getMonth() - 1);
-    onMonthChange(newDate);
+    const d = new Date(currentMonth);
+    d.setMonth(d.getMonth() - 1);
+    onMonthChange(d);
   };
 
   const handleNextMonth = () => {
-    const newDate = new Date(currentMonth);
-    newDate.setMonth(newDate.getMonth() + 1);
-    onMonthChange(newDate);
+    const d = new Date(currentMonth);
+    d.setMonth(d.getMonth() + 1);
+    onMonthChange(d);
   };
 
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDay = getFirstDayOfMonth(currentMonth);
   const totalSlots = Math.ceil((daysInMonth + firstDay) / 7) * 7;
-
   const todayStr = formatDate(new Date());
 
   const renderDays = () => {
@@ -88,16 +77,16 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       <div className="calendar-header">
         <button
           onClick={handlePrevMonth}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-green-700 hover:text-green-400 hover:bg-green-900/30 transition-all duration-150 cursor-pointer border-0 bg-transparent"
+          className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer border-0 bg-transparent"
         >
-          <ChevronLeft size={18} />
+          <ChevronLeft size={16} />
         </button>
         <h2>{capitalizedLabel}</h2>
         <button
           onClick={handleNextMonth}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-green-700 hover:text-green-400 hover:bg-green-900/30 transition-all duration-150 cursor-pointer border-0 bg-transparent"
+          className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer border-0 bg-transparent"
         >
-          <ChevronRight size={18} />
+          <ChevronRight size={16} />
         </button>
       </div>
 

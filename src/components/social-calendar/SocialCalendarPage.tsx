@@ -221,17 +221,12 @@ const SocialCalendarPage: React.FC = () => {
 
         {/* ── Generation Loading Overlay ───────────────────────────── */}
         {isGenerating && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl backdrop-blur-sm p-8 bg-green-50/95">
-            {/* Pulsing orb */}
-            <div className="relative mb-8">
-              <div className="absolute inset-0 rounded-full bg-green-400/20 animate-ping" style={{ animationDuration: '2.5s' }} />
-              <div className="w-16 h-16 rounded-full bg-white border-2 border-green-200 flex items-center justify-center shadow-lg relative">
-                <Sparkles className="w-7 h-7 text-green-600" />
-              </div>
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl bg-white/90 backdrop-blur-sm p-8">
+            <div className="w-12 h-12 rounded-full bg-green-50 border-2 border-green-200 flex items-center justify-center mb-6 shadow-sm">
+              <Sparkles className="w-5 h-5 text-green-600 animate-spin" />
             </div>
 
-            {/* Steps */}
-            <div className="w-full max-w-xs mb-6 space-y-3">
+            <div className="w-full max-w-xs mb-5 space-y-3">
               <StepIndicator
                 active={generationStep.includes('Iniciando') || generationStep.includes('Analizando')}
                 completed={generationStep.includes('Consultando') || generationStep.includes('Generando') || generationStep.includes('Creando')}
@@ -254,41 +249,41 @@ const SocialCalendarPage: React.FC = () => {
               />
             </div>
 
-            <p className="text-sm mb-6 text-center text-green-600">
+            <p className="text-sm text-gray-500 mb-5 text-center">
               {generationStep || 'Generando contenido...'}
             </p>
 
             <button
               onClick={handleCancelGeneration}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-orange-200 bg-white text-orange-600 text-sm font-semibold hover:bg-orange-50 transition-all duration-150 cursor-pointer shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-200 bg-white text-gray-500 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
             >
-              <X size={15} /> Cancelar
+              <X size={14} /> Cancelar
             </button>
           </div>
         )}
 
         {/* ── Inline Confirm Dialog (replaces window.confirm) ─────── */}
         {confirmPendingDate && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-green-50/80 backdrop-blur-sm p-8">
-            <div className="rounded-2xl p-6 max-w-sm w-full shadow-xl border border-green-100 bg-white">
+          <div className="absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-black/20 backdrop-blur-sm p-8">
+            <div className="rounded-xl p-6 max-w-sm w-full shadow-lg border border-gray-200 bg-white">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle size={18} className="text-amber-500" />
+                <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle size={16} className="text-amber-500" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm text-green-900" style={{ fontFamily: "'Lora', serif" }}>Regenerar contenido</h3>
-                  <p className="text-xs mt-0.5 text-green-500">
-                    El día {confirmPendingDate} ya tiene contenido generado.
+                  <h3 className="font-semibold text-sm text-gray-900">Regenerar contenido</h3>
+                  <p className="text-xs mt-0.5 text-gray-500">
+                    El día {confirmPendingDate} ya tiene contenido.
                   </p>
                 </div>
               </div>
-              <p className="text-sm mb-5 text-green-800/80">
+              <p className="text-sm mb-4 text-gray-600">
                 ¿Deseas reemplazar el contenido existente con nueva generación IA?
               </p>
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setConfirmPendingDate(null)}
-                  className="px-4 py-2 rounded-xl border border-green-200 text-green-600 text-sm font-medium hover:bg-green-50 transition-all duration-150 cursor-pointer"
+                  className="px-3 py-2 rounded-md border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -343,10 +338,10 @@ const SocialCalendarPage: React.FC = () => {
         {/* ── Generation Status Message ────────────────────────────── */}
         {generationMsg && (
           <div className={cn(
-            'flex items-center gap-2 mb-5 px-4 py-3 rounded-xl border text-sm font-semibold',
+            'flex items-center gap-2 mb-4 px-3 py-2.5 rounded-lg border text-sm font-medium',
             generationMsg.type === 'success' && 'bg-green-50 border-green-200 text-green-700',
             generationMsg.type === 'warning' && 'bg-amber-50 border-amber-200 text-amber-700',
-            generationMsg.type === 'error'   && 'bg-orange-50 border-orange-200 text-orange-700',
+            generationMsg.type === 'error'   && 'bg-red-50 border-red-200 text-red-700',
           )}>
             {generationMsg.type === 'success' && <Check size={15} />}
             {generationMsg.type === 'warning' && <AlertTriangle size={15} />}
@@ -359,7 +354,7 @@ const SocialCalendarPage: React.FC = () => {
         {hasContent ? (
           <div>
             {currentSuggestions.metadata.relevantDates.length > 0 && (
-              <div className="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm font-medium border bg-amber-50 border-amber-200 text-amber-800">
+              <div className="flex items-center gap-2 mb-4 px-3 py-2.5 rounded-lg text-sm font-medium border bg-amber-50 border-amber-200 text-amber-700">
                 <AlertCircle size={15} className="flex-shrink-0" />
                 <span>
                   Próxima fecha importante:{' '}
@@ -402,23 +397,21 @@ const SocialCalendarPage: React.FC = () => {
           </div>
         ) : (
           /* ── Empty State ─────────────────────────────────────────── */
-          <div className="flex flex-col items-center justify-center min-h-[440px] text-center px-8 py-12">
-            {/* Leaf icon */}
-            <div className="w-20 h-20 rounded-2xl bg-green-100 border border-green-200 flex items-center justify-center mb-6 shadow-sm">
-              <Leaf size={36} className="text-green-600" />
+          <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-8 py-12">
+            <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center mb-5">
+              <Leaf size={28} className="text-gray-400" />
             </div>
 
-            <h3 className="text-lg font-semibold text-green-900 mb-2" style={{ fontFamily: "'Lora', serif" }}>
+            <h3 className="text-base font-semibold text-gray-900 mb-1.5">
               Sin contenido para este día
             </h3>
-            <p className="text-sm text-green-600/70 mb-8 max-w-xs leading-relaxed">
-              Genera contenido automáticamente con IA o sugiere un tema específico para orientar la generación.
+            <p className="text-sm text-gray-500 mb-7 max-w-xs leading-relaxed">
+              Genera contenido automáticamente con IA o sugiere un tema para orientar la generación.
             </p>
 
-            {/* Topic input */}
-            <div className="w-full max-w-md mb-5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-green-500 mb-2 text-left">
-                Tema sugerido <span className="normal-case font-normal text-green-400">(opcional)</span>
+            <div className="w-full max-w-sm mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-1.5 text-left">
+                Tema sugerido <span className="text-gray-400">(opcional)</span>
               </label>
               <input
                 type="text"
@@ -426,7 +419,7 @@ const SocialCalendarPage: React.FC = () => {
                 onChange={e => setSuggestedTopic(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleGenerate()}
                 placeholder="Ej: Protección contra heladas, Riego por goteo..."
-                className="w-full px-4 py-3 rounded-xl bg-white border border-green-200 text-green-900 placeholder-green-300 text-sm outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition-all duration-150 shadow-sm"
+                className="w-full px-3 py-2.5 rounded-lg bg-white border border-gray-200 text-gray-900 placeholder-gray-400 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-150"
               />
             </div>
 
@@ -435,7 +428,7 @@ const SocialCalendarPage: React.FC = () => {
               onClick={handleGenerate}
               disabled={isGenerating}
             >
-              <Sparkles size={20} /> Generar Contenido con IA
+              <Sparkles size={17} /> Generar Contenido con IA
             </button>
           </div>
         )}
