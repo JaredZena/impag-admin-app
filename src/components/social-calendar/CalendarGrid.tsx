@@ -8,7 +8,7 @@ interface CalendarGridProps {
   onMonthChange: (date: Date) => void;
   selectedDate: string | null;
   onSelectDate: (date: string) => void;
-  statusMap: Record<string, SuggestionStatus>; // date -> status summary
+  statusMap: Record<string, SuggestionStatus>;
 }
 
 const WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
@@ -23,16 +23,14 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
-    const days = new Date(year, month + 1, 0).getDate();
-    return days;
+    return new Date(year, month + 1, 0).getDate();
   };
 
   const getFirstDayOfMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
-    // getDay() returns 0 for Sunday, we want 0 for Monday
-    let day = new Date(year, month, 1).getDay(); // 0(Sun) - 6(Sat)
-    day = day === 0 ? 6 : day - 1; // 0(Mon) - 6(Sun)
+    let day = new Date(year, month, 1).getDay();
+    day = day === 0 ? 6 : day - 1;
     return day;
   };
 
@@ -51,33 +49,33 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDay = getFirstDayOfMonth(currentMonth);
   const totalSlots = Math.ceil((daysInMonth + firstDay) / 7) * 7;
-  
+
   const todayStr = formatDate(new Date());
 
   const renderDays = () => {
     const days = [];
     for (let i = 0; i < totalSlots; i++) {
-        if (i < firstDay || i >= firstDay + daysInMonth) {
-            days.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
-        } else {
-            const dayNum = i - firstDay + 1;
-            const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dayNum);
-            const dateStr = formatDate(date);
-            const status = statusMap[dateStr];
-            const isSelected = selectedDate === dateStr;
-            const isToday = dateStr === todayStr;
+      if (i < firstDay || i >= firstDay + daysInMonth) {
+        days.push(<div key={`empty-${i}`} className="calendar-day empty" />);
+      } else {
+        const dayNum = i - firstDay + 1;
+        const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), dayNum);
+        const dateStr = formatDate(date);
+        const status = statusMap[dateStr];
+        const isSelected = selectedDate === dateStr;
+        const isToday = dateStr === todayStr;
 
-            days.push(
-                <div
-                    key={dateStr}
-                    className={`calendar-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
-                    onClick={() => onSelectDate(dateStr)}
-                >
-                    <span>{dayNum}</span>
-                    {status && <div className={`status-dot ${status}`} />}
-                </div>
-            );
-        }
+        days.push(
+          <div
+            key={dateStr}
+            className={`calendar-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
+            onClick={() => onSelectDate(dateStr)}
+          >
+            <span>{dayNum}</span>
+            {status && <div className={`status-dot ${status}`} />}
+          </div>
+        );
+      }
     }
     return days;
   };
@@ -88,18 +86,24 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   return (
     <div className="calendar-panel">
       <div className="calendar-header">
-        <button onClick={handlePrevMonth} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer' }}>
-          <ChevronLeft />
+        <button
+          onClick={handlePrevMonth}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-green-700 hover:text-green-400 hover:bg-green-900/30 transition-all duration-150 cursor-pointer border-0 bg-transparent"
+        >
+          <ChevronLeft size={18} />
         </button>
         <h2>{capitalizedLabel}</h2>
-        <button onClick={handleNextMonth} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer' }}>
-          <ChevronRight />
+        <button
+          onClick={handleNextMonth}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-green-700 hover:text-green-400 hover:bg-green-900/30 transition-all duration-150 cursor-pointer border-0 bg-transparent"
+        >
+          <ChevronRight size={18} />
         </button>
       </div>
 
       <div className="calendar-grid">
         {WEEKDAYS.map(day => (
-            <div key={day} className="calendar-day-header">{day}</div>
+          <div key={day} className="calendar-day-header">{day}</div>
         ))}
         {renderDays()}
       </div>
