@@ -32,17 +32,17 @@ const STATUS_CONFIG: Record<SuggestionStatus, {
   planned:   {
     label: 'Planeado',  icon: <ClipboardList size={12} />,
     activeCls:   'text-amber-700 bg-amber-50 border-amber-200',
-    inactiveCls: 'text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-100',
+    inactiveCls: 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-100',
   },
   scheduled: {
     label: 'Agendado',  icon: <CalendarCheck size={12} />,
     activeCls:   'text-blue-700 bg-blue-50 border-blue-200',
-    inactiveCls: 'text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-100',
+    inactiveCls: 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-100',
   },
   done:      {
     label: 'Publicado', icon: <CheckCircle2 size={12} />,
     activeCls:   'text-green-700 bg-green-50 border-green-200',
-    inactiveCls: 'text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-100',
+    inactiveCls: 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-100',
   },
 };
 
@@ -123,7 +123,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
 
         {/* Row 2: Post type + Product + AI badge */}
         <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-0.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-700 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-0.5">
             {POST_TYPE_LABELS[suggestion.postType]}
           </span>
           {productName && (
@@ -192,7 +192,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
                     'p-1.5 rounded-md border transition-all duration-150 cursor-pointer',
                     currentFeedback === 'like'
                       ? 'text-green-600 bg-green-50 border-green-200'
-                      : 'text-gray-300 border-gray-200 hover:text-green-500 hover:bg-green-50 hover:border-green-200'
+                      : 'text-gray-400 border-gray-200 hover:text-green-600 hover:bg-green-50 hover:border-green-200'
                   )}
                   title="Me gusta"
                 >
@@ -208,7 +208,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
                     'p-1.5 rounded-md border transition-all duration-150 cursor-pointer',
                     currentFeedback === 'dislike'
                       ? 'text-red-600 bg-red-50 border-red-200'
-                      : 'text-gray-300 border-gray-200 hover:text-red-500 hover:bg-red-50 hover:border-red-200'
+                      : 'text-gray-400 border-gray-200 hover:text-red-600 hover:bg-red-50 hover:border-red-200'
                   )}
                   title="No me gusta"
                 >
@@ -220,7 +220,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
 
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors duration-150 cursor-pointer"
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors duration-150 cursor-pointer"
           >
             {isExpanded ? <><ChevronUp size={13} /> Menos</> : <><ChevronDown size={13} /> Ver más</>}
           </button>
@@ -245,7 +245,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
           {/* Instructions */}
           {suggestion.instructions && (
             <div className="rounded-lg bg-white border border-gray-200 border-l-2 border-l-blue-400 p-3">
-              <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-2">
+              <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
                 <Info size={11} /> Estrategia & Instrucciones
               </span>
               <div className="text-xs text-gray-600 leading-relaxed space-y-0.5">
@@ -258,14 +258,14 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
 
           {/* Full caption */}
           <div className="rounded-lg bg-white border border-gray-200 p-3 relative">
-            <span className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-2 block">
+            <span className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2 block">
               Caption / Copy
             </span>
             <pre className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-sans pr-8">
               {suggestion.caption}
             </pre>
             <button
-              className="absolute top-3 right-3 p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-150 cursor-pointer"
+              className="absolute top-3 right-3 p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-150 cursor-pointer"
               onClick={() => handleCopy(suggestion.caption, 'caption-full')}
               title="Copiar texto"
             >
@@ -279,16 +279,16 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
               className="flex items-center justify-between w-full cursor-pointer"
               onClick={() => setShowPrompt(!showPrompt)}
             >
-              <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-gray-400 font-semibold">
+              <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
                 <ImageIcon size={11} />
                 {hasCarousel ? `Prompts de Imágenes (${carouselSlidesMatch?.[1]} slides)` : 'AI Image Prompt'}
               </span>
-              {showPrompt ? <ChevronUp size={13} className="text-gray-400" /> : <ChevronDown size={13} className="text-gray-400" />}
+              {showPrompt ? <ChevronUp size={13} className="text-gray-500" /> : <ChevronDown size={13} className="text-gray-500" />}
             </button>
 
             {showPrompt && (
               <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500 leading-relaxed space-y-0.5">
-                <p className="text-gray-400 mb-1.5">
+                <p className="text-gray-500 mb-1.5">
                   Copia {hasCarousel ? 'cada prompt' : 'este prompt'} y pégalo en Midjourney, DALL-E 3 o Adobe Firefly.
                 </p>
                 {suggestion.imagePrompt.split('\n').map((line, i) => (
@@ -298,7 +298,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
             )}
 
             <button
-              className="absolute top-3 right-3 p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all duration-150 cursor-pointer"
+              className="absolute top-3 right-3 p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all duration-150 cursor-pointer"
               onClick={() => handleCopy(suggestion.imagePrompt, 'prompt')}
               title="Copiar prompt"
             >
@@ -324,7 +324,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onStatusCha
                     </span>
                   )}
                   {p.specs && p.specs.length > 0 && (
-                    <span className="text-gray-400 truncate max-w-[150px]">({p.specs[0]})</span>
+                    <span className="text-gray-500 truncate max-w-[150px]">({p.specs[0]})</span>
                   )}
                 </div>
               ))}

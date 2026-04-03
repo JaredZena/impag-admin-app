@@ -42,7 +42,7 @@
 .calendar-day-header {
   text-align: center;
   font-size: 0.68rem;
-  color: #9ca3af; /* gray-400 */
+  color: #6b7280; /* gray-500 */
   font-weight: 600;
   padding-bottom: 0.5rem;
   text-transform: uppercase;
@@ -132,7 +132,7 @@
 }
 
 .feed-subtitle {
-  color: #9ca3af;
+  color: #6b7280;
   margin-bottom: 0.25rem;
   display: flex;
   align-items: center;

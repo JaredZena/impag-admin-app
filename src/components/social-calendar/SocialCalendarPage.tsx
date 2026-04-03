@@ -399,7 +399,7 @@ const SocialCalendarPage: React.FC = () => {
           /* ── Empty State ─────────────────────────────────────────── */
           <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-8 py-12">
             <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center mb-5">
-              <Leaf size={28} className="text-gray-400" />
+              <Leaf size={28} className="text-gray-500" />
             </div>
 
             <h3 className="text-base font-semibold text-gray-900 mb-1.5">
@@ -411,7 +411,7 @@ const SocialCalendarPage: React.FC = () => {
 
             <div className="w-full max-w-sm mb-4">
               <label className="block text-xs font-medium text-gray-500 mb-1.5 text-left">
-                Tema sugerido <span className="text-gray-400">(opcional)</span>
+                Tema sugerido <span className="text-gray-500">(opcional)</span>
               </label>
               <input
                 type="text"
