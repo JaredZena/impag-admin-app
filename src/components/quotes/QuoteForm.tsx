@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Plus, Save } from 'lucide-react';
 import { createQuote, addQuoteItem } from '@/utils/quotesApi';
 import type { CreateQuoteItemPayload, ProductSearchResult } from '@/types/quotes';
@@ -12,22 +12,59 @@ interface LocalItem extends CreateQuoteItemPayload {
   line_total: number;
 }
 
+// Shape sent by the quotation chat's "Generar cotización" button via router state.
+interface QuotePrefill {
+  customerName?: string;
+  customerLocation?: string;
+  items?: Array<{
+    supplier_product_id?: number;
+    product_id?: number;
+    description: string;
+    sku?: string;
+    unit?: string;
+    quantity?: number;
+    unit_price?: number;
+    iva_applicable?: boolean;
+    sort_order?: number;
+  }>;
+}
+
 const IVA_RATE = 0.16;
 
 export default function QuoteForm() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const prefill = (location.state as { prefill?: QuotePrefill } | null)?.prefill;
   const [saving, setSaving] = useState(false);
 
-  // Customer info
-  const [customerName, setCustomerName] = useState('');
+  // Customer info (may be pre-filled from the quotation chat)
+  const [customerName, setCustomerName] = useState(prefill?.customerName ?? '');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
-  const [customerLocation, setCustomerLocation] = useState('');
+  const [customerLocation, setCustomerLocation] = useState(prefill?.customerLocation ?? '');
   const [notes, setNotes] = useState('');
   const [validityDays, setValidityDays] = useState(15);
 
-  // Items
-  const [items, setItems] = useState<LocalItem[]>([]);
+  // Items (may be pre-filled with the products the RAG retrieved for the quote)
+  const [items, setItems] = useState<LocalItem[]>(() =>
+    (prefill?.items ?? []).map((it, i) => {
+      const quantity = it.quantity ?? 1;
+      const unit_price = it.unit_price ?? 0;
+      return {
+        _id: crypto.randomUUID(),
+        supplier_product_id: it.supplier_product_id,
+        product_id: it.product_id ?? undefined,
+        description: it.description,
+        sku: it.sku ?? undefined,
+        quantity,
+        unit: it.unit ?? 'PIEZA',
+        unit_price,
+        iva_applicable: it.iva_applicable ?? true,
+        sort_order: it.sort_order ?? i,
+        line_total: quantity * unit_price,
+      };
+    })
+  );
 
   const addProductItem = (product: ProductSearchResult) => {
     const newItem: LocalItem = {

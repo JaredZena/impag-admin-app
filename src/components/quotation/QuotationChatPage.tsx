@@ -11,6 +11,18 @@ import QuotationDocument from './QuotationDocument';
 import InternalQuotationDocument from './InternalQuotationDocument';
 import { parseQuotationMarkdown, parseDualQuotationResponse } from '@/utils/quotationParser';
 
+interface QuoteCandidate {
+  supplier_product_id?: number;
+  product_id?: number;
+  description: string;
+  sku?: string;
+  unit?: string;
+  quantity?: number;
+  unit_price?: number;
+  iva_applicable?: boolean;
+  sort_order?: number;
+}
+
 interface Message {
   id: string;
   type: 'user' | 'assistant';
@@ -21,6 +33,7 @@ interface Message {
   quotationId?: string;
   queryId?: number;
   feedback?: 1 | -1;
+  quoteCandidates?: QuoteCandidate[];
 }
 
 type ConversationState = 'initial' | 'follow-up' | 'blocked';
@@ -75,6 +88,31 @@ const QuotationChatPage: React.FC = () => {
       setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, feedback: undefined } : m)));
       console.error('Failed to submit feedback:', err);
     }
+  };
+
+  const handleGenerateQuote = (message: Message) => {
+    // Hand the RAG-retrieved products to the trackable Quote form pre-filled,
+    // so the engineer reviews/edits instead of re-typing every line.
+    const items = (message.quoteCandidates || []).map(c => ({
+      supplier_product_id: c.supplier_product_id,
+      product_id: c.product_id,
+      description: c.description,
+      sku: c.sku,
+      unit: c.unit,
+      quantity: c.quantity ?? 1,
+      unit_price: c.unit_price ?? 0,
+      iva_applicable: c.iva_applicable ?? true,
+      sort_order: c.sort_order,
+    }));
+    navigate('/quotes/new', {
+      state: {
+        prefill: {
+          customerName: message.customerName,
+          customerLocation: message.customerLocation,
+          items,
+        },
+      },
+    });
   };
 
   // Auto-scroll to bottom when new messages arrive
@@ -163,7 +201,8 @@ const QuotationChatPage: React.FC = () => {
         customerName: customerName || undefined,
         customerLocation: customerLocation || undefined,
         quotationId: quotationId,
-        queryId: response.query_id
+        queryId: response.query_id,
+        quoteCandidates: response.quote_candidates || undefined
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -710,6 +749,18 @@ const QuotationChatPage: React.FC = () => {
                     <span className="text-[10px] text-gray-400 font-normal sm:text-xs">
                       {dayjs(message.timestamp).format('HH:mm')}
                     </span>
+                    {message.quoteCandidates && message.quoteCandidates.length > 0 && (
+                      <button
+                        onClick={() => handleGenerateQuote(message)}
+                        title="Crear una cotización rastreable con estos productos"
+                        className="flex items-center gap-1 text-[10px] sm:text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition-colors"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        Generar cotización ({message.quoteCandidates.length})
+                      </button>
+                    )}
                     {message.queryId && (
                       <span className="flex items-center gap-1">
                         <button
