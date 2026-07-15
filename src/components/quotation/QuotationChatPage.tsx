@@ -19,6 +19,8 @@ interface Message {
   customerName?: string;
   customerLocation?: string;
   quotationId?: string;
+  queryId?: number;
+  feedback?: 1 | -1;
 }
 
 type ConversationState = 'initial' | 'follow-up' | 'blocked';
@@ -58,6 +60,22 @@ const QuotationChatPage: React.FC = () => {
       sessionStorage.setItem('quotation_chat_messages', JSON.stringify(messages));
     }
   }, [messages]);
+
+  const handleFeedback = async (messageId: string, queryId: number, feedback: 1 | -1) => {
+    // Optimistic: feedback is advisory telemetry, a lost vote is acceptable
+    setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, feedback } : m)));
+    try {
+      await apiRequest(`/queries/${queryId}/feedback`, {
+        method: 'POST',
+        body: JSON.stringify({ feedback }),
+      });
+    } catch (err) {
+      // Roll back the optimistic vote so the buttons re-enable and a phantom
+      // vote is never persisted to sessionStorage.
+      setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, feedback: undefined } : m)));
+      console.error('Failed to submit feedback:', err);
+    }
+  };
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -144,7 +162,8 @@ const QuotationChatPage: React.FC = () => {
         timestamp: new Date(),
         customerName: customerName || undefined,
         customerLocation: customerLocation || undefined,
-        quotationId: quotationId
+        quotationId: quotationId,
+        queryId: response.query_id
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -687,9 +706,31 @@ const QuotationChatPage: React.FC = () => {
                       );
                     })()}
                   </div>
-                  <span className="text-[10px] text-gray-400 mt-1 font-normal sm:text-xs">
-                    {dayjs(message.timestamp).format('HH:mm')}
-                  </span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] text-gray-400 font-normal sm:text-xs">
+                      {dayjs(message.timestamp).format('HH:mm')}
+                    </span>
+                    {message.queryId && (
+                      <span className="flex items-center gap-1">
+                        <button
+                          title="Cotización útil"
+                          disabled={message.feedback !== undefined}
+                          onClick={() => handleFeedback(message.id, message.queryId!, 1)}
+                          className={`text-xs px-1.5 py-0.5 rounded hover:bg-gray-100 disabled:cursor-default ${message.feedback === 1 ? 'opacity-100' : message.feedback !== undefined ? 'opacity-25' : 'opacity-60 hover:opacity-100'}`}
+                        >
+                          👍
+                        </button>
+                        <button
+                          title="Cotización con errores"
+                          disabled={message.feedback !== undefined}
+                          onClick={() => handleFeedback(message.id, message.queryId!, -1)}
+                          className={`text-xs px-1.5 py-0.5 rounded hover:bg-gray-100 disabled:cursor-default ${message.feedback === -1 ? 'opacity-100' : message.feedback !== undefined ? 'opacity-25' : 'opacity-60 hover:opacity-100'}`}
+                        >
+                          👎
+                        </button>
+                      </span>
+                    )}
+                  </div>
                 </>
               )}
             </div>
