@@ -16,11 +16,11 @@ interface RoadmapItem {
 
 const PHASE_LABELS: Record<number, string> = {
   0: '✅ Ya construido',
-  1: 'Fase 1 — Fundaciones de datos',
-  2: 'Fase 2 — Columna vertebral',
-  3: 'Fase 3 — Valor derivado',
-  4: 'Fase 4 — Operaciones + contenido',
-  5: 'Fase 5 — Métricas',
+  1: 'Fase 1 — Fundación',
+  2: 'Fase 2 — Rebanadas de valor (sem. 1-6)',
+  3: 'Fase 3 — Finanzas operativas',
+  4: 'Fase 4 — Operaciones + agente sobre datos',
+  5: 'Fase 5 — Diferido / opcional',
 };
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
