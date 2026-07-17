@@ -15,7 +15,8 @@ import {
   Music,
   FileBarChart,
   MessageCircle,
-  Map as MapIcon
+  Map as MapIcon,
+  UserCircle
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
 
   const navigationItems = [
     { path: '/tasks', label: 'Tareas', icon: <CheckSquare size={20} /> },
+    { path: '/customers', label: 'Clientes', icon: <UserCircle size={20} /> },
     { path: '/quotes', label: 'Cotizaciones B2B', icon: <FileBarChart size={20} /> },
     { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
     { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },

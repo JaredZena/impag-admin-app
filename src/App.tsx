@@ -22,6 +22,7 @@ import QuoteDetailPage from './components/quotes/QuoteDetailPage';
 import FilesPage from './components/files/FilesPage';
 import WhatsAppQueuePage from './components/whatsapp/WhatsAppQueuePage';
 import RoadmapPage from './components/roadmap/RoadmapPage';
+import CustomersPage from './components/customers/CustomersPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
@@ -103,6 +104,7 @@ const AppContent: React.FC = () => {
           <Route path="/files" element={<FilesPage />} />
           <Route path="/whatsapp" element={<WhatsAppQueuePage />} />
           <Route path="/roadmap" element={<RoadmapPage />} />
+          <Route path="/customers" element={<CustomersPage />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
       </ProtectedRoute>
