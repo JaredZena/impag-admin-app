@@ -134,6 +134,11 @@ export default function WhatsAppQueuePage() {
                     </span>
                     <span className="text-[10px] text-gray-400">{d.customer_phone}</span>
                   </div>
+                  {d.ai_context?.startsWith('Seguimiento') && (
+                    <span className="inline-block mt-1 text-[9px] font-medium text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                      🔔 Seguimiento de cotización
+                    </span>
+                  )}
                   <p className="text-xs text-gray-500 mt-1 line-clamp-2">{d.draft_text}</p>
                 </button>
               ))}
@@ -178,7 +183,9 @@ export default function WhatsAppQueuePage() {
 
                   {selected.ai_context && (
                     <details className="mt-2 text-[11px] text-gray-500">
-                      <summary className="cursor-pointer">Contexto de producto usado</summary>
+                      <summary className="cursor-pointer">
+                        {selected.ai_context.startsWith('Seguimiento') ? 'Motivo del seguimiento' : 'Contexto de producto usado'}
+                      </summary>
                       <pre className="whitespace-pre-wrap mt-1">{selected.ai_context}</pre>
                     </details>
                   )}
