@@ -16,7 +16,8 @@ import {
   FileBarChart,
   MessageCircle,
   Map as MapIcon,
-  UserCircle
+  UserCircle,
+  Megaphone
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
     { path: '/whatsapp', label: 'WhatsApp', icon: <MessageCircle size={20} /> },
     { path: '/roadmap', label: 'Roadmap', icon: <MapIcon size={20} /> },
     { path: '/social-calendar', label: 'Calendario Social', icon: <Calendar size={20} /> },
+    { path: '/campaigns', label: 'Campañas', icon: <Megaphone size={20} /> },
     { path: '/tiktok', label: 'TikTok Studio', icon: <Music size={20} /> },
   ];
 

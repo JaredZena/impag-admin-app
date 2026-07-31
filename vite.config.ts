@@ -57,6 +57,11 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: true,
       },
+      "/campaigns": {
+        target: "https://jviqbiahqd.us-east-1.awsapprunner.com",
+        changeOrigin: true,
+        secure: true,
+      },
     },
     hmr: {
       overlay: true,

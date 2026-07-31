@@ -23,6 +23,8 @@ import FilesPage from './components/files/FilesPage';
 import WhatsAppQueuePage from './components/whatsapp/WhatsAppQueuePage';
 import RoadmapPage from './components/roadmap/RoadmapPage';
 import CustomersPage from './components/customers/CustomersPage';
+import CampaignsPage from './components/campaigns/CampaignsPage';
+import CampaignDetailPage from './components/campaigns/CampaignDetailPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
@@ -97,6 +99,8 @@ const AppContent: React.FC = () => {
           <Route path="/quotes/new" element={<QuoteForm />} />
           <Route path="/quotes/:id" element={<QuoteDetailPage />} />
           <Route path="/social-calendar" element={<SocialCalendarPage />} />
+          <Route path="/campaigns" element={<CampaignsPage />} />
+          <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
           <Route path="/tiktok" element={<TikTokPage />} />
           <Route path="/quotation-upload" element={<QuotationUploadPage />} />
           <Route path="/quotation-chat" element={<QuotationChatPage />} />
