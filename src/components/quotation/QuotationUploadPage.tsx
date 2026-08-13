@@ -34,6 +34,9 @@ interface MultiSupplierDetectionInfo {
 interface ProcessingResult {
   suppliers: { [key: string]: SupplierInfo };
   products_processed: number;
+  products_created?: number;   // rows actually inserted
+  products_matched?: number;   // already existed (same name) — cost refreshed
+  products_failed?: number;    // errored and skipped (see errors)
   supplier_products_created: number;
   supplier_product_ids: number[];  // List of created supplier product IDs for reassignment
   supplier_detection: MultiSupplierDetectionInfo;
@@ -44,7 +47,9 @@ interface ProcessingResult {
     base_sku: string;
     ai_suggested: string;
     category_id: number;
+    status?: 'created' | 'matched';
   }>;
+  errors?: Array<{ product_name: string; error: string }>;
 }
 
 const QuotationUploadPage: React.FC = () => {
@@ -673,11 +678,25 @@ Ejemplos válidos:
               <h2 className="text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent mb-3">
                 ¡Procesamiento Completado!
               </h2>
-              <p className="text-lg text-gray-600">Tu contenido ha sido procesado exitosamente con IA</p>
+              <p className="text-lg text-gray-600">
+                {(() => {
+                  const created = result.products_created ?? result.supplier_products_created;
+                  const matched = result.products_matched ?? 0;
+                  const failed = result.products_failed ?? 0;
+                  if (created === 0 && matched > 0 && failed === 0) {
+                    return 'Todos los productos ya existían en la base de datos — precios actualizados donde el documento traía precio';
+                  }
+                  const parts: string[] = [];
+                  if (created > 0) parts.push(`${created} producto${created === 1 ? '' : 's'} nuevo${created === 1 ? '' : 's'} agregado${created === 1 ? '' : 's'}`);
+                  if (matched > 0) parts.push(`${matched} ya existente${matched === 1 ? '' : 's'}`);
+                  if (failed > 0) parts.push(`${failed} con error`);
+                  return parts.length > 0 ? parts.join(', ') : 'Tu contenido ha sido procesado exitosamente con IA';
+                })()}
+              </p>
             </div>
-            
+
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 hover:scale-105 transition-transform duration-200">
                 <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mx-auto mb-3">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -687,27 +706,58 @@ Ejemplos válidos:
                 <div className="text-3xl font-bold text-blue-800 mb-1">{Object.keys(result.suppliers).length}</div>
                 <div className="text-sm font-medium text-blue-700">Proveedores Detectados</div>
               </div>
-              
+
               <div className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl border border-green-200 hover:scale-105 transition-transform duration-200">
                 <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center mx-auto mb-3">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                 </div>
-                <div className="text-3xl font-bold text-green-800 mb-1">{result.products_processed}</div>
-                <div className="text-sm font-medium text-green-700">Productos Procesados</div>
+                <div className="text-3xl font-bold text-green-800 mb-1">{result.products_created ?? result.supplier_products_created}</div>
+                <div className="text-sm font-medium text-green-700">Productos Nuevos</div>
               </div>
-              
+
               <div className="text-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl border border-purple-200 hover:scale-105 transition-transform duration-200">
                 <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center mx-auto mb-3">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                   </svg>
                 </div>
-                <div className="text-3xl font-bold text-purple-800 mb-1">{result.supplier_products_created}</div>
-                <div className="text-sm font-medium text-purple-700">Relaciones Creadas</div>
+                <div className="text-3xl font-bold text-purple-800 mb-1">{result.products_matched ?? 0}</div>
+                <div className="text-sm font-medium text-purple-700">Ya Existentes</div>
+              </div>
+
+              <div className={`text-center p-6 rounded-2xl border hover:scale-105 transition-transform duration-200 ${
+                (result.products_failed ?? 0) > 0
+                  ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-200'
+                  : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200'
+              }`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 ${
+                  (result.products_failed ?? 0) > 0 ? 'bg-red-500' : 'bg-gray-400'
+                }`}>
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div className={`text-3xl font-bold mb-1 ${(result.products_failed ?? 0) > 0 ? 'text-red-800' : 'text-gray-500'}`}>{result.products_failed ?? 0}</div>
+                <div className={`text-sm font-medium ${(result.products_failed ?? 0) > 0 ? 'text-red-700' : 'text-gray-500'}`}>Con Error</div>
               </div>
             </div>
+
+            {/* Failed products detail */}
+            {(result.errors?.length ?? 0) > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-red-800 mb-3">Productos con Error (no guardados)</h3>
+                <div className="space-y-2">
+                  {result.errors!.map((err, index) => (
+                    <div key={index} className="p-4 bg-red-50 rounded-lg border-l-4 border-red-500">
+                      <div className="font-medium text-red-900">{err.product_name}</div>
+                      <div className="text-sm text-red-700 mt-1">{err.error}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Suppliers Summary */}
             <div className="mb-6">
@@ -741,8 +791,17 @@ Ejemplos válidos:
                 <h3 className="text-lg font-medium text-gray-800 mb-3">Productos Creados/Actualizados</h3>
                 <div className="space-y-3 mb-6">
                   {result.skus_generated.map((product, index) => (
-                    <div key={index} className="p-4 bg-gray-50 rounded-lg border-l-4 border-green-500">
-                      <div className="font-medium text-gray-800">{product.product_name}</div>
+                    <div key={index} className={`p-4 bg-gray-50 rounded-lg border-l-4 ${product.status === 'matched' ? 'border-purple-400' : 'border-green-500'}`}>
+                      <div className="font-medium text-gray-800 flex items-center gap-2">
+                        {product.product_name}
+                        {product.status && (
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            product.status === 'created' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {product.status === 'created' ? 'Nuevo' : 'Ya existía'}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-600 mt-1">
                         SKU: {product.variant_sku} | Base: {product.base_sku}
                       </div>
