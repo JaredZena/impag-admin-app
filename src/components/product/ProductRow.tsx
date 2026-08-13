@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '@/utils/dateUtils';
 import { apiRequest } from '@/utils/api';
 import { formatCurrency } from '@/utils/currencyUtils';
+import { useNotifications } from '@/components/ui/notification';
 
 export interface ProductRowProps {
   id: string | number;
@@ -22,6 +23,7 @@ export interface ProductRowProps {
   categoryId?: number;
   categoryOptions?: { value: string; label: string }[];
   currency?: string;
+  isCalculatedPrice?: boolean;
   onUpdate?: (updatedData: any) => void;
   // Add more fields as needed
 }
@@ -41,35 +43,116 @@ const ProductRow: React.FC<ProductRowProps> = ({
   categoryId,
   categoryOptions = [],
   currency,
+  isCalculatedPrice,
   onUpdate
 }) => {
   const navigate = useNavigate();
+  const { addNotification } = useNotifications();
   const formattedDate = formatDate(lastUpdated || createdAt);
-  
+
   // State for inline editing
   const [editingStock, setEditingStock] = useState(false);
   const [editingCategory, setEditingCategory] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
   const [tempStock, setTempStock] = useState(stock?.toString() || '0');
   const [tempCategoryId, setTempCategoryId] = useState(categoryId?.toString() || '');
+  const [tempPrice, setTempPrice] = useState(price?.toString() || '');
   const [saving, setSaving] = useState(false);
+
+  // Closing an editor via blur (click-away) must not let the same click
+  // navigate to the detail page — the blur flushes state before the click
+  // handler runs, so guard by close time instead.
+  const editorCloseGuardRef = useRef(0);
+  const markEditorClosed = () => {
+    editorCloseGuardRef.current = Date.now();
+  };
+
+  // Handle selling-price update (Product.price — the price quotes and the
+  // storefront publish; distinct from supplier cost)
+  const handlePriceUpdate = async () => {
+    if (saving) return;
+    markEditorClosed();
+
+    const newPrice = parseFloat(tempPrice);
+    if (Number.isNaN(newPrice) || newPrice < 0) {
+      setEditingPrice(false);
+      setTempPrice(price?.toString() || '');
+      return;
+    }
+    // A "calculated" price has Product.price = NULL: re-typing the same number
+    // pins it as the fixed selling price, so it must NOT be treated as a no-op.
+    if (!isCalculatedPrice && price != null && newPrice === price) {
+      setEditingPrice(false);
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const response = await apiRequest(`/products/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ price: newPrice })
+      });
+
+      setEditingPrice(false);
+
+      if (response.success) {
+        if (onUpdate) {
+          onUpdate({
+            id,
+            price: newPrice,
+            isCalculatedPrice: false,
+            lastUpdated: new Date().toISOString()
+          });
+        }
+      } else {
+        addNotification({
+          type: 'error',
+          title: 'Error al guardar precio',
+          message: response.error || 'No se pudo actualizar el precio',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error updating price:', error);
+      addNotification({
+        type: 'error',
+        title: 'Error al guardar precio',
+        message: error?.message || 'No se pudo actualizar el precio',
+      });
+      setTempPrice(price?.toString() || '');
+    } finally {
+      setSaving(false);
+    }
+  };
   
   // Handle stock update
   const handleStockUpdate = async () => {
     if (saving) return;
-    
+    markEditorClosed();
+
     const newStock = parseInt(tempStock) || 0;
     if (newStock === stock) {
       setEditingStock(false);
       return;
     }
-    
+
     try {
       setSaving(true);
-      
-      const response = await apiRequest(`/products/${id}/stock?stock=${newStock}`, {
-        method: 'PATCH'
+
+      // NOT PATCH /products/{id}/stock: that endpoint now takes a
+      // supplier_product id, so calling it with a Product id would overwrite
+      // an unrelated supplier record.
+      const response = await apiRequest(`/products/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ stock: newStock })
       });
-      
+
       setEditingStock(false);
       
       if (response.success && onUpdate) {
@@ -130,7 +213,10 @@ const ProductRow: React.FC<ProductRowProps> = ({
 
   const handleRowClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on inputs, selects, or if we're editing
-    if ((e.target as HTMLElement).closest('input, select') || editingStock || editingCategory) {
+    if ((e.target as HTMLElement).closest('input, select') || editingStock || editingCategory || editingPrice) {
+      return;
+    }
+    if (Date.now() - editorCloseGuardRef.current < 300) {
       return;
     }
     navigate(`/product-admin/${id}`);
@@ -168,15 +254,54 @@ const ProductRow: React.FC<ProductRowProps> = ({
         </div>
       </td>
       
-      {/* Price - Always visible */}
+      {/* Selling price - Always visible with inline editing */}
       <td className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
-        <div className="text-sm sm:text-base font-semibold text-gray-900">
-          {price != null ? formatCurrency(price, currency) : 'N/A'}
-        </div>
-        {/* Currency indicator - shows currency for calculated prices */}
-        {currency && (
-          <div className="text-xs text-gray-500 mt-1">
-            {currency}
+        {editingPrice ? (
+          <Input
+            type="number"
+            value={tempPrice}
+            onChange={(e) => setTempPrice(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handlePriceUpdate();
+              }
+              if (e.key === 'Escape') {
+                markEditorClosed();
+                setEditingPrice(false);
+                setTempPrice(price?.toString() || '');
+              }
+            }}
+            onBlur={handlePriceUpdate}
+            className="w-28 h-8 text-sm"
+            min="0"
+            step="0.01"
+            disabled={saving}
+            autoFocus
+          />
+        ) : (
+          <div
+            className="flex items-center cursor-pointer hover:bg-gray-100 rounded px-2 py-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              setTempPrice(price?.toString() || '');
+              setEditingPrice(true);
+            }}
+          >
+            <div>
+              <div className="text-sm sm:text-base font-semibold text-gray-900">
+                {price != null ? formatCurrency(price, currency) : 'N/A'}
+              </div>
+              {(currency || isCalculatedPrice) && (
+                <div className="text-xs text-gray-500 mt-1">
+                  {currency}
+                  {isCalculatedPrice ? ' · calculado' : ''}
+                </div>
+              )}
+            </div>
+            <svg className="w-3 h-3 ml-1 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
           </div>
         )}
       </td>
@@ -194,6 +319,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
                 handleStockUpdate();
               }
               if (e.key === 'Escape') {
+                markEditorClosed();
                 setEditingStock(false);
                 setTempStock(stock?.toString() || '0');
               }
@@ -240,11 +366,16 @@ const ProductRow: React.FC<ProductRowProps> = ({
               const newValue = e.target.value;
               setTempCategoryId(newValue);
               handleCategoryUpdate(newValue);
+              markEditorClosed();
               setEditingCategory(false);
             }}
-            onBlur={() => setEditingCategory(false)}
+            onBlur={() => {
+              markEditorClosed();
+              setEditingCategory(false);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
+                markEditorClosed();
                 setEditingCategory(false);
                 setTempCategoryId(categoryId?.toString() || '');
               }

@@ -10,10 +10,11 @@ export interface ProductTableProps {
   hasFilters?: boolean;
   onAddProduct?: () => void;
   totalCount?: number;
+  hasMore?: boolean;
   // For future: pagination, sorting, loading, etc.
 }
 
-const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, hasFilters = false, onAddProduct, totalCount = 0 }) => {
+const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, hasFilters = false, onAddProduct, totalCount = 0, hasMore = false }) => {
   // Show skeleton loader when loading and no products yet
   if (loading && products.length === 0) {
     return <ProductTableSkeleton />;
@@ -28,7 +29,7 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-4V8a1 1 0 00-1-1H7a1 1 0 00-1 1v1m0 4h.01" />
           </svg>
           <span className="text-sm sm:text-lg">Productos</span>
-          <span className="ml-2 text-xs sm:text-sm font-normal text-gray-500">({totalCount})</span>
+          <span className="ml-2 text-xs sm:text-sm font-normal text-gray-500">({totalCount}{hasMore ? '+' : ''})</span>
         </h3>
       </div>
 
@@ -36,7 +37,7 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, 
         <thead>
           <tr className="bg-gradient-to-r from-gray-50 to-green-50 border-b border-green-100">
             <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Nombre</th>
-            <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Precio</th>
+            <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Precio de venta</th>
             <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Stock</th>
             <th className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Unidad</th>
             <th className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Categoría</th>

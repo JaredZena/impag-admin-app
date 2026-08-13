@@ -17,7 +17,8 @@ import {
   MessageCircle,
   Map as MapIcon,
   UserCircle,
-  Megaphone
+  Megaphone,
+  Tag
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
     { path: '/customers', label: 'Clientes', icon: <UserCircle size={20} /> },
     { path: '/quotes', label: 'Cotizaciones B2B', icon: <FileBarChart size={20} /> },
     { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
+    { path: '/product-admin', label: 'Precios de venta', icon: <Tag size={20} /> },
     { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
     { path: '/quotation-history', label: 'Cotizaciones', icon: <FileText size={20} /> },
     { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },

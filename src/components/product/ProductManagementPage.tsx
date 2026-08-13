@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ProductSearchBar from './ProductSearchBar';
 import ProductTable from './ProductTable';
@@ -8,6 +8,7 @@ import { apiRequest } from '@/utils/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import CSVExportModal from './CSVExportModal';
+import PublishStorefrontButton from './PublishStorefrontButton';
 import { ColumnOption, convertToCSV, downloadCSV } from '@/utils/csvExport';
 
 const PAGE_SIZE = 50;
@@ -28,15 +29,13 @@ const ProductManagementPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [skip, setSkip] = useState(0);
-  const [filters, setFilters] = useState({ 
-    name: searchParams.get('name') || '', 
-    category: searchParams.get('category') || '', 
-    supplier: searchParams.get('supplier') || '', 
-    stockFilter: searchParams.get('stockFilter') || '',
-    currencyFilter: searchParams.get('currencyFilter') || ''
+  const [filters, setFilters] = useState({
+    name: searchParams.get('name') || '',
+    category: searchParams.get('category') || '',
+    supplier: searchParams.get('supplier') || '',
+    stockFilter: searchParams.get('stockFilter') || ''
   });
   const [optionsLoaded, setOptionsLoaded] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'last_updated' | 'category_name' | 'price'>((searchParams.get('sortBy') as any) || 'name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>((searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -54,39 +53,6 @@ const ProductManagementPage: React.FC = () => {
       setSortOrder('asc');
     }
   };
-
-  // Function to fetch total product count
-  const fetchTotalCount = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filters.name) params.append('name', filters.name);
-      if (filters.category) params.append('category_id', filters.category);
-      if (filters.supplier) params.append('supplier_id', filters.supplier);
-      params.append('limit', '1'); // We only need the count, so limit to 1
-      
-      const url = `/products?${params.toString()}`;
-      const response = await apiRequest(url);
-      
-      // The backend should return total count in the response
-      // If not available, we'll need to make a separate count endpoint
-      if (response.total_count !== undefined) {
-        setTotalCount(response.total_count);
-      } else {
-        // Fallback: get all products to count them (not ideal for performance)
-        const allParams = new URLSearchParams();
-        if (filters.name) allParams.append('name', filters.name);
-        if (filters.category) allParams.append('category_id', filters.category);
-        if (filters.supplier) allParams.append('supplier_id', filters.supplier);
-        allParams.append('limit', '10000'); // High limit to get all
-        
-        const allResponse = await apiRequest(`/products?${allParams.toString()}`);
-        setTotalCount((allResponse.data || []).length);
-      }
-    } catch (err) {
-      console.error('Error fetching total count:', err);
-      setTotalCount(0);
-    }
-  }, [filters]);
 
   // Fetch categories and suppliers on mount
   useEffect(() => {
@@ -121,7 +87,7 @@ const ProductManagementPage: React.FC = () => {
       return {
         id: p.id,
         name: p.name || 'Unnamed Product',
-        price: p.price || null,
+        price: p.price ?? null,
         stock: p.stock || 0,
         unit: p.unit || 'N/A',
         category: categoryName,
@@ -135,6 +101,7 @@ const ProductManagementPage: React.FC = () => {
         categoryOptions: categoryOpts,
         // Use the currency from the API response (for calculated prices) or default to MXN
         currency: p.currency || 'MXN',
+        isCalculatedPrice: !!p.is_calculated_price,
         onUpdate: (updatedData: any) => {
           // Update only the specific product in the list without full rerender
           setProducts(prev => prev.map(product => 
@@ -153,7 +120,6 @@ const ProductManagementPage: React.FC = () => {
     if (filters.category) params.set('category', filters.category);
     if (filters.supplier) params.set('supplier', filters.supplier);
     if (filters.stockFilter) params.set('stockFilter', filters.stockFilter);
-    if (filters.currencyFilter) params.set('currencyFilter', filters.currencyFilter);
     if (sortBy !== 'name') params.set('sortBy', sortBy);
     if (sortOrder !== 'asc') params.set('sortOrder', sortOrder);
     
@@ -171,7 +137,7 @@ const ProductManagementPage: React.FC = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       // Allow search to happen immediately if user is searching/filtering
-      if (!optionsLoaded && filters.name === '' && filters.category === '' && filters.supplier === '' && filters.stockFilter === '' && filters.currencyFilter === '') {
+      if (!optionsLoaded && filters.name === '' && filters.category === '' && filters.supplier === '' && filters.stockFilter === '') {
         // Only wait for options to load on initial page load with no filters
         return;
       }
@@ -183,8 +149,7 @@ const ProductManagementPage: React.FC = () => {
         if (filters.name) params.append('name', filters.name);
         if (filters.category) params.append('category_id', filters.category);
         if (filters.supplier) params.append('supplier_id', filters.supplier);
-        if (filters.currencyFilter) params.append('currency', filters.currencyFilter);
-        
+
         // Handle stock filter
         if (filters.stockFilter) {
           switch (filters.stockFilter) {
@@ -223,8 +188,7 @@ const ProductManagementPage: React.FC = () => {
     };
 
     fetchProducts();
-    fetchTotalCount(); // Also fetch total count when filters change
-  }, [filters, sortBy, sortOrder, optionsLoaded, categoryOptions, mapProducts, fetchTotalCount]);
+  }, [filters, sortBy, sortOrder, optionsLoaded, categoryOptions, mapProducts]);
 
   // Load more products (infinite scroll)
   const loadMore = useCallback(async () => {
@@ -292,21 +256,25 @@ const ProductManagementPage: React.FC = () => {
     onLoadMore: loadMore,
   });
 
-  // Handlers for search/filter changes
-  const handleNameChange = (v: string) => setFilters(f => ({ ...f, name: v }));
+  // Handlers for search/filter changes. The name input updates local state
+  // immediately but debounces the fetch — each keystroke otherwise fires a
+  // fuzzy-search request at the backend.
+  const nameDebounceRef = useRef<number | null>(null);
+  const handleNameChange = (v: string) => {
+    setName(v);
+    if (nameDebounceRef.current) window.clearTimeout(nameDebounceRef.current);
+    nameDebounceRef.current = window.setTimeout(() => {
+      setFilters(f => ({ ...f, name: v }));
+    }, 400);
+  };
+  useEffect(() => {
+    return () => {
+      if (nameDebounceRef.current) window.clearTimeout(nameDebounceRef.current);
+    };
+  }, []);
   const handleCategoryChange = (v: string) => setFilters(f => ({ ...f, category: v }));
-  const handleSupplierChange = (v: string) => {
-    console.log('🏭 Supplier filter changed to:', v);
-    setFilters(f => ({ ...f, supplier: v }));
-  };
-  const handleStockFilterChange = (v: string) => {
-    console.log('📦 Stock filter changed to:', v);
-    setFilters(f => ({ ...f, stockFilter: v }));
-  };
-  const handleCurrencyFilterChange = (v: string) => {
-    console.log('💰 Currency filter changed to:', v);
-    setFilters(f => ({ ...f, currencyFilter: v }));
-  };
+  const handleSupplierChange = (v: string) => setFilters(f => ({ ...f, supplier: v }));
+  const handleStockFilterChange = (v: string) => setFilters(f => ({ ...f, stockFilter: v }));
 
   // CSV Export functionality
   const supplierProductColumns: ColumnOption[] = [
@@ -378,7 +346,7 @@ const ProductManagementPage: React.FC = () => {
           params.append('search', filters.name);
         }
 
-        const response = await apiRequest(`/supplier-products?${params.toString()}`);
+        const response = await apiRequest(`/products/supplier-products?${params.toString()}`);
         
         if (response.success && response.data?.supplier_products) {
           const products = response.data.supplier_products;
@@ -444,13 +412,13 @@ const ProductManagementPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent mb-2">
-                Gestión de Productos
+                Precios de venta
               </h1>
-              <p className="text-sm sm:text-base text-gray-600">Administra tu catálogo de productos, precios y proveedores</p>
+              <p className="text-sm sm:text-base text-gray-600">
+                Precio de venta por producto — el que usan las cotizaciones y se publica en todoparaelcampo.com.mx
+              </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              {/* Navigation moved to global navigation bar */}
-            </div>
+            <PublishStorefrontButton />
           </div>
           
           {/* Action Buttons */}
@@ -492,16 +460,14 @@ const ProductManagementPage: React.FC = () => {
         {/* Search and Filter Card */}
         <Card className="p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 shadow-lg border-0 rounded-xl">
           <ProductSearchBar
-            name={filters.name}
+            name={name}
             category={filters.category}
             supplier={filters.supplier}
             stockFilter={filters.stockFilter}
-            currencyFilter={filters.currencyFilter}
             onNameChange={handleNameChange}
             onCategoryChange={handleCategoryChange}
             onSupplierChange={handleSupplierChange}
             onStockFilterChange={handleStockFilterChange}
-            onCurrencyFilterChange={handleCurrencyFilterChange}
             categoryOptions={categoryOptions}
             supplierOptions={supplierOptions}
           />
@@ -613,12 +579,13 @@ const ProductManagementPage: React.FC = () => {
           </Card>
         ) : (
           <>
-            <ProductTable 
-              products={products} 
+            <ProductTable
+              products={products}
               loading={loading && products.length === 0}
               hasFilters={!!(filters.name || filters.category || filters.supplier)}
               onAddProduct={() => navigate('/product-admin/new')}
-              totalCount={totalCount}
+              totalCount={products.length}
+              hasMore={hasMore}
             />
             
             {loadingMore && (

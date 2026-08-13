@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProductDetailPage from './components/product/ProductDetailPage';
 import ProductFormPage from './components/product/ProductFormPage';
+import ProductManagementPage from './components/product/ProductManagementPage';
 import StockManagementPage from './components/product/StockManagementPage';
 import SupplierDetailPage from './components/product/SupplierDetailPage';
 import SupplierManagementPage from './components/product/SupplierManagementPage';
@@ -79,6 +80,7 @@ const AppContent: React.FC = () => {
     <>
       <ProtectedRoute>
         <Routes>
+          <Route path="/product-admin" element={<ProductManagementPage />} />
           <Route path="/product-admin/new" element={<ProductFormPage />} />
           <Route path="/product-admin/edit/:productId" element={<ProductFormPage />} />
           <Route path="/product-admin/:productId" element={<ProductDetailPage />} />
