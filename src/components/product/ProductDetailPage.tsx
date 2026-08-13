@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import SuppliersTable, { Supplier } from './SuppliersTable';
 import AddSupplierModal from './AddSupplierModal';
+import ProductImagesSection, { ProductImage } from './ProductImagesSection';
 import { apiRequest } from '@/utils/api';
 import { formatReadableDate } from '@/utils/dateUtils';
 import { formatCurrency } from '@/utils/currencyUtils';
@@ -32,6 +33,8 @@ interface Product {
   currency?: string;
   calculated_price?: number | null;
   is_calculated_price?: boolean;
+  // Product images (presigned URLs, ~1h validity)
+  images?: ProductImage[];
 }
 
 const ProductDetailPage: React.FC = () => {
@@ -761,6 +764,13 @@ const ProductDetailPage: React.FC = () => {
                 </div>
               </Card>
             )}
+
+            {/* Product Images Section */}
+            <ProductImagesSection
+              key={productId}
+              productId={productId!}
+              initialImages={product.images || []}
+            />
 
             {/* Suppliers Section */}
             <div className="space-y-4">

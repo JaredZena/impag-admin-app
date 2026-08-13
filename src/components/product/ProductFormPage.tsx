@@ -598,6 +598,13 @@ const ProductFormPage: React.FC = () => {
               </Button>
             </div>
 
+            {/* Images note - only when creating */}
+            {!isEditing && (
+              <p className="text-xs text-gray-500">
+                Podrás agregar imágenes después de guardar el producto.
+              </p>
+            )}
+
             {/* Danger Zone - Only show when editing */}
             {isEditing && (
               <div className="pt-8 border-t border-red-200">
