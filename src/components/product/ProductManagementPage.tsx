@@ -82,7 +82,8 @@ const ProductManagementPage: React.FC = () => {
   // Helper function to map products with proper category names
   const mapProducts = useCallback((rawProducts: any[], categoryOpts: { value: string; label: string }[]): (ProductRowProps & { description?: string; supplierNames?: string[]; lastUpdated?: string; createdAt?: string; })[] => {
     return rawProducts.map((p: any) => {
-      const categoryName = categoryOpts.find(cat => cat.value === String(p.category_id))?.label || `Category ${p.category_id}` || 'Unknown';
+      const categoryName = categoryOpts.find(cat => cat.value === String(p.category_id))?.label
+        || (p.category_id != null ? `Categoría ${p.category_id}` : 'Sin categoría');
       const supplierNames = (p.suppliers || []).map((s: any) => s.name || s);
       return {
         id: p.id,
