@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Vercel env pulls — never commit env files
+.env.vercel*

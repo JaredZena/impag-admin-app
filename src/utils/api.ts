@@ -1,6 +1,17 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
 
+// Error that preserves the HTTP status code so callers can branch on it (e.g. 503)
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 // Global session expiration handler - will be set by App.tsx
 let sessionExpirationHandler: (() => void) | null = null;
 
@@ -75,7 +86,7 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
       }
     }
     
-    throw new Error(errorMessage);
+    throw new ApiError(errorMessage, response.status);
   }
 
   return response.json();

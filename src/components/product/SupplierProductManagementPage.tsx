@@ -7,6 +7,7 @@ import { apiRequest } from '@/utils/api';
 import { formatCurrency } from '@/utils/currencyUtils';
 import { formatDate } from '@/utils/dateUtils';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import PublishStorefrontButton from './PublishStorefrontButton';
 
 interface Supplier {
   id: number;
@@ -449,6 +450,7 @@ const SupplierProductManagementPage: React.FC = () => {
               </h1>
               <p className="text-gray-600">Gestiona productos y sus relaciones con proveedores, precios y stock</p>
             </div>
+            <PublishStorefrontButton />
           </div>
 
           {/* Search and Filters */}
