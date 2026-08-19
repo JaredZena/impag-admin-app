@@ -24,6 +24,7 @@ import FilesPage from './components/files/FilesPage';
 import WhatsAppQueuePage from './components/whatsapp/WhatsAppQueuePage';
 import RoadmapPage from './components/roadmap/RoadmapPage';
 import CustomersPage from './components/customers/CustomersPage';
+import CustomerDetailPage from './components/customers/CustomerDetailPage';
 import CampaignsPage from './components/campaigns/CampaignsPage';
 import CampaignDetailPage from './components/campaigns/CampaignDetailPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -111,6 +112,7 @@ const AppContent: React.FC = () => {
           <Route path="/whatsapp" element={<WhatsAppQueuePage />} />
           <Route path="/roadmap" element={<RoadmapPage />} />
           <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/customers/:id" element={<CustomerDetailPage />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
       </ProtectedRoute>
