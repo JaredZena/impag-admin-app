@@ -672,6 +672,8 @@ function RecentSalesTable({ years }: { years: number[] }) {
       try {
         const params = new URLSearchParams();
         params.set('limit', '15');
+        // Quarantined rows live in the banner, not in the recent-sales list.
+        params.set('quarantined', 'false');
         if (yearFilter !== null) params.set('year', String(yearFilter));
         const res = (await apiRequest(`/sales?${params.toString()}`)) as SalesListResponse;
         if (!cancelled) setRows(res.items);
