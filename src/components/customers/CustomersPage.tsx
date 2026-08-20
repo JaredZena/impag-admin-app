@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '@/utils/api';
 import MainLayout from '@/components/layout/MainLayout';
 import { useNotifications } from '@/components/ui/notification';
@@ -40,8 +40,17 @@ const TD_CLS = 'px-3 py-2.5 sm:px-4 sm:py-3';
 export default function CustomersPage() {
   const { addNotification } = useNotifications();
   const navigate = useNavigate();
-  const [q, setQ] = useState('');
-  const [debouncedQ, setDebouncedQ] = useState('');
+  // Seed the search from ?q= so other pages (e.g. the Ventas dashboard) can
+  // deep-link a filtered list — and re-sync when the URL changes without a
+  // remount (sidebar click, Back button).
+  const [searchParams] = useSearchParams();
+  const urlQ = searchParams.get('q') ?? '';
+  const [q, setQ] = useState(urlQ);
+  const [debouncedQ, setDebouncedQ] = useState(urlQ);
+  useEffect(() => {
+    setQ(urlQ);
+    setDebouncedQ(urlQ);
+  }, [urlQ]);
   const [source, setSource] = useState('');
   const [onlyPurchased, setOnlyPurchased] = useState(false);
   const [onlySV, setOnlySV] = useState(false);
