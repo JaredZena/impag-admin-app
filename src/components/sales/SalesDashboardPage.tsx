@@ -33,17 +33,64 @@ interface TopCustomerRow {
   count: number;
 }
 
+interface MarginYearRow {
+  year: number;
+  revenue: number;
+  cost: number;
+  margin: number;
+  margin_pct: number | null;
+  count: number;
+}
+
+interface MarginsBlock {
+  reconciled_count: number;
+  reconciled_revenue: number;
+  reconciled_cost: number;
+  margin_total: number;
+  margin_pct: number | null;
+  by_year: MarginYearRow[];
+  status_counts: Record<string, number>;
+}
+
 interface SalesStats {
   monthly: MonthlyPoint[];
   by_payment_method: Record<string, PaymentBucket>;
   by_concept: ConceptRow[];
   top_customers: TopCustomerRow[];
+  margins?: MarginsBlock; // absent until the backend deploy lands
   delivery_pending: { count: number; total: number };
   invoice_pending_registration: { count: number; total: number };
   quarantined: { count: number };
   grand_total: number;
   ytd_total: number;
   label: string;
+}
+
+interface MarginRow {
+  id: number;
+  tab_title: string;
+  folios: string[];
+  folio_month: string | null;
+  customer_name: string | null;
+  item_count: number;
+  cost_subtotal: number | null;
+  shipping_total: number | null;
+  cost_total: number | null;
+  sheet_sale_total: number | null;
+  sheet_profit: number | null;
+  ledger_revenue: number | null;
+  margin_amount: number | null;
+  margin_pct: number | null;
+  match_status: string;
+  recon_delta: number | null;
+  synced_at: string | null;
+}
+
+interface MarginsListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: MarginRow[];
 }
 
 interface SaleRow {
@@ -524,6 +571,250 @@ function BarList({ items, emptyMessage }: { items: BarItem[]; emptyMessage: stri
 }
 
 // ---------------------------------------------------------------------------
+// Margen por venta (BALANCES DE VENTA)
+// ---------------------------------------------------------------------------
+
+const MARGIN_STATUS_META: Record<string, { label: string; cls: string }> = {
+  reconciled: { label: 'Conciliada', cls: 'bg-green-50 text-green-700 border border-green-200' },
+  unverified: { label: 'Sin verificar', cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  mismatch: { label: 'No cuadra', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  no_ledger_match: { label: 'Sin venta ligada', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
+  orphan: { label: 'Sin folio', cls: 'bg-gray-100 text-gray-600 border border-gray-200' },
+  duplicate: { label: 'Duplicada', cls: 'bg-gray-100 text-gray-600 border border-gray-200' },
+};
+
+const REVIEW_STATUSES = new Set(['mismatch', 'no_ledger_match', 'orphan', 'duplicate']);
+
+function MarginStatusPill({ status }: { status: string }) {
+  const meta = MARGIN_STATUS_META[status] ?? { label: status, cls: 'bg-gray-100 text-gray-600 border border-gray-200' };
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${meta.cls}`}>
+      {meta.label}
+    </span>
+  );
+}
+
+const marginPctClass = (pct: number): string => {
+  if (pct < 0) return 'text-red-700';
+  if (pct < 15) return 'text-amber-700';
+  if (pct >= 30) return 'text-green-700';
+  return 'text-gray-900';
+};
+
+const monthYearLabel = (iso: string | null): string => {
+  if (!iso) return '—';
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+};
+
+function MarginSection({ margins }: { margins: MarginsBlock }) {
+  const { addNotification } = useNotifications();
+  const [rows, setRows] = useState<MarginRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<'reconciled' | 'review' | null>(null);
+  const [yearFilter, setYearFilter] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = (await apiRequest('/sales/margins?limit=200')) as MarginsListResponse;
+        if (!cancelled) setRows(res.items);
+      } catch {
+        if (cancelled) return;
+        addNotification({
+          type: 'error',
+          title: 'Error al cargar márgenes',
+          message: 'No se pudieron cargar los márgenes por venta. Intenta de nuevo.',
+        });
+        setRows([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [addNotification]);
+
+  const reviewCount = Object.entries(margins.status_counts)
+    .filter(([status]) => REVIEW_STATUSES.has(status))
+    .reduce((acc, [, count]) => acc + count, 0);
+
+  const years = [...new Set(
+    (rows ?? [])
+      .map((r) => (r.folio_month ? Number(r.folio_month.slice(0, 4)) : null))
+      .filter((y): y is number => y !== null),
+  )].sort((a, b) => b - a);
+
+  const filtered = (rows ?? []).filter((r) => {
+    if (statusFilter === 'reconciled' && r.match_status !== 'reconciled') return false;
+    if (statusFilter === 'review' && !REVIEW_STATUSES.has(r.match_status)) return false;
+    if (yearFilter !== null && (!r.folio_month || Number(r.folio_month.slice(0, 4)) !== yearFilter)) return false;
+    return true;
+  });
+  const visible = showAll ? filtered : filtered.slice(0, 15);
+
+  const statusFilters: { value: 'reconciled' | 'review' | null; label: string }[] = [
+    { value: null, label: 'Todas' },
+    { value: 'reconciled', label: `Conciliadas (${margins.status_counts.reconciled ?? 0})` },
+    { value: 'review', label: `Por revisar (${reviewCount})` },
+  ];
+
+  return (
+    <Card title="Margen por venta">
+      <p className="text-xs text-gray-500 -mt-2 mb-4">
+        Costo real por venta desde el sheet BALANCES DE VENTA, cruzado por folio con el
+        ledger. Solo las ventas conciliadas (el total del balance cuadra con la venta
+        registrada) cuentan en el margen global.
+      </p>
+
+      {/* Summary strip */}
+      <div className="flex flex-wrap gap-x-8 gap-y-3 mb-4">
+        <div>
+          <p className="text-xs text-gray-500">Margen bruto conciliado</p>
+          <p className="text-2xl font-bold text-gray-900">
+            {margins.margin_pct !== null ? `${margins.margin_pct.toFixed(1)}%` : '—'}
+            <span className="ml-2 text-sm font-medium text-gray-500">{fmtMXN(margins.margin_total)}</span>
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {margins.reconciled_count} ventas · ingreso {fmtMXN(margins.reconciled_revenue)}
+          </p>
+        </div>
+        {margins.by_year.map((y) => (
+          <div key={y.year}>
+            <p className="text-xs text-gray-500">{y.year}</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {y.margin_pct !== null ? `${y.margin_pct.toFixed(1)}%` : '—'}
+            </p>
+            <p className="text-xs text-gray-500">{fmtMXN(y.margin)}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+          {statusFilters.map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              onClick={() => setStatusFilter(f.value)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                statusFilter === f.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {years.length > 1 && (
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+            {[{ value: null as number | null, label: 'Todos' }, ...years.map((y) => ({ value: y as number | null, label: String(y) }))].map((f) => (
+              <button
+                key={f.label}
+                type="button"
+                onClick={() => setYearFilter(f.value)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  yearFilter === f.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="space-y-3 py-2">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-5 w-full" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState message="No hay balances para este filtro" />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Folio</th>
+                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Mes</th>
+                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Cliente</th>
+                <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">Ingreso</th>
+                <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">Costo</th>
+                <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">Margen</th>
+                <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">%</th>
+                <th className="text-left text-xs font-medium text-gray-500 py-2">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((r) => {
+                const revenue = r.ledger_revenue ?? r.sheet_sale_total;
+                return (
+                  <tr key={r.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-2.5 pr-3 font-mono text-xs text-gray-600 whitespace-nowrap" title={r.tab_title}>
+                      {r.folios.length > 0 ? r.folios.join(', ') : r.tab_title}
+                    </td>
+                    <td className="py-2.5 pr-3 text-sm text-gray-600 whitespace-nowrap">{monthYearLabel(r.folio_month)}</td>
+                    <td className="py-2.5 pr-3 text-sm text-gray-900 max-w-[160px] truncate" title={r.customer_name ?? undefined}>
+                      {r.customer_name ?? '—'}
+                    </td>
+                    <td className="py-2.5 pr-3 text-sm text-gray-900 text-right whitespace-nowrap">
+                      {revenue !== null ? fmtMXNExact(revenue) : '—'}
+                    </td>
+                    <td className="py-2.5 pr-3 text-sm text-gray-600 text-right whitespace-nowrap">
+                      {r.cost_total !== null ? fmtMXNExact(r.cost_total) : '—'}
+                    </td>
+                    <td className="py-2.5 pr-3 text-sm font-medium text-right whitespace-nowrap">
+                      {r.margin_amount !== null ? (
+                        <span className={marginPctClass(r.margin_pct ?? 0)}>{fmtMXNExact(r.margin_amount)}</span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 text-sm font-semibold text-right whitespace-nowrap">
+                      {r.margin_pct !== null ? (
+                        <span className={marginPctClass(r.margin_pct)}>{r.margin_pct.toFixed(1)}%</span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5">
+                      <MarginStatusPill status={r.match_status} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filtered.length > 15 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((s) => !s)}
+              className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              {showAll ? 'Ver menos' : `Ver las ${filtered.length.toLocaleString('es-MX')} ventas`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {reviewCount > 0 && (
+        <p className="mt-4 text-xs text-gray-500">
+          <AlertTriangle size={12} className="inline mr-1 text-amber-500" aria-hidden="true" />
+          {reviewCount === 1 ? '1 balance necesita revisión' : `${reviewCount} balances necesitan revisión`} en el
+          sheet: "No cuadra" = el total del balance difiere de la venta registrada (folio equivocado o montos
+          desactualizados); "Sin venta ligada" = el folio no existe en el ledger; "Sin folio" = la pestaña no
+          tiene folio en su nombre.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Cuarentena banner
 // ---------------------------------------------------------------------------
 
@@ -852,8 +1143,8 @@ export default function SalesDashboardPage() {
 
         {/* KPI row */}
         {statsLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }, (_, i) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+            {Array.from({ length: 5 }, (_, i) => (
               <div key={i} className="bg-white border border-gray-100 rounded-xl p-4">
                 <Skeleton className="h-3 w-24 mb-3" />
                 <Skeleton className="h-7 w-32" />
@@ -861,7 +1152,7 @@ export default function SalesDashboardPage() {
             ))}
           </div>
         ) : stats ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500">Ventas {currentYear}</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{fmtMXN(stats.ytd_total)}</p>
@@ -870,6 +1161,17 @@ export default function SalesDashboardPage() {
               <p className="text-xs text-gray-500">Histórico total</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{fmtMXN(stats.grand_total)}</p>
             </div>
+            {stats.margins && stats.margins.reconciled_count > 0 && (
+              <div className="bg-white border border-gray-100 rounded-xl p-4">
+                <p className="text-xs text-gray-500">Margen bruto (conciliado)</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {stats.margins.margin_pct !== null ? `${stats.margins.margin_pct.toFixed(1)}%` : '—'}
+                </p>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {fmtMXN(stats.margins.margin_total)} · {stats.margins.reconciled_count} ventas
+                </p>
+              </div>
+            )}
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500">Entregas pendientes</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{stats.delivery_pending.count.toLocaleString('es-MX')}</p>
@@ -930,6 +1232,9 @@ export default function SalesDashboardPage() {
             </div>
           )
         )}
+
+        {/* Margen por venta */}
+        {stats?.margins && <MarginSection margins={stats.margins} />}
 
         {/* Cuarentena */}
         {stats && stats.quarantined.count > 0 && <QuarantineBanner count={stats.quarantined.count} />}
