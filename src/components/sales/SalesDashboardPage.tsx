@@ -578,12 +578,17 @@ const MARGIN_STATUS_META: Record<string, { label: string; cls: string }> = {
   reconciled: { label: 'Conciliada', cls: 'bg-green-50 text-green-700 border border-green-200' },
   unverified: { label: 'Sin verificar', cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
   mismatch: { label: 'No cuadra', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
-  no_ledger_match: { label: 'Sin venta ligada', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
+  // Balance armado para entregar una cotización; la venta no se concretó
+  no_ledger_match: { label: 'Cotización (sin venta)', cls: 'bg-sky-50 text-sky-700 border border-sky-200' },
   orphan: { label: 'Sin folio', cls: 'bg-gray-100 text-gray-600 border border-gray-200' },
   duplicate: { label: 'Duplicada', cls: 'bg-gray-100 text-gray-600 border border-gray-200' },
 };
 
-const REVIEW_STATUSES = new Set(['mismatch', 'no_ledger_match', 'orphan', 'duplicate']);
+// Folio en el título pero los totales no cuadran con el ledger — sí es un
+// problema de datos. Las cotizaciones no concretadas NO van aquí.
+const REVIEW_STATUSES = new Set(['mismatch', 'duplicate']);
+// Sin venta en el ledger (o sin folio siquiera): balance de cotización.
+const QUOTE_STATUSES = new Set(['no_ledger_match', 'orphan']);
 
 function MarginStatusPill({ status }: { status: string }) {
   const meta = MARGIN_STATUS_META[status] ?? { label: status, cls: 'bg-gray-100 text-gray-600 border border-gray-200' };
@@ -612,7 +617,7 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
   const { addNotification } = useNotifications();
   const [rows, setRows] = useState<MarginRow[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'reconciled' | 'review' | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'reconciled' | 'review' | 'quote' | null>(null);
   const [yearFilter, setYearFilter] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
 
@@ -640,6 +645,9 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
   const reviewCount = Object.entries(margins.status_counts)
     .filter(([status]) => REVIEW_STATUSES.has(status))
     .reduce((acc, [, count]) => acc + count, 0);
+  const quoteCount = Object.entries(margins.status_counts)
+    .filter(([status]) => QUOTE_STATUSES.has(status))
+    .reduce((acc, [, count]) => acc + count, 0);
 
   const years = [...new Set(
     (rows ?? [])
@@ -650,15 +658,17 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
   const filtered = (rows ?? []).filter((r) => {
     if (statusFilter === 'reconciled' && r.match_status !== 'reconciled') return false;
     if (statusFilter === 'review' && !REVIEW_STATUSES.has(r.match_status)) return false;
+    if (statusFilter === 'quote' && !QUOTE_STATUSES.has(r.match_status)) return false;
     if (yearFilter !== null && (!r.folio_month || Number(r.folio_month.slice(0, 4)) !== yearFilter)) return false;
     return true;
   });
   const visible = showAll ? filtered : filtered.slice(0, 15);
 
-  const statusFilters: { value: 'reconciled' | 'review' | null; label: string }[] = [
+  const statusFilters: { value: 'reconciled' | 'review' | 'quote' | null; label: string }[] = [
     { value: null, label: 'Todas' },
     { value: 'reconciled', label: `Conciliadas (${margins.status_counts.reconciled ?? 0})` },
     { value: 'review', label: `Por revisar (${reviewCount})` },
+    { value: 'quote', label: `Cotizaciones (${quoteCount})` },
   ];
 
   return (
@@ -752,6 +762,15 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
             <tbody>
               {visible.map((r) => {
                 const revenue = r.ledger_revenue ?? r.sheet_sale_total;
+                // Cotización no concretada: margen que HABRÍA dejado, según el
+                // propio balance — informativo, nunca cuenta en agregados.
+                const isQuote = QUOTE_STATUSES.has(r.match_status);
+                const quotedMargin =
+                  isQuote && r.cost_total !== null && r.sheet_sale_total !== null && r.sheet_sale_total > 0
+                    ? r.sheet_sale_total - r.cost_total
+                    : null;
+                const quotedPct =
+                  quotedMargin !== null && r.sheet_sale_total ? (100 * quotedMargin) / r.sheet_sale_total : null;
                 return (
                   <tr key={r.id} className="border-b border-gray-50 last:border-0">
                     <td className="py-2.5 pr-3 font-mono text-xs text-gray-600 whitespace-nowrap" title={r.tab_title}>
@@ -770,6 +789,10 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
                     <td className="py-2.5 pr-3 text-sm font-medium text-right whitespace-nowrap">
                       {r.margin_amount !== null ? (
                         <span className={marginPctClass(r.margin_pct ?? 0)}>{fmtMXNExact(r.margin_amount)}</span>
+                      ) : quotedMargin !== null ? (
+                        <span className="text-gray-400" title="Margen cotizado — la venta no se concretó">
+                          {fmtMXNExact(quotedMargin)}
+                        </span>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
@@ -777,6 +800,10 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
                     <td className="py-2.5 pr-3 text-sm font-semibold text-right whitespace-nowrap">
                       {r.margin_pct !== null ? (
                         <span className={marginPctClass(r.margin_pct)}>{r.margin_pct.toFixed(1)}%</span>
+                      ) : quotedPct !== null ? (
+                        <span className="text-gray-400 font-medium" title="Margen cotizado — la venta no se concretó">
+                          {quotedPct.toFixed(1)}%
+                        </span>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
@@ -801,13 +828,22 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
         </div>
       )}
 
-      {reviewCount > 0 && (
+      {(reviewCount > 0 || quoteCount > 0) && (
         <p className="mt-4 text-xs text-gray-500">
-          <AlertTriangle size={12} className="inline mr-1 text-amber-500" aria-hidden="true" />
-          {reviewCount === 1 ? '1 balance necesita revisión' : `${reviewCount} balances necesitan revisión`} en el
-          sheet: "No cuadra" = el total del balance difiere de la venta registrada (folio equivocado o montos
-          desactualizados); "Sin venta ligada" = el folio no existe en el ledger; "Sin folio" = la pestaña no
-          tiene folio en su nombre.
+          {reviewCount > 0 && (
+            <>
+              <AlertTriangle size={12} className="inline mr-1 text-amber-500" aria-hidden="true" />
+              {reviewCount === 1 ? '1 balance necesita revisión' : `${reviewCount} balances necesitan revisión`} en
+              el sheet: "No cuadra" = el total del balance difiere de la venta registrada (folio equivocado o
+              montos desactualizados).{' '}
+            </>
+          )}
+          {quoteCount > 0 && (
+            <>
+              Las {quoteCount} cotizaciones son balances de ventas que no se concretaron — su margen se muestra en
+              gris como referencia y no cuenta en los totales.
+            </>
+          )}
         </p>
       )}
     </Card>
