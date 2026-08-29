@@ -89,3 +89,45 @@ button {
     --radius: 0.5rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   POS ticket printing (components/pos/TicketView.tsx)
+   When a ticket modal is open, window.print() must print ONLY the #pos-ticket
+   element at 80mm. Scoped with :has(#pos-ticket) so printing any other page
+   (no ticket open) is unaffected.
+--------------------------------------------------------------------------- */
+@media print {
+  body:has(#pos-ticket) {
+    background: #fff !important;
+  }
+
+  /* Hide everything that is not the ticket, inside it, or an ancestor of it
+     (the modal overlay chain must survive so the ticket stays in the tree). */
+  body:has(#pos-ticket) *:not(:has(#pos-ticket)):not(#pos-ticket):not(#pos-ticket *) {
+    display: none !important;
+  }
+
+  /* Flatten the ancestor chain (layout + modal overlay/card) so the ticket
+     flows from the top-left corner of the page instead of a fixed overlay. */
+  body:has(#pos-ticket) :has(#pos-ticket) {
+    position: static !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    inset: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  #pos-ticket {
+    width: 80mm !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

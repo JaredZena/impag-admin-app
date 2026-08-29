@@ -28,6 +28,8 @@ import CustomerDetailPage from './components/customers/CustomerDetailPage';
 import CampaignsPage from './components/campaigns/CampaignsPage';
 import CampaignDetailPage from './components/campaigns/CampaignDetailPage';
 import SalesDashboardPage from './components/sales/SalesDashboardPage';
+import PosPage from './components/pos/PosPage';
+import CajaPage from './components/pos/CajaPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
@@ -103,6 +105,8 @@ const AppContent: React.FC = () => {
           <Route path="/quotes/new" element={<QuoteForm />} />
           <Route path="/quotes/:id" element={<QuoteDetailPage />} />
           <Route path="/sales" element={<SalesDashboardPage />} />
+          <Route path="/pos" element={<PosPage />} />
+          <Route path="/caja" element={<CajaPage />} />
           <Route path="/social-calendar" element={<SocialCalendarPage />} />
           <Route path="/campaigns" element={<CampaignsPage />} />
           <Route path="/campaigns/:id" element={<CampaignDetailPage />} />

@@ -17,7 +17,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       return false;
     }
   });
-  const isFullBleedPage = location.pathname.startsWith('/social-calendar') || location.pathname.startsWith('/tasks') || location.pathname.startsWith('/tiktok');
+  const isFullBleedPage = location.pathname.startsWith('/social-calendar') || location.pathname.startsWith('/tasks') || location.pathname.startsWith('/tiktok') || location.pathname.startsWith('/pos');
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
