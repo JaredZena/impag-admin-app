@@ -10,6 +10,10 @@ const PAYMENT_LABELS: Record<string, string> = {
   terminal: 'Terminal',
 };
 
+// Printed on every ticket footer. Exported so the copy is easy to edit in one place.
+export const WARRANTY_NOTE =
+  'Garantía sujeta a las políticas del fabricante de cada producto. Conserve esta remisión — es indispensable para cualquier aclaración o garantía.';
+
 interface TicketViewProps {
   sale: PosSaleDetail;
   onClose: () => void;
@@ -49,7 +53,10 @@ export default function TicketView({ sale, onClose, closeLabel = 'Nueva venta' }
 
           <p className="text-center text-xl font-bold tracking-wider">{sale.folio}</p>
           <p className="text-center">{dateTime}</p>
-          {sale.created_by && <p className="text-center">Atendió: {sale.created_by}</p>}
+          {/* vendedor defaults to created_by server-side; pre-v2 sales only have created_by */}
+          {(sale.vendedor || sale.created_by) && (
+            <p className="text-center">Atendió: {sale.vendedor || sale.created_by}</p>
+          )}
 
           {(sale.customer_name || sale.customer_phone) && (
             <>
@@ -113,11 +120,25 @@ export default function TicketView({ sale, onClose, closeLabel = 'Nueva venta' }
           )}
           {sale.requires_invoice && <p className="mt-1">Requiere factura</p>}
 
+          {/* Datos de factura (captured at the register; CFDI is stamped later).
+              NEVER print margin/cost fields on this ticket. */}
+          {(sale.rfc || sale.razon_social || sale.uso_cfdi || sale.cfdi_email) && (
+            <>
+              <hr className="my-2 border-black border-dashed" />
+              <p className="font-bold">DATOS DE FACTURA</p>
+              {sale.rfc && <p className="break-words">RFC: {sale.rfc}</p>}
+              {sale.razon_social && <p className="break-words">Razón social: {sale.razon_social}</p>}
+              {sale.uso_cfdi && <p>Uso CFDI: {sale.uso_cfdi}</p>}
+              {sale.cfdi_email && <p className="break-words">Correo: {sale.cfdi_email}</p>}
+            </>
+          )}
+
           <hr className="my-2 border-black border-dashed" />
 
           <p className="text-center text-[10px] mt-2">
             REMISIÓN — Este documento no es un comprobante fiscal (CFDI)
           </p>
+          <p className="text-center text-[10px] mt-1">{WARRANTY_NOTE}</p>
           <p className="text-center text-[10px]">¡Gracias por su compra!</p>
         </div>
 

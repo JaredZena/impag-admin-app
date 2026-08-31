@@ -13,6 +13,7 @@ import {
   closeCashSession,
   getCurrentCashSession,
   getPosSale,
+  getVendedorStats,
   listCashSessions,
   listPosSales,
   openCashSession,
@@ -24,6 +25,7 @@ import type {
   CashSessionTotals,
   PosSaleDetail,
   PosSaleListItem,
+  VendedorStatsItem,
 } from '@/utils/posApi';
 import { formatCurrency } from '@/utils/currencyUtils';
 import { useNotifications } from '@/components/ui/notification';
@@ -94,6 +96,8 @@ export default function CajaPage() {
   const [salesLoading, setSalesLoading] = useState(true);
   const [pastSessions, setPastSessions] = useState<CashSessionListItem[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [vendedorStats, setVendedorStats] = useState<VendedorStatsItem[]>([]);
+  const [vendedorStatsLoading, setVendedorStatsLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Abrir caja form
@@ -163,6 +167,18 @@ export default function CajaPage() {
         if (!cancelled) setPastSessions([]);
       } finally {
         if (!cancelled) setSessionsLoading(false);
+      }
+    })();
+
+    (async () => {
+      try {
+        const today = todayIso();
+        const res = await getVendedorStats(today, today);
+        if (!cancelled) setVendedorStats(res.items);
+      } catch {
+        if (!cancelled) setVendedorStats([]);
+      } finally {
+        if (!cancelled) setVendedorStatsLoading(false);
       }
     })();
 
@@ -547,11 +563,17 @@ export default function CajaPage() {
                   <th className="text-left text-xs font-medium text-gray-500 uppercase py-2 px-2">
                     Cliente
                   </th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase py-2 px-2">
+                    Vendedor
+                  </th>
                   <th className="text-left text-xs font-medium text-gray-500 uppercase py-2 px-2 w-32">
                     Pago
                   </th>
                   <th className="text-right text-xs font-medium text-gray-500 uppercase py-2 px-2 w-28">
                     Total
+                  </th>
+                  <th className="text-right text-xs font-medium text-gray-500 uppercase py-2 px-2 w-28">
+                    Margen
                   </th>
                   <th className="text-center text-xs font-medium text-gray-500 uppercase py-2 px-2 w-28">
                     Estado
@@ -571,11 +593,17 @@ export default function CajaPage() {
                     <td className="py-2 px-2 text-sm text-gray-700">
                       {sale.customer_name ?? '—'}
                     </td>
+                    <td className="py-2 px-2 text-sm text-gray-700">{sale.vendedor ?? '—'}</td>
                     <td className="py-2 px-2 text-sm text-gray-700">
                       {PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method}
                     </td>
                     <td className="py-2 px-2 text-sm font-medium text-gray-900 text-right whitespace-nowrap">
                       {formatCurrency(sale.total)}
+                    </td>
+                    <td className="py-2 px-2 text-sm text-gray-700 text-right whitespace-nowrap">
+                      {sale.cost_complete && sale.margin_amount !== null
+                        ? formatCurrency(sale.margin_amount)
+                        : '—'}
                     </td>
                     <td className="py-2 px-2 text-center">
                       <span
@@ -613,6 +641,61 @@ export default function CajaPage() {
                           </button>
                         )}
                       </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Comisiones del día (base para comisiones: ventas completadas por vendedor) */}
+      <div className="bg-white border border-gray-100 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Comisiones del día</h2>
+        {vendedorStatsLoading ? (
+          <div className="animate-pulse space-y-2">
+            <div className="h-8 bg-gray-100 rounded" />
+            <div className="h-8 bg-gray-100 rounded" />
+          </div>
+        ) : vendedorStats.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">Sin ventas completadas hoy</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase py-2 pr-2">
+                    Vendedor
+                  </th>
+                  <th className="text-right text-xs font-medium text-gray-500 uppercase py-2 px-2 w-24">
+                    Ventas
+                  </th>
+                  <th className="text-right text-xs font-medium text-gray-500 uppercase py-2 px-2 w-32">
+                    Total
+                  </th>
+                  <th className="text-right text-xs font-medium text-gray-500 uppercase py-2 pl-2 w-40">
+                    Margen
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {vendedorStats.map((v) => (
+                  <tr key={v.vendedor ?? '__sin_vendedor__'} className="border-b border-gray-100">
+                    <td className="py-2 pr-2 text-sm text-gray-700">
+                      {v.vendedor ?? 'Sin vendedor'}
+                    </td>
+                    <td className="py-2 px-2 text-sm text-gray-700 text-right">{v.sales_count}</td>
+                    <td className="py-2 px-2 text-sm font-medium text-gray-900 text-right whitespace-nowrap">
+                      {formatCurrency(v.total)}
+                    </td>
+                    <td className="py-2 pl-2 text-sm text-gray-700 text-right whitespace-nowrap">
+                      {v.margin_known_count > 0 ? formatCurrency(v.margin_total) : '—'}
+                      {v.margin_known_count > 0 && v.margin_known_count < v.sales_count && (
+                        <span className="text-xs text-gray-400 ml-1">
+                          ({v.margin_known_count} de {v.sales_count} con costo)
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

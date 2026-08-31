@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { createPosSale, getCurrentCashSession } from '@/utils/posApi';
@@ -11,6 +11,7 @@ import type {
   PosSaleDetail,
 } from '@/utils/posApi';
 import { formatCurrency } from '@/utils/currencyUtils';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/components/ui/notification';
 import PosProductSearch from './PosProductSearch';
 import CustomerPicker from './CustomerPicker';
@@ -19,7 +20,9 @@ import TicketView from './TicketView';
 // Route /pos is FULL-BLEED (MainLayout renders it without padding); the page
 // must NOT import MainLayout — ProtectedRoute already wraps every route in it.
 
-const CART_KEY = 'pos_cart_v1';
+const CART_KEY = 'pos_cart_v2';
+const LEGACY_CART_KEY = 'pos_cart_v1'; // v1 shape {items, customer} — migrated on read
+
 const BRANCH = 'DGO';
 
 const PAYMENT_METHODS: { value: PosPaymentMethod; label: string }[] = [
@@ -27,6 +30,15 @@ const PAYMENT_METHODS: { value: PosPaymentMethod; label: string }[] = [
   { value: 'transferencia', label: 'Transferencia' },
   { value: 'deposito', label: 'Depósito' },
   { value: 'terminal', label: 'Terminal' },
+];
+
+// Common SAT uso-CFDI codes for the factura capture (free-form on the backend).
+const USO_CFDI_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Seleccionar…' },
+  { value: 'G01', label: 'G01 — Adquisición de mercancías' },
+  { value: 'G03', label: 'G03 — Gastos generales' },
+  { value: 'S01', label: 'S01 — Sin efectos fiscales' },
+  { value: 'P01', label: 'P01 — Por definir' },
 ];
 
 interface CartLine {
@@ -45,17 +57,38 @@ interface CartLine {
 interface StoredCart {
   items: CartLine[];
   customer: CustomerBrief | null;
+  vendedor: string | null;
+  requiresInvoice: boolean;
+  // Datos de factura (free-form capture, sent only when requiresInvoice)
+  rfc: string;
+  razonSocial: string;
+  usoCfdi: string;
+  cfdiEmail: string;
 }
+
+const EMPTY_CART: StoredCart = {
+  items: [],
+  customer: null,
+  vendedor: null,
+  requiresInvoice: false,
+  rfc: '',
+  razonSocial: '',
+  usoCfdi: '',
+  cfdiEmail: '',
+};
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 const lineTotal = (it: CartLine): number => round2(it.quantity * it.unit_price);
 
 // Cart + selected customer survive reloads and the ~1h Google-token reauth.
+// v1 carts (pos_cart_v1, {items, customer} only) are read as a fallback so an
+// in-flight cart survives the v2 deploy; the persist effect rewrites to v2 and
+// drops the old key.
 function readStoredCart(): StoredCart {
   try {
-    const raw = localStorage.getItem(CART_KEY);
-    if (!raw) return { items: [], customer: null };
+    const raw = localStorage.getItem(CART_KEY) ?? localStorage.getItem(LEGACY_CART_KEY);
+    if (!raw) return EMPTY_CART;
     const parsed = JSON.parse(raw) as Partial<StoredCart>;
     const items = (Array.isArray(parsed?.items) ? parsed.items : []).filter(
       (it): it is CartLine =>
@@ -66,22 +99,64 @@ function readStoredCart(): StoredCart {
     );
     const customer =
       parsed?.customer && typeof parsed.customer.id === 'number' ? parsed.customer : null;
-    return { items, customer };
+    const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+    return {
+      items,
+      customer,
+      vendedor: typeof parsed?.vendedor === 'string' && parsed.vendedor ? parsed.vendedor : null,
+      requiresInvoice: parsed?.requiresInvoice === true,
+      rfc: str(parsed?.rfc),
+      razonSocial: str(parsed?.razonSocial),
+      usoCfdi: str(parsed?.usoCfdi),
+      cfdiEmail: str(parsed?.cfdiEmail),
+    };
   } catch {
-    return { items: [], customer: null };
+    return EMPTY_CART;
   }
 }
 
 export default function PosPage() {
   const { addNotification } = useNotifications();
+  const { user } = useAuth();
 
-  const [items, setItems] = useState<CartLine[]>(() => readStoredCart().items);
-  const [customer, setCustomer] = useState<CustomerBrief | null>(() => readStoredCart().customer);
+  // Read the stored cart once per mount; the individual states below seed from it.
+  const [initialCart] = useState<StoredCart>(readStoredCart);
+
+  const [items, setItems] = useState<CartLine[]>(initialCart.items);
+  const [customer, setCustomer] = useState<CustomerBrief | null>(initialCart.customer);
   const [payment, setPayment] = useState<PosPaymentMethod>('efectivo');
   const [amountTendered, setAmountTendered] = useState('');
-  const [requiresInvoice, setRequiresInvoice] = useState(false);
+  const [vendedor, setVendedor] = useState<string>(initialCart.vendedor ?? '');
+  const [requiresInvoice, setRequiresInvoice] = useState(initialCart.requiresInvoice);
+  const [rfc, setRfc] = useState(initialCart.rfc);
+  const [razonSocial, setRazonSocial] = useState(initialCart.razonSocial);
+  const [usoCfdi, setUsoCfdi] = useState(initialCart.usoCfdi);
+  const [cfdiEmail, setCfdiEmail] = useState(initialCart.cfdiEmail);
   const [saving, setSaving] = useState(false);
   const [lastSale, setLastSale] = useState<PosSaleDetail | null>(null);
+
+  // Default vendedor = logged-in user (AuthContext resolves the user async).
+  useEffect(() => {
+    if (!vendedor && user?.email) setVendedor(user.email);
+  }, [vendedor, user?.email]);
+
+  // Logged-in email first, then VITE_ALLOWED_EMAILS (same var AuthContext
+  // uses; read defensively — it may be unset). A restored vendedor not in the
+  // list stays selectable.
+  const vendedorOptions = useMemo(() => {
+    const opts: string[] = [];
+    const push = (e: unknown) => {
+      if (typeof e !== 'string') return;
+      const v = e.trim().toLowerCase();
+      if (v && !opts.includes(v)) opts.push(v);
+    };
+    push(user?.email);
+    String(import.meta.env.VITE_ALLOWED_EMAILS ?? '')
+      .split(',')
+      .forEach(push);
+    push(vendedor);
+    return opts;
+  }, [user?.email, vendedor]);
 
   // Caja status strip
   const [cajaSession, setCajaSession] = useState<CashSession | null>(null);
@@ -108,14 +183,27 @@ export default function PosPage() {
     };
   }, [fetchCaja]);
 
-  // Persist cart + customer on every change
+  // Persist cart + customer + vendedor + factura data on every change
   useEffect(() => {
     try {
-      localStorage.setItem(CART_KEY, JSON.stringify({ items, customer } satisfies StoredCart));
+      localStorage.setItem(
+        CART_KEY,
+        JSON.stringify({
+          items,
+          customer,
+          vendedor: vendedor || null,
+          requiresInvoice,
+          rfc,
+          razonSocial,
+          usoCfdi,
+          cfdiEmail,
+        } satisfies StoredCart)
+      );
+      localStorage.removeItem(LEGACY_CART_KEY);
     } catch {
       // storage unavailable — cart just won't survive a reload
     }
-  }, [items, customer]);
+  }, [items, customer, vendedor, requiresInvoice, rfc, razonSocial, usoCfdi, cfdiEmail]);
 
   // ---------------------------------------------------------------------------
   // Cart operations
@@ -227,6 +315,14 @@ export default function PosPage() {
     if (payment === 'efectivo' && tendered !== null && !Number.isNaN(tendered)) {
       payload.amount_tendered = tendered;
     }
+    if (vendedor.trim()) payload.vendedor = vendedor.trim();
+    // Datos de factura — all optional, only sent when the toggle is on.
+    if (requiresInvoice) {
+      if (rfc.trim()) payload.rfc = rfc.trim();
+      if (razonSocial.trim()) payload.razon_social = razonSocial.trim();
+      if (usoCfdi) payload.uso_cfdi = usoCfdi;
+      if (cfdiEmail.trim()) payload.cfdi_email = cfdiEmail.trim();
+    }
 
     setSaving(true);
     try {
@@ -241,7 +337,12 @@ export default function PosPage() {
       }
       setAmountTendered('');
       setRequiresInvoice(false);
+      setRfc('');
+      setRazonSocial('');
+      setUsoCfdi('');
+      setCfdiEmail('');
       setPayment('efectivo');
+      // vendedor stays selected — the same cashier usually rings the next sale
       addNotification({
         type: 'success',
         title: `Venta ${sale.folio} registrada`,
@@ -463,6 +564,26 @@ export default function PosPage() {
               <CustomerPicker value={customer} onChange={setCustomer} />
             </div>
 
+            {/* Vendedor */}
+            <div>
+              <label htmlFor="pos-vendedor" className="block text-xs font-medium text-gray-600 mb-1">
+                Vendedor
+              </label>
+              <select
+                id="pos-vendedor"
+                value={vendedor}
+                onChange={(e) => setVendedor(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {vendedor === '' && <option value="">—</option>}
+                {vendedorOptions.map((email) => (
+                  <option key={email} value={email}>
+                    {email}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Payment method */}
             <div>
               <p className="text-xs font-medium text-gray-600 mb-1">Forma de pago</p>
@@ -522,6 +643,49 @@ export default function PosPage() {
               />
               Requiere factura
             </label>
+
+            {/* Datos de factura — inline, all optional, never blocks the sale */}
+            {requiresInvoice && (
+              <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs font-medium text-gray-600">Datos de factura (opcional)</p>
+                <input
+                  type="text"
+                  value={rfc}
+                  onChange={(e) => setRfc(e.target.value.toUpperCase())}
+                  maxLength={20}
+                  placeholder="RFC"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  value={razonSocial}
+                  onChange={(e) => setRazonSocial(e.target.value)}
+                  maxLength={200}
+                  placeholder="Razón social"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <select
+                  value={usoCfdi}
+                  onChange={(e) => setUsoCfdi(e.target.value)}
+                  aria-label="Uso CFDI"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {USO_CFDI_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="email"
+                  value={cfdiEmail}
+                  onChange={(e) => setCfdiEmail(e.target.value)}
+                  maxLength={255}
+                  placeholder="Correo para CFDI"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
 
             {/* Cobrar */}
             <button

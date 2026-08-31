@@ -46,6 +46,12 @@ export interface CreatePosSalePayload {
   requires_invoice?: boolean;
   delivery_place?: string | null;
   notes?: string | null;
+  vendedor?: string | null; // max 120; defaults server-side to the authenticated email
+  // Factura (CFDI) capture — free-form, all optional, never block the sale.
+  rfc?: string | null; // max 20
+  razon_social?: string | null; // max 200
+  uso_cfdi?: string | null; // max 10 (e.g. G01, G03, S01, P01)
+  cfdi_email?: string | null; // max 255
   items: PosSaleItemInput[]; // min 1
 }
 
@@ -60,6 +66,15 @@ export interface PosSaleItem {
   unit_price: number;
   iva: boolean;
   line_total: number;
+  // Cost snapshot taken at sale time (cheapest active supplier). All null for
+  // free-form lines and products with no known supplier cost. NEVER shown on
+  // the customer ticket — admin views only.
+  supplier_product_id: number | null;
+  supplier_name: string | null; // denormalized Supplier.name snapshot
+  unit_cost: number | null; // per-unit cost+shipping, in cost_currency
+  cost_currency: 'MXN' | 'USD' | null;
+  exchange_rate: number | null; // USD→MXN rate used (1 for MXN); null when unavailable
+  line_cost_mxn: number | null; // quantity × unit_cost × rate; null when cost unknown
 }
 
 export interface PosSaleHeader {
@@ -86,6 +101,17 @@ export interface PosSaleHeader {
   cancelled_by: string | null;
   cancel_reason: string | null;
   cash_session_id: number | null;
+  // Vendedor + margin rollup (null on pre-v2 sales). Margin is admin-only —
+  // NEVER printed on the customer ticket.
+  vendedor: string | null; // defaults to created_by when not provided at create
+  cost_total: number | null; // Σ known line_cost_mxn; null when no line has a known cost
+  margin_amount: number | null; // total − cost_total, only set when cost_complete
+  cost_complete: boolean; // true iff EVERY line has a known MXN cost
+  // Factura (CFDI) capture — only meaningful when requires_invoice.
+  rfc: string | null;
+  razon_social: string | null;
+  uso_cfdi: string | null;
+  cfdi_email: string | null;
 }
 
 export interface PosSaleDetail extends PosSaleHeader {
@@ -101,6 +127,20 @@ export interface PosSalesListResponse {
   limit: number;
   offset: number;
   items: PosSaleListItem[];
+}
+
+// ==================== GET /pos/stats/vendedores ====================
+
+export interface VendedorStatsItem {
+  vendedor: string | null; // null row = sales with no vendedor ("Sin vendedor")
+  sales_count: number;
+  total: number;
+  margin_total: number; // Σ margin_amount over cost_complete sales only (0 when none)
+  margin_known_count: number; // how many sales fed margin_total
+}
+
+export interface VendedorStatsResponse {
+  items: VendedorStatsItem[]; // ordered by total desc
 }
 
 // ==================== Caja (cash sessions) ====================
@@ -218,6 +258,7 @@ export async function listPosSales(params?: {
   date_from?: string; // ISO date
   date_to?: string; // ISO date
   status?: PosSaleStatus;
+  vendedor?: string; // exact match
   q?: string; // ILIKE over folio/customer_name
 }): Promise<PosSalesListResponse> {
   const searchParams = new URLSearchParams();
@@ -226,6 +267,7 @@ export async function listPosSales(params?: {
   if (params?.date_from) searchParams.set('date_from', params.date_from);
   if (params?.date_to) searchParams.set('date_to', params.date_to);
   if (params?.status) searchParams.set('status', params.status);
+  if (params?.vendedor) searchParams.set('vendedor', params.vendedor);
   if (params?.q) searchParams.set('q', params.q);
 
   const qs = searchParams.toString();
@@ -242,6 +284,20 @@ export async function cancelPosSale(saleId: number, reason: string): Promise<Pos
     method: 'POST',
     body: JSON.stringify({ reason }),
   });
+}
+
+// Per-vendedor aggregates over completed sales only (status='completada'),
+// ordered by total desc. Dates are ISO (YYYY-MM-DD), both optional/inclusive.
+export async function getVendedorStats(
+  dateFrom?: string,
+  dateTo?: string
+): Promise<VendedorStatsResponse> {
+  const searchParams = new URLSearchParams();
+  if (dateFrom) searchParams.set('date_from', dateFrom);
+  if (dateTo) searchParams.set('date_to', dateTo);
+
+  const qs = searchParams.toString();
+  return apiRequest(`/pos/stats/vendedores${qs ? `?${qs}` : ''}`);
 }
 
 // ==================== Caja ====================
