@@ -85,6 +85,25 @@ export interface QuoteStats {
   pending_viewed: number;
 }
 
+// Resumen del pipeline de cotizaciones abiertas (GET /quotes/pipeline-summary).
+// El contrato final se revisa contra el backend — los consumidores pasan por
+// getPipelineSummary() en utils/quotesApi.ts, que normaliza campos faltantes.
+export interface QuotePipelineTopQuote {
+  id: number;
+  quote_number: string;
+  customer_name: string;
+  total: number;
+  days_open: number;
+}
+
+export interface QuotePipelineSummary {
+  open_count: number;
+  open_total: number;
+  stale_count: number;
+  oldest_days: number | null;
+  top_open: QuotePipelineTopQuote[];
+}
+
 export interface ProductSearchResult {
   supplier_product_id: number;
   product_id: number | null;

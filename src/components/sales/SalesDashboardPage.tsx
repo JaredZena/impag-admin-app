@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { apiRequest } from '@/utils/api';
+import { getPipelineSummary } from '@/utils/quotesApi';
+import type { QuotePipelineSummary } from '@/types/quotes';
 import { useNotifications } from '@/components/ui/notification';
 
 // ---------------------------------------------------------------------------
@@ -851,6 +853,143 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
 }
 
 // ---------------------------------------------------------------------------
+// Cotizaciones abiertas (GET /quotes/pipeline-summary)
+// ---------------------------------------------------------------------------
+
+const daysLabel = (d: number): string => (d === 1 ? '1 día' : `${d.toLocaleString('es-MX')} días`);
+
+function QuotePipelineCard() {
+  const [summary, setSummary] = useState<QuotePipelineSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await getPipelineSummary();
+        if (!cancelled) setSummary(s);
+      } catch {
+        // Igual que stats.margins: el endpoint puede no existir hasta que el
+        // deploy del backend aterrice — la tarjeta se oculta sin alarmar.
+        if (!cancelled) setSummary(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-xl p-5">
+        <Skeleton className="h-4 w-44 mb-4" />
+        <Skeleton className="h-8 w-48 mb-4" />
+        <div className="space-y-2">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Skeleton key={i} className="h-4 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!summary) return null;
+
+  if (summary.open_count === 0) {
+    return (
+      <Card title="Cotizaciones abiertas">
+        <p className="text-sm text-gray-400 py-1">
+          No hay cotizaciones abiertas —{' '}
+          <Link to="/quotes/new" className="font-medium text-blue-600 hover:text-blue-700 hover:underline">
+            crear una nueva
+          </Link>
+          .
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title="Cotizaciones abiertas">
+      {/* Summary strip */}
+      <div className="flex flex-wrap gap-x-8 gap-y-3 mb-4">
+        <div>
+          <p className="text-xs text-gray-500">Valor abierto</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1">{fmtMXN(summary.open_total)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {summary.open_count === 1
+              ? '1 cotización abierta'
+              : `${summary.open_count.toLocaleString('es-MX')} cotizaciones abiertas`}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500">Sin seguimiento</p>
+          <p className={`text-2xl font-bold mt-1 ${summary.stale_count > 0 ? 'text-amber-700' : 'text-gray-900'}`}>
+            {summary.stale_count > 0 && (
+              <AlertTriangle size={18} className="inline mr-1.5 -mt-1 text-amber-500" aria-hidden="true" />
+            )}
+            {summary.stale_count.toLocaleString('es-MX')}
+          </p>
+        </div>
+        {summary.oldest_days !== null && (
+          <div>
+            <p className="text-xs text-gray-500">Más antigua</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{daysLabel(summary.oldest_days)}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Top open quotes */}
+      {summary.top_open.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Folio</th>
+                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Cliente</th>
+                <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">Total</th>
+                <th className="text-right text-xs font-medium text-gray-500 py-2">Días</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.top_open.map((q, i) => (
+                <tr key={q.id > 0 ? q.id : `${q.quote_number}-${i}`} className="border-b border-gray-50 last:border-0">
+                  <td className="py-2.5 pr-3 font-mono text-xs whitespace-nowrap">
+                    {q.id > 0 ? (
+                      <Link to={`/quotes/${q.id}`} className="text-blue-600 hover:text-blue-700 hover:underline">
+                        {q.quote_number || `#${q.id}`}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-600">{q.quote_number || '—'}</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 pr-3 text-sm text-gray-900 max-w-[180px] truncate" title={q.customer_name || undefined}>
+                    {q.customer_name || '—'}
+                  </td>
+                  <td className="py-2.5 pr-3 text-sm font-medium text-gray-900 text-right whitespace-nowrap">
+                    {fmtMXNExact(q.total)}
+                  </td>
+                  <td className="py-2.5 text-sm text-gray-600 text-right whitespace-nowrap">
+                    {daysLabel(q.days_open)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Link
+        to="/quotes"
+        className="mt-3 inline-block text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+      >
+        Ver todas las cotizaciones
+      </Link>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Cuarentena banner
 // ---------------------------------------------------------------------------
 
@@ -1224,6 +1363,9 @@ export default function SalesDashboardPage() {
         ) : (
           <EmptyState message="No se pudieron cargar las estadísticas" />
         )}
+
+        {/* Cotizaciones abiertas (pipeline) */}
+        <QuotePipelineCard />
 
         {/* Chart A — Ventas por mes */}
         {statsLoading ? (

@@ -4,6 +4,8 @@ import type {
   UpdateQuotePayload,
   CreateQuoteItemPayload,
   QuoteStats,
+  QuotePipelineSummary,
+  QuotePipelineTopQuote,
   ProductSearchResult,
   QuoteNotification,
 } from '@/types/quotes';
@@ -110,6 +112,58 @@ export async function sendQuote(id: number): Promise<{ data: Quote; quote_url: s
 export async function getQuoteStats(): Promise<QuoteStats> {
   const res = await quotesApiRequest<{ success: boolean; data: QuoteStats }>('/quotes/stats');
   return res.data;
+}
+
+// ==================== Pipeline Summary ====================
+
+// El contrato de GET /quotes/pipeline-summary se revisa contra el backend por
+// separado: normalizamos defensivamente para que un campo faltante o renombrado
+// degrade a 0 / null / [] en vez de romper los widgets del dashboard.
+
+const asFiniteNumber = (value: unknown): number | null => {
+  const n =
+    typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+};
+
+const numberField = (obj: Record<string, unknown>, keys: string[]): number | null => {
+  for (const key of keys) {
+    const n = asFiniteNumber(obj[key]);
+    if (n !== null) return n;
+  }
+  return null;
+};
+
+export async function getPipelineSummary(): Promise<QuotePipelineSummary> {
+  const res = await quotesApiRequest<Record<string, unknown>>('/quotes/pipeline-summary');
+  // Acepta la respuesta plana o envuelta en { success, data } como el resto de /quotes.
+  const raw: Record<string, unknown> =
+    res && typeof res.data === 'object' && res.data !== null && !Array.isArray(res.data)
+      ? (res.data as Record<string, unknown>)
+      : res ?? {};
+
+  const topRaw = Array.isArray(raw.top_open) ? raw.top_open : [];
+  const top_open: QuotePipelineTopQuote[] = topRaw
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      id: numberField(item, ['id', 'quote_id']) ?? 0,
+      quote_number: typeof item.quote_number === 'string' ? item.quote_number : '',
+      customer_name: typeof item.customer_name === 'string' ? item.customer_name : '',
+      total: numberField(item, ['total']) ?? 0,
+      days_open: numberField(item, ['days_open', 'days', 'age_days']) ?? 0,
+    }));
+
+  const oldestFromTop = top_open.reduce((max, q) => Math.max(max, q.days_open), 0);
+
+  return {
+    open_count: numberField(raw, ['open_count', 'count']) ?? 0,
+    open_total: numberField(raw, ['open_total', 'total']) ?? 0,
+    stale_count: numberField(raw, ['stale_count']) ?? 0,
+    oldest_days:
+      numberField(raw, ['oldest_days', 'oldest_open_days', 'oldest_age_days', 'max_days_open']) ??
+      (oldestFromTop > 0 ? oldestFromTop : null),
+    top_open,
+  };
 }
 
 // ==================== Quote Items ====================

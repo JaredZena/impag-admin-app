@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   SlidersHorizontal,
@@ -17,7 +17,9 @@ import {
 } from 'lucide-react';
 import { useNotifications } from '@/components/ui/notification';
 import { fetchTasks, fetchUsers, fetchCategories, fetchCurrentUser, updateTaskStatus, autoClassifyTasks } from '@/utils/tasksApi';
+import { getPipelineSummary } from '@/utils/quotesApi';
 import type { Task, TaskUser, TaskCategory, TaskStatus } from '@/types/tasks';
+import type { QuotePipelineSummary } from '@/types/quotes';
 import TaskCard from './TaskCard';
 import TaskForm from './TaskForm';
 import TaskDetailModal from './TaskDetailModal';
@@ -69,6 +71,69 @@ function groupTasksByCategory(tasks: Task[], categories: TaskCategory[]): Catego
   if (map.has(null)) result.push({ category: null, tasks: map.get(null)! });
   return result;
 }
+
+// ── Cotizaciones abiertas (aviso ligero) ──────────────────────────────
+// Una sola línea, descartable por sesión — no compite con la UI de tareas.
+
+const PIPELINE_STRIP_DISMISSED_KEY = 'quote_pipeline_strip_dismissed';
+
+const fmtMXN = (n: number): string =>
+  n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
+
+const QuotePipelineStrip: React.FC = () => {
+  const [summary, setSummary] = useState<QuotePipelineSummary | null>(null);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(PIPELINE_STRIP_DISMISSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (dismissed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await getPipelineSummary();
+        if (!cancelled) setSummary(s);
+      } catch {
+        // Endpoint aún no desplegado o error transitorio — el aviso no se muestra.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [dismissed]);
+
+  if (dismissed || !summary || summary.open_total <= 0) return null;
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    try {
+      sessionStorage.setItem(PIPELINE_STRIP_DISMISSED_KEY, '1');
+    } catch {
+      // Sin sessionStorage el aviso solo desaparece en esta vista.
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-200/60 px-4 py-2 md:px-6">
+      <Link to="/sales" className="flex-1 min-w-0 truncate text-[13px] text-amber-800 hover:text-amber-900">
+        💰 <span className="font-semibold">{fmtMXN(summary.open_total)}</span>
+        {' '}en {summary.open_count} {summary.open_count === 1 ? 'cotización abierta' : 'cotizaciones abiertas'}
+        {summary.stale_count > 0 && (
+          <> · <span className="font-semibold">{summary.stale_count} sin seguimiento</span></>
+        )}
+      </Link>
+      <button
+        onClick={handleDismiss}
+        className="p-1 rounded-lg text-amber-500 hover:bg-amber-100 transition-colors shrink-0"
+        aria-label="Descartar aviso de cotizaciones"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+};
 
 const TasksPage: React.FC = () => {
   const navigate = useNavigate();
@@ -557,6 +622,9 @@ const TasksPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ── Aviso de cotizaciones abiertas ──────────────── */}
+      <QuotePipelineStrip />
 
       {/* ── Filter Panel (inline for now) ───────────────── */}
       {showFilters && (
