@@ -15,6 +15,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/components/ui/notification';
 import PosProductSearch from './PosProductSearch';
 import CustomerPicker from './CustomerPicker';
+import QuotePicker from './QuotePicker';
+import type { PosQuoteRef } from './QuotePicker';
 import TicketView from './TicketView';
 
 // Route /pos is FULL-BLEED (MainLayout renders it without padding); the page
@@ -57,6 +59,9 @@ interface CartLine {
 interface StoredCart {
   items: CartLine[];
   customer: CustomerBrief | null;
+  // Cotización abierta que esta venta cierra (opcional) — al cobrar, el
+  // backend la marca como aceptada.
+  quote: PosQuoteRef | null;
   vendedor: string | null;
   requiresInvoice: boolean;
   // Datos de factura (free-form capture, sent only when requiresInvoice)
@@ -69,6 +74,7 @@ interface StoredCart {
 const EMPTY_CART: StoredCart = {
   items: [],
   customer: null,
+  quote: null,
   vendedor: null,
   requiresInvoice: false,
   rfc: '',
@@ -99,10 +105,25 @@ function readStoredCart(): StoredCart {
     );
     const customer =
       parsed?.customer && typeof parsed.customer.id === 'number' ? parsed.customer : null;
+    // Normalize the stored quote ref field-by-field — older carts don't have
+    // it, and a malformed one must degrade to "no quote", never crash the POS.
+    const q = parsed?.quote;
+    const quote: PosQuoteRef | null =
+      q && typeof q.id === 'number' && typeof q.quote_number === 'string'
+        ? {
+            id: q.id,
+            quote_number: q.quote_number,
+            customer_name: typeof q.customer_name === 'string' ? q.customer_name : '',
+            customer_phone: typeof q.customer_phone === 'string' ? q.customer_phone : '',
+            total: typeof q.total === 'number' && Number.isFinite(q.total) ? q.total : 0,
+            status: q.status === 'viewed' || q.status === 'accepted' ? q.status : 'sent',
+          }
+        : null;
     const str = (v: unknown): string => (typeof v === 'string' ? v : '');
     return {
       items,
       customer,
+      quote,
       vendedor: typeof parsed?.vendedor === 'string' && parsed.vendedor ? parsed.vendedor : null,
       requiresInvoice: parsed?.requiresInvoice === true,
       rfc: str(parsed?.rfc),
@@ -124,6 +145,7 @@ export default function PosPage() {
 
   const [items, setItems] = useState<CartLine[]>(initialCart.items);
   const [customer, setCustomer] = useState<CustomerBrief | null>(initialCart.customer);
+  const [linkedQuote, setLinkedQuote] = useState<PosQuoteRef | null>(initialCart.quote);
   const [payment, setPayment] = useState<PosPaymentMethod>('efectivo');
   const [amountTendered, setAmountTendered] = useState('');
   const [vendedor, setVendedor] = useState<string>(initialCart.vendedor ?? '');
@@ -134,6 +156,9 @@ export default function PosPage() {
   const [cfdiEmail, setCfdiEmail] = useState(initialCart.cfdiEmail);
   const [saving, setSaving] = useState(false);
   const [lastSale, setLastSale] = useState<PosSaleDetail | null>(null);
+  // quote_number de la cotización que la última venta cerró — para la
+  // confirmación (no se imprime en el ticket).
+  const [lastQuoteNumber, setLastQuoteNumber] = useState<string | null>(null);
 
   // Default vendedor = logged-in user (AuthContext resolves the user async).
   useEffect(() => {
@@ -191,6 +216,7 @@ export default function PosPage() {
         JSON.stringify({
           items,
           customer,
+          quote: linkedQuote,
           vendedor: vendedor || null,
           requiresInvoice,
           rfc,
@@ -203,7 +229,7 @@ export default function PosPage() {
     } catch {
       // storage unavailable — cart just won't survive a reload
     }
-  }, [items, customer, vendedor, requiresInvoice, rfc, razonSocial, usoCfdi, cfdiEmail]);
+  }, [items, customer, linkedQuote, vendedor, requiresInvoice, rfc, razonSocial, usoCfdi, cfdiEmail]);
 
   // ---------------------------------------------------------------------------
   // Cart operations
@@ -312,6 +338,15 @@ export default function PosPage() {
       })),
     };
     if (customer) payload.customer_id = customer.id;
+    if (linkedQuote) {
+      payload.quote_id = linkedQuote.id;
+      // Prefill del cliente de la cotización SOLO cuando la cajera no eligió
+      // uno — lo que ella capturó nunca se sobreescribe.
+      if (!customer) {
+        if (linkedQuote.customer_name) payload.customer_name = linkedQuote.customer_name;
+        if (linkedQuote.customer_phone) payload.customer_phone = linkedQuote.customer_phone;
+      }
+    }
     if (payment === 'efectivo' && tendered !== null && !Number.isNaN(tendered)) {
       payload.amount_tendered = tendered;
     }
@@ -327,9 +362,19 @@ export default function PosPage() {
     setSaving(true);
     try {
       const sale = await createPosSale(payload);
+      // Confirm the quote link ONLY from the response: the new backend always
+      // serializes quote_id/quote_number when it processed quote_id. An older
+      // backend silently ignores the field, so a missing echo means the quote
+      // was NOT accepted — never claim it was from the local ref.
+      const quoteLinkConfirmed = Boolean(sale.quote_id || sale.quote_number);
+      const closedQuoteNumber = quoteLinkConfirmed ? sale.quote_number ?? null : null;
+      const quoteLinkUnconfirmed = Boolean(linkedQuote) && !quoteLinkConfirmed;
+      const unconfirmedQuoteNumber = linkedQuote?.quote_number ?? null;
       setLastSale(sale);
+      setLastQuoteNumber(closedQuoteNumber);
       setItems([]);
       setCustomer(null);
+      setLinkedQuote(null);
       try {
         localStorage.removeItem(CART_KEY);
       } catch {
@@ -346,8 +391,19 @@ export default function PosPage() {
       addNotification({
         type: 'success',
         title: `Venta ${sale.folio} registrada`,
-        message: formatCurrency(sale.total),
+        message: closedQuoteNumber
+          ? `${formatCurrency(sale.total)} — cotización ${closedQuoteNumber} marcada como aceptada`
+          : formatCurrency(sale.total),
       });
+      if (quoteLinkUnconfirmed) {
+        addNotification({
+          type: 'warning',
+          title: 'Cotización sin confirmar',
+          message: `Verifica la cotización${
+            unconfirmedQuoteNumber ? ` ${unconfirmedQuoteNumber}` : ''
+          } — el servidor no confirmó el enlace con la venta.`,
+        });
+      }
       fetchCaja();
     } catch (err) {
       addNotification({
@@ -564,6 +620,14 @@ export default function PosPage() {
               <CustomerPicker value={customer} onChange={setCustomer} />
             </div>
 
+            {/* Cotización que esta venta cierra — al cobrar se marca aceptada.
+                Si la cajera no eligió cliente, el de la cotización se usa como
+                snapshot en la venta (nunca sobreescribe una elección). */}
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">Cotización (opcional)</p>
+              <QuotePicker value={linkedQuote} onChange={setLinkedQuote} />
+            </div>
+
             {/* Vendedor */}
             <div>
               <label htmlFor="pos-vendedor" className="block text-xs font-medium text-gray-600 mb-1">
@@ -687,6 +751,14 @@ export default function PosPage() {
               </div>
             )}
 
+            {/* Aviso no bloqueante: el total del carrito difiere del de la
+                cotización vinculada — la venta procede de todas formas. */}
+            {linkedQuote && round2(linkedQuote.total) !== total && (
+              <p className="text-xs text-amber-600">
+                Total difiere de la cotización: {formatCurrency(linkedQuote.total)}
+              </p>
+            )}
+
             {/* Cobrar */}
             <button
               type="button"
@@ -705,7 +777,16 @@ export default function PosPage() {
       </div>
 
       {/* Ticket modal after a successful sale */}
-      {lastSale && <TicketView sale={lastSale} onClose={() => setLastSale(null)} />}
+      {lastSale && (
+        <TicketView
+          sale={lastSale}
+          acceptedQuoteNumber={lastQuoteNumber}
+          onClose={() => {
+            setLastSale(null);
+            setLastQuoteNumber(null);
+          }}
+        />
+      )}
     </div>
   );
 }

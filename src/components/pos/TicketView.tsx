@@ -19,12 +19,22 @@ interface TicketViewProps {
   onClose: () => void;
   /** Label for the close button — 'Nueva venta' on the register, 'Cerrar' on reprints. */
   closeLabel?: string;
+  /**
+   * Cotización que esta venta cerró (POS register only). Rendered OUTSIDE
+   * #pos-ticket — confirmación en pantalla, nunca en el ticket impreso.
+   */
+  acceptedQuoteNumber?: string | null;
 }
 
 // 80mm-style remisión. The printable markup carries id="pos-ticket": the global
 // @media print CSS in src/index.css (added by the shared-files task) hides
 // everything except this node when window.print() runs.
-export default function TicketView({ sale, onClose, closeLabel = 'Nueva venta' }: TicketViewProps) {
+export default function TicketView({
+  sale,
+  onClose,
+  closeLabel = 'Nueva venta',
+  acceptedQuoteNumber = null,
+}: TicketViewProps) {
   const createdAt = new Date(sale.created_at);
   const dateTime = Number.isNaN(createdAt.getTime())
     ? sale.created_at
@@ -141,6 +151,13 @@ export default function TicketView({ sale, onClose, closeLabel = 'Nueva venta' }
           <p className="text-center text-[10px] mt-1">{WARRANTY_NOTE}</p>
           <p className="text-center text-[10px]">¡Gracias por su compra!</p>
         </div>
+
+        {/* Confirmación de cotización — outside #pos-ticket so it never prints */}
+        {acceptedQuoteNumber && (
+          <p className="px-4 pb-2 text-center text-xs font-medium text-green-700">
+            Cotización {acceptedQuoteNumber} marcada como aceptada
+          </p>
+        )}
 
         {/* Actions — outside #pos-ticket so they never print */}
         <div className="flex gap-2 px-4 pb-4">

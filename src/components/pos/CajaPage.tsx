@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -340,7 +341,11 @@ export default function CajaPage() {
       addNotification({
         type: 'success',
         title: `Venta ${cancelled.folio} cancelada`,
-        message: 'Se revirtió el inventario y se eliminó del registro de ventas.',
+        // El backend reabre la cotización vinculada (accepted → sent) sólo si
+        // ninguna otra venta activa la referencia — el mensaje lo refleja.
+        message: cancelled.quote_number
+          ? `Se revirtió el inventario. La cotización ${cancelled.quote_number} se reabre si ninguna otra venta la cierra.`
+          : 'Se revirtió el inventario y se eliminó del registro de ventas.',
       });
       setCancelTarget(null);
       setCancelReason('');
@@ -586,6 +591,16 @@ export default function CajaPage() {
                   <tr key={sale.id} className="border-b border-gray-100">
                     <td className="py-2 pr-2 text-sm font-medium text-gray-900 whitespace-nowrap">
                       {sale.folio}
+                      {/* truthiness a propósito: el backend viejo no manda estos campos */}
+                      {sale.quote_id && sale.quote_number ? (
+                        <Link
+                          to={`/quotes/${sale.quote_id}`}
+                          className="block text-xs font-normal text-blue-600 hover:underline"
+                          title="Ver cotización vinculada"
+                        >
+                          Cot. {sale.quote_number}
+                        </Link>
+                      ) : null}
                     </td>
                     <td className="py-2 px-2 text-sm text-gray-500">
                       {formatTime(sale.created_at)}

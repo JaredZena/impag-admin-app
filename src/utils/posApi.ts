@@ -52,6 +52,10 @@ export interface CreatePosSalePayload {
   razon_social?: string | null; // max 200
   uso_cfdi?: string | null; // max 10 (e.g. G01, G03, S01, P01)
   cfdi_email?: string | null; // max 255
+  // Cotización que esta venta cierra (opcional). Debe estar en status
+  // sent/viewed/accepted — el backend responde 400 en otro caso, y al
+  // completar la venta marca la cotización como aceptada.
+  quote_id?: number | null;
   items: PosSaleItemInput[]; // min 1
 }
 
@@ -112,6 +116,11 @@ export interface PosSaleHeader {
   razon_social: string | null;
   uso_cfdi: string | null;
   cfdi_email: string | null;
+  // Cotización vinculada (quote_number llega por join en el backend). Puede
+  // venir undefined mientras el backend viejo siga desplegado — trátalos
+  // como opcionales en runtime (usa truthiness, no sólo !== null).
+  quote_id: number | null;
+  quote_number: string | null;
 }
 
 export interface PosSaleDetail extends PosSaleHeader {
@@ -240,6 +249,28 @@ export async function searchPosProducts(q: string, limit = 20): Promise<PosProdu
   const params = new URLSearchParams({ q, limit: String(limit) });
   const res = await apiRequest(`/pos/products?${params.toString()}`);
   // Tolerate both a bare array and an { items: [...] } envelope.
+  return Array.isArray(res) ? res : res.items;
+}
+
+// ==================== Quotes (picker) ====================
+
+// GET /pos/quotes — light rows for the register's quote picker. The backend
+// returns ATTACHABLE quotes only (status sent/viewed/accepted) and matches q
+// with ILIKE over quote_number/customer_name/customer_phone.
+export interface PosQuoteSearchItem {
+  id: number;
+  quote_number: string;
+  status: string; // sent | viewed | accepted (attachable set)
+  customer_name: string | null;
+  customer_phone: string | null;
+  total: number;
+  created_at: string | null;
+}
+
+export async function searchPosQuotes(q: string, limit = 10): Promise<PosQuoteSearchItem[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  const res = await apiRequest(`/pos/quotes?${params.toString()}`);
+  // Tolerate both a bare array and the { items: [...] } envelope.
   return Array.isArray(res) ? res : res.items;
 }
 
