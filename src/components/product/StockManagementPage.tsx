@@ -173,6 +173,17 @@ const StockManagementPage: React.FC = () => {
     return new Date(dateString).toLocaleDateString('es-MX');
   };
 
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
+  // Most recent update across the whole inventory (ISO strings compare lexicographically)
+  const lastInventoryUpdate = products.reduce<string | null>(
+    (max, p) => (p.last_updated && (!max || p.last_updated > max) ? p.last_updated : max),
+    null
+  );
+
   // CSV Export functionality
   const supplierProductColumns: ColumnOption[] = [
     { key: 'id', label: 'ID', defaultSelected: true },
@@ -299,7 +310,7 @@ const StockManagementPage: React.FC = () => {
         </div>
 
                 {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="p-6">
             <div className="flex items-center">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -341,6 +352,22 @@ const StockManagementPage: React.FC = () => {
                 <p className="text-sm font-medium text-gray-600">Valor Total</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {formatCurrency(products.reduce((sum, p) => sum + (p.total_value || 0), 0))}
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Última Actualización</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {formatDateTime(lastInventoryUpdate)}
                 </p>
               </div>
             </div>
