@@ -4,6 +4,9 @@ import { ArrowLeft, Send, Copy, Check, Trash2, ExternalLink } from 'lucide-react
 import { getQuote, sendQuote, deleteQuote } from '@/utils/quotesApi';
 import type { Quote } from '@/types/quotes';
 import QuoteStatusBadge from './QuoteStatusBadge';
+import PaymentStatusChip from './PaymentStatusChip';
+import WebOrderPanel from './WebOrderPanel';
+import { isWebOrder, parseWebOrderNotes, stripWebOrderBlock } from '@/utils/webOrder';
 import QuoteItemRow from './QuoteItemRow';
 import MainLayout from '@/components/layout/MainLayout';
 
@@ -82,6 +85,11 @@ export default function QuoteDetailPage() {
     ? `https://todoparaelcampo.com.mx/cotizacion/${quote.access_token}`
     : null;
 
+  // Pedidos web: entrega y factura vienen en un bloque JSON dentro de las notas.
+  // Se muestran en el panel "Pedido web" y se quitan de "Notas" para no repetirlos.
+  const webOrder = isWebOrder(quote) ? parseWebOrderNotes(quote.notes) : null;
+  const visibleNotes = webOrder && quote.notes ? stripWebOrderBlock(quote.notes, webOrder.raw) : quote.notes;
+
   return (
     <MainLayout>
       <div className="p-6 max-w-4xl mx-auto">
@@ -95,6 +103,7 @@ export default function QuoteDetailPage() {
               <div className="flex items-center gap-3">
                 <h1 className="text-xl font-bold text-gray-900">{quote.quote_number}</h1>
                 <QuoteStatusBadge status={quote.status} />
+                <PaymentStatusChip status={quote.payment_status} />
               </div>
               <p className="text-sm text-gray-500 mt-0.5">Creada {formatDate(quote.created_at)}</p>
             </div>
@@ -171,6 +180,9 @@ export default function QuoteDetailPage() {
           </div>
         </div>
 
+        {/* Pedido web (solo lectura) */}
+        <WebOrderPanel quote={quote} details={webOrder} />
+
         {/* Timeline */}
         <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Actividad</h2>
@@ -230,10 +242,10 @@ export default function QuoteDetailPage() {
         </div>
 
         {/* Notes */}
-        {quote.notes && (
+        {visibleNotes && (
           <div className="bg-white border border-gray-100 rounded-xl p-6">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Notas</h2>
-            <p className="text-sm text-gray-600 whitespace-pre-wrap">{quote.notes}</p>
+            <p className="text-sm text-gray-600 whitespace-pre-wrap">{visibleNotes}</p>
           </div>
         )}
       </div>

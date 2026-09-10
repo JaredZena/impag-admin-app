@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, FileText } from 'lucide-react';
+import { Plus, Search, FileText, Globe } from 'lucide-react';
 import { listQuotes, getQuoteStats } from '@/utils/quotesApi';
 import type { Quote, QuoteStats } from '@/types/quotes';
 import QuoteStatusBadge from './QuoteStatusBadge';
+import PaymentStatusChip from './PaymentStatusChip';
+import { isWebOrder, WEB_ORDER_PREFIX } from '@/utils/webOrder';
 import MainLayout from '@/components/layout/MainLayout';
 
 const STATUS_FILTERS = [
@@ -22,26 +24,36 @@ export default function QuotesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  // "Pedidos web" (quote_number WEB-…): el filtro aparece hasta que la lista
+  // trae al menos un pedido de la tienda en línea.
+  const [webOnly, setWebOnly] = useState(false);
+  const [webOrdersSeen, setWebOrdersSeen] = useState(false);
 
   const fetchQuotes = useCallback(async () => {
     setLoading(true);
     try {
       const [quotesRes, statsRes] = await Promise.all([
-        listQuotes({ status: statusFilter || undefined, search: searchQuery || undefined }),
+        listQuotes({
+          status: statusFilter || undefined,
+          search: searchQuery || (webOnly ? WEB_ORDER_PREFIX : undefined),
+        }),
         getQuoteStats(),
       ]);
       setQuotes(quotesRes.data);
+      if (quotesRes.data.some((q) => isWebOrder(q))) setWebOrdersSeen(true);
       setStats(statsRes);
     } catch (err) {
       console.error('Failed to fetch quotes:', err);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery, webOnly]);
 
   useEffect(() => {
     fetchQuotes();
   }, [fetchQuotes]);
+
+  const visibleQuotes = webOnly ? quotes.filter((q) => isWebOrder(q)) : quotes;
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
@@ -115,15 +127,32 @@ export default function QuotesPage() {
               </button>
             ))}
           </div>
+          {(webOrdersSeen || webOnly) && (
+            <button
+              onClick={() => setWebOnly((v) => !v)}
+              aria-pressed={webOnly}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                webOnly
+                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Globe size={14} />
+              Pedidos web
+            </button>
+          )}
         </div>
 
         {/* Quote List */}
         {loading ? (
           <div className="text-center py-12 text-gray-400">Cargando...</div>
-        ) : quotes.length === 0 ? (
+        ) : visibleQuotes.length === 0 ? (
           <div className="text-center py-16 bg-white border border-gray-100 rounded-xl">
             <FileText size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500 mb-4">No hay cotizaciones{statusFilter ? ` con estado "${statusFilter}"` : ''}</p>
+            <p className="text-gray-500 mb-4">
+              {webOnly ? 'No hay pedidos web' : 'No hay cotizaciones'}
+              {statusFilter ? ` con estado "${statusFilter}"` : ''}
+            </p>
             <button
               onClick={() => navigate('/quotes/new')}
               className="text-blue-600 font-medium text-sm hover:text-blue-700"
@@ -144,7 +173,7 @@ export default function QuotesPage() {
                 </tr>
               </thead>
               <tbody>
-                {quotes.map((quote) => (
+                {visibleQuotes.map((quote) => (
                   <tr
                     key={quote.id}
                     onClick={() => navigate(`/quotes/${quote.id}`)}
@@ -152,7 +181,10 @@ export default function QuotesPage() {
                   >
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-gray-900">{quote.quote_number}</p>
-                      <span className="md:hidden"><QuoteStatusBadge status={quote.status} /></span>
+                      <span className="md:hidden">
+                        <QuoteStatusBadge status={quote.status} />
+                        <PaymentStatusChip status={quote.payment_status} className="ml-1" />
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-sm text-gray-900">{quote.customer_name}</p>
@@ -160,6 +192,7 @@ export default function QuotesPage() {
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <QuoteStatusBadge status={quote.status} />
+                      <PaymentStatusChip status={quote.payment_status} className="ml-1.5" />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <p className="text-sm font-semibold text-gray-900">

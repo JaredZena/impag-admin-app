@@ -39,7 +39,32 @@ export interface Quote {
   created_at: string;
   updated_at: string;
   items: QuoteItem[];
+  // Pedidos web (tienda en línea / Mercado Pago). Opcionales: el backend los
+  // devuelve sólo cuando serialize_quote los incluye; en cotizaciones normales
+  // vienen null o no vienen.
+  payment_status?: QuotePaymentStatus | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  customer_id?: number | null;
 }
+
+// Valores que escribe POST /storefront/orders. Se deja abierto a otros strings
+// para tolerar estados nuevos de Mercado Pago sin romper el render.
+export type QuotePaymentStatus =
+  | 'checkout'
+  | 'pending'
+  | 'in_process'
+  | 'authorized'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled'
+  | 'refunded'
+  | 'partially_refunded'
+  | 'charged_back'
+  | 'in_mediation'
+  | 'mismatch'
+  | 'amount_mismatch'
+  | (string & {});
 
 export type QuoteStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'expired';
 
@@ -117,7 +142,12 @@ export interface ProductSearchResult {
 export interface QuoteNotification {
   id: number;
   quote_id: number;
-  event_type: 'quote_viewed' | 'quote_accepted';
+  event_type:
+    | 'quote_viewed'
+    | 'quote_accepted'
+    | 'web_order_paid'
+    | 'web_order_pending'
+    | 'web_order_problem';
   message: string;
   is_read: boolean;
   created_at: string;
