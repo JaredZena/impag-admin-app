@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Bell, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationPolling } from '@/hooks/useNotificationPolling';
+import { notificationDotClass } from '@/utils/webOrder';
 
 export default function NotificationBell() {
   const navigate = useNavigate();
@@ -85,9 +86,7 @@ export default function NotificationBell() {
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
-                      n.event_type === 'quote_accepted' ? 'bg-green-500' : 'bg-yellow-500'
-                    }`} />
+                    <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notificationDotClass(n.event_type)}`} />
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm ${!n.is_read ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
                         {n.message}
