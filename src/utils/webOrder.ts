@@ -114,13 +114,25 @@ export interface WebOrderDetails {
   /** true: pidió factura · false: no pidió · null: el bloque no lo dice. */
   invoiceRequested: boolean | null;
   invoice: WebOrderInvoice | null;
+  /** Monto que cobró Mercado Pago (payment.transaction_amount del bloque). */
+  chargedAmount: number | null;
+  /** Avisos que dejó el backend al registrar el pedido (warnings del bloque). */
+  warnings: string[];
+  /**
+   * El bloque no trae ni la entrega ni la respuesta de factura: el pago se
+   * registró sin los datos del pedido y hay que confirmarlos con el cliente.
+   */
+  orderDataMissing: boolean;
   /** Texto exacto del JSON dentro de las notas (para ocultarlo en "Notas"). */
   raw: string;
 }
 
 const MAX_NOTES_LENGTH = 50_000;
 const MAX_CANDIDATES = 200;
+const MAX_WARNINGS = 30;
 const NESTED_KEYS = ['pedido_web', 'web_order', 'order', 'pedido'];
+// Bloque del backend (impag-quot write_notes_block): {v, ref, delivery, invoice, payment, warnings}.
+const ORDER_KEYS = ['delivery', 'invoice', 'payment', 'warnings'];
 
 type JsonRecord = Record<string, unknown>;
 
@@ -173,17 +185,21 @@ function findMatchingBrace(text: string, start: number): number {
   return -1;
 }
 
+function isOrderBlock(value: unknown): value is JsonRecord {
+  return isRecord(value) && ORDER_KEYS.some((key) => hasKey(value, key));
+}
+
 function pickOrder(value: unknown): JsonRecord | null {
   if (!isRecord(value)) return null;
-  if (hasKey(value, 'delivery') || hasKey(value, 'invoice')) return value;
+  if (isOrderBlock(value)) return value;
   for (const key of NESTED_KEYS) {
     const nested = value[key];
-    if (isRecord(nested) && (hasKey(nested, 'delivery') || hasKey(nested, 'invoice'))) return nested;
+    if (isOrderBlock(nested)) return nested;
   }
   return null;
 }
 
-/** Primer objeto JSON de las notas que traiga `delivery` o `invoice`. */
+/** Primer objeto JSON de las notas que traiga `delivery`, `invoice`, `payment` o `warnings`. */
 function findOrderBlock(text: string): { order: JsonRecord; raw: string } | null {
   let attempts = 0;
   for (let i = text.indexOf('{'); i !== -1 && attempts < MAX_CANDIDATES; i = text.indexOf('{', i + 1)) {
@@ -229,10 +245,16 @@ function normalizeDelivery(value: unknown): WebOrderDelivery | null {
   return delivery;
 }
 
-function normalizeInvoice(order: JsonRecord): Pick<WebOrderDetails, 'invoiceRequested' | 'invoice'> {
+function normalizeInvoice(
+  order: JsonRecord,
+  hasDelivery: boolean,
+): Pick<WebOrderDetails, 'invoiceRequested' | 'invoice'> {
   if (!hasKey(order, 'invoice')) return { invoiceRequested: null, invoice: null };
   const value = order.invoice;
-  if (value === null || value === false) return { invoiceRequested: false, invoice: null };
+  // invoice null es "no pidió factura" sólo junto a los datos de entrega. Un pago
+  // registrado sin los datos del pedido también deja invoice null: ahí no se sabe.
+  if (value === null) return { invoiceRequested: hasDelivery ? false : null, invoice: null };
+  if (value === false) return { invoiceRequested: false, invoice: null };
   if (!isRecord(value)) return { invoiceRequested: null, invoice: null };
   if (value.requires_invoice === false) return { invoiceRequested: false, invoice: null };
   const invoice: WebOrderInvoice = {
@@ -249,20 +271,42 @@ function normalizeInvoice(order: JsonRecord): Pick<WebOrderDetails, 'invoiceRequ
   return { invoiceRequested: null, invoice: null };
 }
 
+function normalizeWarnings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const warnings: string[] = [];
+  for (const item of value) {
+    const warning = typeof item === 'string' ? item.trim() : '';
+    if (warning && !warnings.includes(warning)) warnings.push(warning);
+    if (warnings.length >= MAX_WARNINGS) break;
+  }
+  return warnings;
+}
+
+function normalizeChargedAmount(payment: unknown): number | null {
+  if (!isRecord(payment)) return null;
+  const amount = cleanNumber(payment.transaction_amount);
+  return amount !== null && amount >= 0 ? amount : null;
+}
+
 /**
- * Lee los datos de entrega y factura del bloque JSON que el backend guarda en
- * quote.notes para los pedidos web. Acepta el JSON solo, entre marcadores
- * ([Pedido web …] … [/Pedido web]) o en un bloque ```json. Regresa null si no
- * hay bloque, si el JSON es inválido o si no trae nada que mostrar.
+ * Lee el bloque JSON que el backend guarda en quote.notes para los pedidos web:
+ * entrega, factura, el monto que cobró Mercado Pago y los avisos (warnings).
+ * Acepta el JSON solo, entre marcadores ([Pedido web …] … [/Pedido web]) o en
+ * un bloque ```json. Regresa null si no hay bloque, si el JSON es inválido o si
+ * no trae nada que mostrar.
  */
 export function parseWebOrderNotes(notes: string | null | undefined): WebOrderDetails | null {
   if (typeof notes !== 'string' || !notes.includes('{') || notes.length > MAX_NOTES_LENGTH) return null;
   const found = findOrderBlock(notes);
   if (!found) return null;
   const delivery = normalizeDelivery(found.order.delivery);
-  const { invoiceRequested, invoice } = normalizeInvoice(found.order);
-  if (delivery === null && invoiceRequested === null) return null;
-  return { delivery, invoiceRequested, invoice, raw: found.raw };
+  const { invoiceRequested, invoice } = normalizeInvoice(found.order, delivery !== null);
+  const chargedAmount = normalizeChargedAmount(found.order.payment);
+  const warnings = normalizeWarnings(found.order.warnings);
+  const orderDataMissing = delivery === null && invoiceRequested === null;
+  // Sin datos del pedido, el bloque sólo vale si registra un pago o trae avisos.
+  if (orderDataMissing && !isRecord(found.order.payment) && warnings.length === 0) return null;
+  return { delivery, invoiceRequested, invoice, chargedAmount, warnings, orderDataMissing, raw: found.raw };
 }
 
 /** Notas sin el bloque del pedido (lo que escribió una persona). */
@@ -296,6 +340,49 @@ const INVOICE_TYPE_LABELS = new Map<string, string>([
 export function invoiceTypeLabel(type: string | null): string | null {
   if (!type) return null;
   return INVOICE_TYPE_LABELS.get(type.toLowerCase()) ?? type;
+}
+
+// Códigos que escribe impag-quot (services/web_orders.py: order_problems y
+// record_order). Un código nuevo se muestra tal cual: nunca se esconde un aviso.
+const WARNING_LABELS = new Map<string, string>([
+  ['invalid_phone', 'Teléfono del cliente inválido'],
+  ['invalid_email', 'Correo del cliente inválido'],
+  ['missing_address', 'Falta la dirección de entrega'],
+  ['unit_total_mismatch', 'El precio con IVA de un producto no cuadra'],
+  ['totals_mismatch', 'Los totales no cuadran con los productos'],
+  ['iva_breakdown_mismatch', 'El desglose de IVA no cuadra'],
+  ['totals_differ_from_recorded_order', 'El pago trae un total distinto al del pedido registrado'],
+  ['invalid_rfc', 'RFC inválido'],
+  ['missing_razon_social', 'Falta la razón social'],
+  ['invalid_regimen_fiscal', 'Régimen fiscal inválido'],
+  ['invalid_cp_fiscal', 'CP fiscal inválido'],
+  ['invalid_uso_cfdi', 'Uso de CFDI inválido'],
+  ['invalid_invoice_email', 'Correo para CFDI inválido'],
+  ['unmapped_product', 'Producto que no existe en el catálogo'],
+  ['iva_mismatch', 'El IVA del producto no coincide con el catálogo'],
+  ['additional_approved_payment', 'Mercado Pago aprobó otro pago para este pedido'],
+  ['unparseable_date_approved', 'Fecha de aprobación ilegible'],
+  ['no_task_user', 'No se crearon las tareas (falta el usuario de sistema)'],
+  ['no_notification_recipients', 'Nadie recibió el aviso (falta WEB_ORDER_NOTIFY_EMAILS)'],
+]);
+
+/** "iva_mismatch:371" → "El IVA del producto no coincide con el catálogo (371)". */
+export function warningLabel(code: string): string {
+  const colon = code.indexOf(':');
+  const key = (colon === -1 ? code : code.slice(0, colon)).trim().toLowerCase();
+  const detail = colon === -1 ? '' : code.slice(colon + 1).trim();
+  const label = WARNING_LABELS.get(key);
+  if (!label) return code;
+  return detail ? `${label} (${detail})` : label;
+}
+
+/**
+ * true si lo que cobró Mercado Pago y el total del pedido difieren en más de un
+ * centavo (la misma tolerancia que usa el backend). Sin números válidos: false.
+ */
+export function chargedDiffersFromTotal(charged: number, total: number): boolean {
+  if (!Number.isFinite(charged) || !Number.isFinite(total)) return false;
+  return Math.abs(Math.round(charged * 100) - Math.round(total * 100)) > 1;
 }
 
 export function formatAddress(address: WebOrderAddress): string | null {
