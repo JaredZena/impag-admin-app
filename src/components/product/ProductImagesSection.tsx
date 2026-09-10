@@ -12,10 +12,22 @@ export interface ProductImage {
 interface ProductImagesSectionProps {
   productId: string;
   initialImages: ProductImage[];
+  // Reused by the tools inventory: API base for this resource's images
+  // (GET {resourcePath} must return { data: { images } }).
+  resourcePath?: string;
+  title?: string;
+  emptyMessage?: string;
 }
 
-const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({ productId, initialImages }) => {
+const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({
+  productId,
+  initialImages,
+  resourcePath,
+  title = 'Imágenes del producto',
+  emptyMessage = 'Sin imágenes — las fotos aparecerán en todoparaelcampo.com.mx para productos enlazados',
+}) => {
   const { addNotification } = useNotifications();
+  const basePath = resourcePath ?? `/products/${productId}`;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [images, setImages] = useState<ProductImage[]>(initialImages);
@@ -33,7 +45,7 @@ const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({ productId, 
     if (refreshedUrlsRef.current) return;
     refreshedUrlsRef.current = true;
     try {
-      const response = await apiRequest(`/products/${productId}`);
+      const response = await apiRequest(basePath);
       const fresh: ProductImage[] = response?.data?.images ?? [];
       setImages(curr =>
         curr.map(img => fresh.find(f => f.key === img.key) ?? img)
@@ -62,7 +74,7 @@ const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({ productId, 
         formData.append('file', file);
         // apiRequest skips the Content-Type header for FormData bodies,
         // letting the browser set the multipart boundary itself.
-        const response = await apiRequest(`/products/${productId}/images`, {
+        const response = await apiRequest(`${basePath}/images`, {
           method: 'POST',
           body: formData,
         });
@@ -95,7 +107,7 @@ const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({ productId, 
   const handleDelete = async (key: string) => {
     setDeletingKey(key);
     try {
-      await apiRequest(`/products/${productId}/images`, {
+      await apiRequest(`${basePath}/images`, {
         method: 'DELETE',
         body: JSON.stringify({ key }),
       });
@@ -124,7 +136,7 @@ const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({ productId, 
     setImages(reorderedImages);
     setReordering(true);
     try {
-      await apiRequest(`/products/${productId}/images/order`, {
+      await apiRequest(`${basePath}/images/order`, {
         method: 'PUT',
         body: JSON.stringify({ keys: reorderedImages.map(img => img.key) }),
       });
@@ -155,7 +167,7 @@ const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({ productId, 
           <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span className="text-sm sm:text-lg">Imágenes del producto</span>
+          <span className="text-sm sm:text-lg">{title}</span>
           <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
             {images.length}
           </span>
@@ -200,7 +212,7 @@ const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({ productId, 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           <p className="text-sm sm:text-base text-gray-500">
-            Sin imágenes — las fotos aparecerán en todoparaelcampo.com.mx para productos enlazados
+            {emptyMessage}
           </p>
         </div>
       ) : (
@@ -212,7 +224,7 @@ const ProductImagesSection: React.FC<ProductImagesSectionProps> = ({ productId, 
             >
               <img
                 src={image.url}
-                alt={`Imagen ${index + 1} del producto`}
+                alt={`${title} ${index + 1}`}
                 className="w-full h-full object-cover"
                 loading="lazy"
                 onError={handleImageError}

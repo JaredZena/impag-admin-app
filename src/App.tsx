@@ -30,6 +30,9 @@ import CampaignDetailPage from './components/campaigns/CampaignDetailPage';
 import SalesDashboardPage from './components/sales/SalesDashboardPage';
 import PosPage from './components/pos/PosPage';
 import CajaPage from './components/pos/CajaPage';
+import ToolsPage from './components/tools/ToolsPage';
+import ToolFormPage from './components/tools/ToolFormPage';
+import ToolDetailPage from './components/tools/ToolDetailPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
@@ -96,6 +99,9 @@ const AppContent: React.FC = () => {
           <Route path="/supplier-products/new" element={<SupplierProductFormPage />} />
           <Route path="/supplier-products/edit/:id" element={<SupplierProductFormPage />} />
           <Route path="/stock" element={<StockManagementPage />} />
+          <Route path="/tools" element={<ToolsPage />} />
+          <Route path="/tools/new" element={<ToolFormPage />} />
+          <Route path="/tools/:id" element={<ToolDetailPage />} />
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />
