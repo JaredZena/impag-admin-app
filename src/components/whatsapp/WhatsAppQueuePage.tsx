@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiRequest } from '@/utils/api';
-import MainLayout from '@/components/layout/MainLayout';
 
 interface Draft {
   id: number;
@@ -97,7 +96,7 @@ export default function WhatsAppQueuePage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="p-4 sm:p-6 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl font-bold text-gray-800">WhatsApp — Cola de aprobación</h1>
@@ -206,6 +205,6 @@ export default function WhatsAppQueuePage() {
           </div>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

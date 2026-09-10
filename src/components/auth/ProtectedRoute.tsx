@@ -15,7 +15,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-slate-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-        <p className="text-gray-600 dark:text-gray-400 text-lg">Loading IMPAG Admin...</p>
+        <p className="text-gray-600 dark:text-gray-400 text-lg">Cargando IMPAG Admin…</p>
       </div>
     );
   }

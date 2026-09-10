@@ -44,8 +44,7 @@ const SessionExpiredDialog: React.FC<SessionExpiredDialogProps> = ({
 
         <div className="mb-6">
           <p className="text-gray-700">
-            Por tu seguridad, tu sesión ha expirado. Para continuar trabajando, 
-            necesitas autenticarte nuevamente con tu cuenta de Google.
+            Vuelve a entrar con tu cuenta de Google para seguir trabajando. Lo que ya guardaste no se pierde.
           </p>
         </div>
 
@@ -84,8 +83,7 @@ const SessionExpiredDialog: React.FC<SessionExpiredDialogProps> = ({
 
         <div className="mt-4 text-xs text-gray-500">
           <p>
-            💡 <strong>Consejo:</strong> Para evitar que la sesión expire, mantén la aplicación activa. 
-            Las sesiones se renuevan automáticamente mientras uses la aplicación.
+            💡 <strong>Consejo:</strong> En una computadora compartida usa Cerrar sesión al terminar.
           </p>
         </div>
       </div>

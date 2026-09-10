@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiRequest, ApiError } from '@/utils/api';
-import MainLayout from '@/components/layout/MainLayout';
 import { useNotifications } from '@/components/ui/notification';
 import QuoteStatusBadge from '@/components/quotes/QuoteStatusBadge';
 import type { QuoteStatus } from '@/types/quotes';
@@ -150,7 +149,7 @@ export default function CustomerDetailPage() {
   const isSV = (customer?.tags || []).includes(SV_TAG);
 
   return (
-    <MainLayout>
+    <>
       <div className="p-4 sm:p-6 max-w-5xl mx-auto">
         <button onClick={goBack} className="text-sm text-green-700 hover:text-green-800 hover:underline mb-3 inline-flex items-center gap-1">
           ← Clientes
@@ -325,7 +324,7 @@ export default function CustomerDetailPage() {
           </div>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }
 

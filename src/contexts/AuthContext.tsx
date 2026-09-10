@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { decodeTokenPayload, upgradeToSession } from '@/utils/session';
 
 export interface User {
   email: string;
@@ -55,11 +56,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const tokenParts = token.split('.');
           if (tokenParts.length === 3) {
-            const payload = JSON.parse(atob(tokenParts[1]));
+            const payload = decodeTokenPayload(token) ?? {};
             const now = Math.floor(Date.now() / 1000);
             
             // If token is expired, mark session as expired
-            if (payload.exp && payload.exp < now) {
+            if (typeof payload.exp === 'number' && payload.exp < now) {
               console.log('Token expired on restoration');
               setSessionExpired(true);
               setUser(userData); // Keep user data for context
@@ -99,13 +100,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Login with Google user object
   const login = (googleUser: any) => {
     if (!googleUser || !googleUser.getBasicProfile) {
-      alert('Google login failed.');
+      alert('No se pudo iniciar sesión con Google. Intenta de nuevo.');
       return;
     }
     const profile = googleUser.getBasicProfile();
     const email = profile.getEmail().toLowerCase();
     if (!ALLOWED_EMAILS.includes(email)) {
-      alert('Unauthorized email. Please use an authorized Google account.');
+      alert(`La cuenta ${email} no tiene acceso a IMPAG Admin. Entra con una cuenta autorizada.`);
       logout();
       return;
     }
@@ -147,7 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             localStorage.setItem('google_token', response.credential);
 
             // Process the credential and update user
-            const payload = JSON.parse(atob(response.credential.split('.')[1]));
+            const payload = decodeTokenPayload(response.credential) ?? {};
             const googleUser = {
               getBasicProfile: () => ({
                 getEmail: () => payload.email,
@@ -159,6 +160,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             
             login(googleUser);
             setSessionExpired(false);
+            upgradeToSession(response.credential);
             resolve();
           } catch (err) {
             console.error('Failed to process reauthentication:', err);

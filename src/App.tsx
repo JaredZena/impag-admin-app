@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProductDetailPage from './components/product/ProductDetailPage';
 import ProductFormPage from './components/product/ProductFormPage';
@@ -9,25 +9,13 @@ import SupplierManagementPage from './components/product/SupplierManagementPage'
 import SupplierFormPage from './components/product/SupplierFormPage';
 import SupplierProductManagementPage from './components/product/SupplierProductManagementPage';
 import SupplierProductFormPage from './components/product/SupplierProductFormPage';
-import ProductBalancePage from './components/product/ProductBalancePage';
-import QuotationUploadPage from './components/quotation/QuotationUploadPage';
-import QuotationChatPage from './components/quotation/QuotationChatPage';
-import QuotationHistoryPage from './components/quotation/QuotationHistoryPage';
-import SocialCalendarPage from './components/social-calendar/SocialCalendarPage';
-import TikTokPage from './components/tiktok/TikTokPage';
 import TasksPage from './components/tasks/TasksPage';
 import TaskArchivePage from './components/tasks/TaskArchivePage';
 import QuotesPage from './components/quotes/QuotesPage';
 import QuoteForm from './components/quotes/QuoteForm';
 import QuoteDetailPage from './components/quotes/QuoteDetailPage';
-import FilesPage from './components/files/FilesPage';
-import WhatsAppQueuePage from './components/whatsapp/WhatsAppQueuePage';
-import RoadmapPage from './components/roadmap/RoadmapPage';
 import CustomersPage from './components/customers/CustomersPage';
 import CustomerDetailPage from './components/customers/CustomerDetailPage';
-import CampaignsPage from './components/campaigns/CampaignsPage';
-import CampaignDetailPage from './components/campaigns/CampaignDetailPage';
-import SalesDashboardPage from './components/sales/SalesDashboardPage';
 import PosPage from './components/pos/PosPage';
 import CajaPage from './components/pos/CajaPage';
 import ToolsPage from './components/tools/ToolsPage';
@@ -38,6 +26,20 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
 import { NotificationProvider, useNotifications } from './components/ui/notification';
 import { setSessionExpirationHandler } from './utils/api';
+
+// Heavy or rarely used pages load on demand so phones download less on first open.
+const ProductBalancePage = lazy(() => import('./components/product/ProductBalancePage'));
+const QuotationUploadPage = lazy(() => import('./components/quotation/QuotationUploadPage'));
+const QuotationChatPage = lazy(() => import('./components/quotation/QuotationChatPage'));
+const QuotationHistoryPage = lazy(() => import('./components/quotation/QuotationHistoryPage'));
+const SocialCalendarPage = lazy(() => import('./components/social-calendar/SocialCalendarPage'));
+const TikTokPage = lazy(() => import('./components/tiktok/TikTokPage'));
+const FilesPage = lazy(() => import('./components/files/FilesPage'));
+const WhatsAppQueuePage = lazy(() => import('./components/whatsapp/WhatsAppQueuePage'));
+const RoadmapPage = lazy(() => import('./components/roadmap/RoadmapPage'));
+const CampaignsPage = lazy(() => import('./components/campaigns/CampaignsPage'));
+const CampaignDetailPage = lazy(() => import('./components/campaigns/CampaignDetailPage'));
+const SalesDashboardPage = lazy(() => import('./components/sales/SalesDashboardPage'));
 
 const AppContent: React.FC = () => {
   const { sessionExpired, forceReauthenticate, clearSessionExpired, reauthenticate } = useAuth();
@@ -86,6 +88,7 @@ const AppContent: React.FC = () => {
   return (
     <>
       <ProtectedRoute>
+        <Suspense fallback={<div className="py-16 text-center text-sm text-gray-500">Cargando…</div>}>
         <Routes>
           <Route path="/product-admin" element={<ProductManagementPage />} />
           <Route path="/product-admin/new" element={<ProductFormPage />} />
@@ -127,6 +130,7 @@ const AppContent: React.FC = () => {
           <Route path="/customers/:id" element={<CustomerDetailPage />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
+        </Suspense>
       </ProtectedRoute>
 
       <SessionExpiredDialog

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { decodeTokenPayload, upgradeToSession } from '@/utils/session';
 
 // Extend window for Google Identity Services
 declare global {
@@ -59,7 +60,7 @@ const Login: React.FC<LoginProps> = () => {
       setTimeout(() => {
         clearInterval(checkGoogle);
         if (!window.google) {
-          setError('Failed to load Google Sign-In');
+          setError('No se pudo cargar el inicio de sesión de Google. Revisa tu conexión y recarga la página.');
         }
       }, 5000);
     }
@@ -71,8 +72,8 @@ const Login: React.FC<LoginProps> = () => {
       // Store the raw JWT token for API calls
       localStorage.setItem('google_token', response.credential);
 
-      // Decode for user info (existing code)
-      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      // Decode for user info
+      const payload = decodeTokenPayload(response.credential) ?? {};
       const googleUser = {
         getBasicProfile: () => ({
           getEmail: () => payload.email,
@@ -82,10 +83,13 @@ const Login: React.FC<LoginProps> = () => {
         })
       };
       login(googleUser);
+      // Swap the 1-hour Google token for a 30-day app session (no-op when the
+      // backend has sessions off). Requests made meanwhile use the Google token.
+      upgradeToSession(response.credential);
       setIsSigningIn(false);
     } catch (err) {
       console.error('Failed to process Google credential:', err);
-      setError('Failed to process Google sign-in');
+      setError('No se pudo completar el inicio de sesión. Intenta de nuevo.');
       setIsSigningIn(false);
     }
   }, [login]);
@@ -93,7 +97,7 @@ const Login: React.FC<LoginProps> = () => {
   // Handle Google Sign-In button click
   const handleGoogleSignIn = useCallback(() => {
     if (!window.google || !isGoogleLoaded) {
-      setError('Google Sign-In not ready');
+      setError('El inicio de sesión de Google todavía está cargando. Espera un momento.');
       return;
     }
     setError(null);
@@ -119,10 +123,10 @@ const Login: React.FC<LoginProps> = () => {
           {/* Header */}
           <div className="text-center mb-6 sm:mb-8 lg:mb-10 xl:mb-12">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl 2xl:text-6xl font-bold text-gray-900 mb-2 sm:mb-4">
-              IMPAG Admin Login
+              IMPAG Admin
             </h1>
             <p className="text-gray-600 text-sm sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">
-              Sign in to access your dashboard
+              Entra con tu cuenta de Google autorizada
             </p>
           </div>
 
@@ -131,7 +135,7 @@ const Login: React.FC<LoginProps> = () => {
             <div className="flex flex-col items-center justify-center py-8 lg:py-12 xl:py-16">
               <div className="animate-spin rounded-full h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 xl:h-16 xl:w-16 2xl:h-20 2xl:w-20 border-t-2 border-b-2 border-blue-600 mb-4 lg:mb-6 xl:mb-8" />
               <div className="text-gray-500 text-sm sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">
-                Loading Google Sign-In...
+                Cargando inicio de sesión…
               </div>
             </div>
           ) : (
@@ -149,7 +153,7 @@ const Login: React.FC<LoginProps> = () => {
   shadow-sm hover:shadow-md"
               >
                 <GoogleIcon />
-                {isSigningIn ? 'Signing in...' : 'Click to load Google Sign-In'}
+                {isSigningIn ? 'Abriendo Google…' : 'Entrar con Google'}
               </button>
             </div>
           )}
@@ -164,7 +168,7 @@ const Login: React.FC<LoginProps> = () => {
                 className="block mt-2 sm:mt-3 lg:mt-4 mx-auto underline text-blue-600 hover:text-blue-800 text-sm sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl transition-colors duration-150"
                 onClick={() => setError(null)}
               >
-                Retry
+                Reintentar
               </button>
             </div>
           )}

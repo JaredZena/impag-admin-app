@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
-import MainLayout from '@/components/layout/MainLayout';
 import { apiRequest } from '@/utils/api';
 import { getPipelineSummary } from '@/utils/quotesApi';
 import type { QuotePipelineSummary } from '@/types/quotes';
@@ -1303,7 +1302,7 @@ export default function SalesDashboardPage() {
     : [];
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3">
@@ -1420,6 +1419,6 @@ export default function SalesDashboardPage() {
         {/* Ventas recientes */}
         <RecentSalesTable years={[...new Set((stats?.monthly ?? []).map((m) => m.year))]} />
       </div>
-    </MainLayout>
+    </>
   );
 }

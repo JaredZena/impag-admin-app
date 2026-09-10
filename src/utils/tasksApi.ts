@@ -18,7 +18,7 @@ const tasksApiRequest = async <T>(endpoint: string, options: RequestInit = {}): 
   const token = localStorage.getItem('google_token');
 
   if (!token) {
-    throw new Error('No authentication token found');
+    throw new Error('Tu sesión no está activa. Vuelve a entrar con Google.');
   }
 
   const headers: Record<string, string> = {
@@ -45,12 +45,12 @@ const tasksApiRequest = async <T>(endpoint: string, options: RequestInit = {}): 
   if (response.status === 401) {
     localStorage.removeItem('google_token');
     window.location.reload();
-    throw new Error('Authentication expired');
+    throw new Error('Tu sesión expiró. Vuelve a entrar con Google.');
   }
 
   if (!response.ok) {
     const errorText = await response.text();
-    let errorMessage = `API request failed: ${response.statusText}`;
+    let errorMessage = `Error del servidor (${response.status}). Intenta de nuevo.`;
     try {
       const errorData = JSON.parse(errorText);
       if (errorData.detail) errorMessage = errorData.detail;

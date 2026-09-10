@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '@/utils/api';
-import MainLayout from '@/components/layout/MainLayout';
 import { useNotifications } from '@/components/ui/notification';
 import { SOURCE_CLS, SV_TAG, relativeTime } from './customerShared';
 
@@ -126,7 +125,7 @@ export default function CustomersPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="p-4 sm:p-6 max-w-6xl mx-auto">
         <h1 className="text-xl font-bold text-gray-800 mb-1">Clientes</h1>
         <p className="text-sm text-gray-500 mb-4">Busca por nombre, teléfono o lugar — un cliente, todo su historial.</p>
@@ -278,7 +277,7 @@ export default function CustomersPage() {
           </button>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }
 

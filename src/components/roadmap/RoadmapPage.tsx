@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '@/utils/api';
-import MainLayout from '@/components/layout/MainLayout';
 
 interface RoadmapItem {
   id: number;
@@ -74,7 +73,7 @@ export default function RoadmapPage() {
   const pct = total ? Math.round((done / total) * 100) : 0;
 
   return (
-    <MainLayout>
+    <>
       <div className="p-4 sm:p-6 max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-xl font-bold text-gray-800">Roadmap IMPAG</h1>
@@ -150,6 +149,6 @@ export default function RoadmapPage() {
           })
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

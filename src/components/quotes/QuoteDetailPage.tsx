@@ -5,7 +5,6 @@ import { getQuote, sendQuote, deleteQuote } from '@/utils/quotesApi';
 import type { Quote } from '@/types/quotes';
 import QuoteStatusBadge from './QuoteStatusBadge';
 import QuoteItemRow from './QuoteItemRow';
-import MainLayout from '@/components/layout/MainLayout';
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -71,11 +70,11 @@ export default function QuoteDetailPage() {
   };
 
   if (loading) {
-    return <MainLayout><div className="p-6 text-center text-gray-400">Cargando...</div></MainLayout>;
+    return <><div className="p-6 text-center text-gray-400">Cargando...</div></>;
   }
 
   if (!quote) {
-    return <MainLayout><div className="p-6 text-center text-gray-400">Cotización no encontrada</div></MainLayout>;
+    return <><div className="p-6 text-center text-gray-400">Cotización no encontrada</div></>;
   }
 
   const quoteUrl = quote.access_token
@@ -83,7 +82,7 @@ export default function QuoteDetailPage() {
     : null;
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6 max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -237,6 +236,6 @@ export default function QuoteDetailPage() {
           </div>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

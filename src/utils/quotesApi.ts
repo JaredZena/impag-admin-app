@@ -14,7 +14,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const quotesApiRequest = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
   const token = localStorage.getItem('google_token');
-  if (!token) throw new Error('No authentication token found');
+  if (!token) throw new Error('Tu sesión no está activa. Vuelve a entrar con Google.');
 
   const headers: Record<string, string> = {
     'Authorization': `Bearer ${token}`,
@@ -37,12 +37,12 @@ const quotesApiRequest = async <T>(endpoint: string, options: RequestInit = {}):
   if (response.status === 401) {
     localStorage.removeItem('google_token');
     window.location.reload();
-    throw new Error('Authentication expired');
+    throw new Error('Tu sesión expiró. Vuelve a entrar con Google.');
   }
 
   if (!response.ok) {
     const errorText = await response.text();
-    let errorMessage = `API request failed: ${response.statusText}`;
+    let errorMessage = `Error del servidor (${response.status}). Intenta de nuevo.`;
     try {
       const errorData = JSON.parse(errorText);
       if (errorData.detail) errorMessage = errorData.detail;

@@ -4,7 +4,6 @@ import { Plus, Search, FileText } from 'lucide-react';
 import { listQuotes, getQuoteStats } from '@/utils/quotesApi';
 import type { Quote, QuoteStats } from '@/types/quotes';
 import QuoteStatusBadge from './QuoteStatusBadge';
-import MainLayout from '@/components/layout/MainLayout';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Todas' },
@@ -49,7 +48,7 @@ export default function QuotesPage() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -177,6 +176,6 @@ export default function QuotesPage() {
           </div>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

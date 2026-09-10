@@ -5,7 +5,6 @@ import { createQuote, addQuoteItem } from '@/utils/quotesApi';
 import type { CreateQuoteItemPayload, ProductSearchResult } from '@/types/quotes';
 import ProductSearchInput from './ProductSearchInput';
 import QuoteItemRow from './QuoteItemRow';
-import MainLayout from '@/components/layout/MainLayout';
 
 interface LocalItem extends CreateQuoteItemPayload {
   _id: string; // temp client-side ID
@@ -157,7 +156,7 @@ export default function QuoteForm() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="p-6 max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
@@ -332,6 +331,6 @@ export default function QuoteForm() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }
