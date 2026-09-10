@@ -17,6 +17,8 @@ export interface AuthContextType {
   clearSessionExpired: () => void;
   forceReauthenticate: () => void;
   reauthenticate: () => Promise<void>;
+  /** Render Google's own sign-in button into `container`; false if GIS isn't ready. */
+  renderGoogleButton: (container: HTMLElement) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -66,6 +68,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setUser(userData); // Keep user data for context
             } else {
               setUser(userData);
+              // Still carrying a 1-hour Google token: swap it for a 30-day app
+              // session now instead of waiting for the next sign-in.
+              if (!token.startsWith('impag1.')) {
+                upgradeToSession(token);
+              }
             }
           } else {
             // Invalid token format
@@ -131,6 +138,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSessionExpired(true);
   };
 
+  // Shared by the re-login dialog's Google button and the One Tap fallback.
+  const handleCredential = (credential: string) => {
+    localStorage.setItem('google_token', credential);
+    const payload = decodeTokenPayload(credential) ?? {};
+    const googleUser = {
+      getBasicProfile: () => ({
+        getEmail: () => payload.email,
+        getName: () => payload.name,
+        getImageUrl: () => payload.picture,
+        getId: () => payload.sub,
+      }),
+    };
+    login(googleUser);
+    setSessionExpired(false);
+    // Swap the 1-hour Google token for a 30-day app session.
+    upgradeToSession(credential);
+  };
+
+  // Google's own button is a real user click, so the sign-in window always
+  // opens — unlike One Tap's prompt(), which silently does nothing in some
+  // browsers and leaves the dialog stuck on "Autenticando...".
+  const renderGoogleButton = (container: HTMLElement): boolean => {
+    try {
+      if (!window.google?.accounts?.id) return false;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (response: any) => handleCredential(response.credential),
+        use_fedcm_for_prompt: false,
+      });
+      container.innerHTML = '';
+      window.google.accounts.id.renderButton(container, {
+        theme: 'outline',
+        size: 'large',
+        type: 'standard',
+        text: 'signin_with',
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to render the Google sign-in button:', err);
+      return false;
+    }
+  };
+
   // Reauthenticate using Google Sign-In
   const reauthenticate = (): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -144,23 +194,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         client_id: GOOGLE_CLIENT_ID,
         callback: (response: any) => {
           try {
-            // Store the new token
-            localStorage.setItem('google_token', response.credential);
-
-            // Process the credential and update user
-            const payload = decodeTokenPayload(response.credential) ?? {};
-            const googleUser = {
-              getBasicProfile: () => ({
-                getEmail: () => payload.email,
-                getName: () => payload.name,
-                getImageUrl: () => payload.picture,
-                getId: () => payload.sub,
-              })
-            };
-            
-            login(googleUser);
-            setSessionExpired(false);
-            upgradeToSession(response.credential);
+            handleCredential(response.credential);
             resolve();
           } catch (err) {
             console.error('Failed to process reauthentication:', err);
@@ -225,6 +259,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     clearSessionExpired,
     forceReauthenticate,
     reauthenticate,
+    renderGoogleButton,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

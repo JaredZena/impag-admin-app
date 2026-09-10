@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
 interface SessionExpiredDialogProps {
@@ -12,7 +13,31 @@ const SessionExpiredDialog: React.FC<SessionExpiredDialogProps> = ({
   onReauthenticate,
   onClose,
 }) => {
+  const { renderGoogleButton } = useAuth();
   const [isReauthenticating, setIsReauthenticating] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+  const buttonRef = useRef<HTMLDivElement>(null);
+
+  // Google's script may still be loading when the dialog opens, so retry for
+  // a few seconds before falling back to the One Tap button below.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    let tries = 0;
+    const attempt = () => {
+      if (cancelled) return;
+      if (buttonRef.current && renderGoogleButton(buttonRef.current)) {
+        setGoogleReady(true);
+        return;
+      }
+      if (tries++ < 20) setTimeout(attempt, 250);
+    };
+    attempt();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -48,34 +73,25 @@ const SessionExpiredDialog: React.FC<SessionExpiredDialogProps> = ({
           </p>
         </div>
 
-        <div className="flex space-x-3">
-          <Button
-            onClick={handleReauthenticate}
-            disabled={isReauthenticating}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-          >
-            {isReauthenticating ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Autenticando...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                </svg>
-                Iniciar Sesión Nuevamente
-              </>
-            )}
-          </Button>
+        <div className="space-y-3">
+          {/* Google's own button: a real click, so the sign-in window always opens. */}
+          <div ref={buttonRef} className="flex justify-center" />
+
+          {!googleReady && (
+            <Button
+              onClick={handleReauthenticate}
+              disabled={isReauthenticating}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isReauthenticating ? 'Autenticando...' : 'Iniciar Sesión Nuevamente'}
+            </Button>
+          )}
+
           <Button
             onClick={onClose}
             variant="outline"
             disabled={isReauthenticating}
-            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
           >
             Cerrar
           </Button>
