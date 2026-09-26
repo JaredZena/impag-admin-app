@@ -6,6 +6,7 @@ import { formatDate } from '@/utils/dateUtils';
 import { apiRequest } from '@/utils/api';
 import { formatCurrency } from '@/utils/currencyUtils';
 import { useNotifications } from '@/components/ui/notification';
+import { STORE_BASE_URL, useStoreLinks } from '@/hooks/useStoreLinks';
 
 export interface ProductRowProps {
   id: string | number;
@@ -24,6 +25,7 @@ export interface ProductRowProps {
   categoryOptions?: { value: string; label: string }[];
   currency?: string;
   isCalculatedPrice?: boolean;
+  storefrontTitle?: string | null;
   onUpdate?: (updatedData: any) => void;
   // Add more fields as needed
 }
@@ -44,6 +46,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
   categoryOptions = [],
   currency,
   isCalculatedPrice,
+  storefrontTitle,
   onUpdate
 }) => {
   const navigate = useNavigate();
@@ -58,6 +61,9 @@ const ProductRow: React.FC<ProductRowProps> = ({
   const [tempCategoryId, setTempCategoryId] = useState(categoryId?.toString() || '');
   const [tempPrice, setTempPrice] = useState(price?.toString() || '');
   const [saving, setSaving] = useState(false);
+  const storeLinks = useStoreLinks(id);
+  const [editingStoreTitle, setEditingStoreTitle] = useState(false);
+  const [tempStoreTitle, setTempStoreTitle] = useState('');
 
   // Closing an editor via blur (click-away) must not let the same click
   // navigate to the detail page — the blur flushes state before the click
@@ -128,6 +134,50 @@ const ProductRow: React.FC<ProductRowProps> = ({
     }
   };
   
+  // Customer-facing name on todoparaelcampo.com.mx (Product.storefront_title).
+  // Blank clears it so the page keeps its own title. The store picks it up on
+  // the next price publish.
+  const currentStoreTitle = storefrontTitle || storeLinks?.[0]?.title || '';
+  const handleStoreTitleUpdate = async () => {
+    if (saving) return;
+    markEditorClosed();
+    const newTitle = tempStoreTitle.trim().replace(/\s+/g, ' ');
+    setEditingStoreTitle(false);
+    if (newTitle === (storefrontTitle || '') || (!storefrontTitle && newTitle === currentStoreTitle)) {
+      return;
+    }
+    try {
+      setSaving(true);
+      const response = await apiRequest(`/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storefront_title: newTitle }),
+      });
+      if (response.success) {
+        onUpdate?.({ id, storefrontTitle: newTitle || null, lastUpdated: new Date().toISOString() });
+        addNotification({
+          type: 'success',
+          title: 'Nombre en la tienda guardado',
+          message: 'Se verá en la página con la próxima publicación de precios.',
+        });
+      } else {
+        addNotification({
+          type: 'error',
+          title: 'Error al guardar nombre',
+          message: response.error || 'No se pudo actualizar el nombre en la tienda',
+        });
+      }
+    } catch (error: any) {
+      addNotification({
+        type: 'error',
+        title: 'Error al guardar nombre',
+        message: error?.message || 'No se pudo actualizar el nombre en la tienda',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Handle stock update
   const handleStockUpdate = async () => {
     if (saving) return;
@@ -213,7 +263,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
 
   const handleRowClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on inputs, selects, or if we're editing
-    if ((e.target as HTMLElement).closest('input, select') || editingStock || editingCategory || editingPrice) {
+    if ((e.target as HTMLElement).closest('input, select, a') || editingStock || editingCategory || editingPrice || editingStoreTitle) {
       return;
     }
     if (Date.now() - editorCloseGuardRef.current < 300) {
@@ -230,6 +280,57 @@ const ProductRow: React.FC<ProductRowProps> = ({
       {/* Name */}
       <td className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
         <div className="font-medium text-gray-900 text-sm sm:text-base break-words">{name}</div>
+        {storeLinks && storeLinks.length > 0 && (
+          <div className="mt-1 text-xs text-emerald-800" onClick={(e) => e.stopPropagation()}>
+            {editingStoreTitle ? (
+              <Input
+                value={tempStoreTitle}
+                onChange={(e) => setTempStoreTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleStoreTitleUpdate();
+                  }
+                  if (e.key === 'Escape') {
+                    markEditorClosed();
+                    setEditingStoreTitle(false);
+                  }
+                }}
+                onBlur={handleStoreTitleUpdate}
+                className="h-8 text-sm"
+                maxLength={200}
+                placeholder="Nombre que ve el cliente en la página"
+                disabled={saving}
+                autoFocus
+              />
+            ) : (
+              <div className="flex flex-wrap items-center gap-x-2">
+                <button
+                  type="button"
+                  className="text-left hover:underline"
+                  title="Editar el nombre que ve el cliente en la página"
+                  onClick={() => {
+                    setTempStoreTitle(currentStoreTitle);
+                    setEditingStoreTitle(true);
+                  }}
+                >
+                  En la página: <span className="font-medium">{currentStoreTitle}</span> ✎
+                </button>
+                <a
+                  href={`${STORE_BASE_URL}/producto/${storeLinks[0].handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-700 underline"
+                >
+                  Ver
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+        {storeLinks && storeLinks.length === 0 && (
+          <div className="mt-1 text-xs text-gray-400">No está ligado a la página</div>
+        )}
         {/* Show additional info on mobile */}
         <div className="text-xs text-gray-500 mt-1 space-y-0.5">
           {suppliers.length > 0 && (

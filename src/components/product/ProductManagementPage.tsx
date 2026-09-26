@@ -103,6 +103,7 @@ const ProductManagementPage: React.FC = () => {
         // Use the currency from the API response (for calculated prices) or default to MXN
         currency: p.currency || 'MXN',
         isCalculatedPrice: !!p.is_calculated_price,
+        storefrontTitle: p.storefront_title ?? null,
         onUpdate: (updatedData: any) => {
           // Update only the specific product in the list without full rerender
           setProducts(prev => prev.map(product => 
