@@ -45,6 +45,8 @@ export interface SeriesPoint {
   unpaid: number;
   sales: number;
   gross_profit: number;
+  taxes: number;
+  taxes_source: 'declarado' | 'estimado';
   breakeven_operativo: number | null;
   breakeven_fixed: number | null;
   result: number;
@@ -64,6 +66,8 @@ export interface FinanceDashboard {
   month: string;
   today: string;
   margin: { pct: number; source: 'medido' | 'manual' | 'supuesto'; measured_pct: number | null; sample: number };
+  tax: { pct: number; source: 'medido' | 'manual' | 'supuesto'; measured_pct: number | null; months: string[] };
+  effective_margin: number;
   selected: SeriesPoint & {
     opened: boolean;
     items: MonthlyExpense[];
@@ -94,11 +98,13 @@ export async function getFinanceDashboard(params: {
   month?: string;
   months?: number;
   marginPct?: number | null;
+  taxPct?: number | null;
 }): Promise<FinanceDashboard> {
   const qs = new URLSearchParams();
   if (params.month) qs.set('month', params.month);
   if (params.months) qs.set('months', String(params.months));
   if (params.marginPct) qs.set('margin_pct', String(params.marginPct));
+  if (params.taxPct !== null && params.taxPct !== undefined) qs.set('tax_pct', String(params.taxPct));
   return apiRequest(`/finance/dashboard?${qs.toString()}`);
 }
 
@@ -135,4 +141,22 @@ export async function updateExpense(id: number, body: Partial<MonthlyExpense>): 
 
 export async function deleteExpense(id: number): Promise<void> {
   await apiRequest(`/finance/expenses/${id}`, { method: 'DELETE' });
+}
+
+export interface TaxDeclaration {
+  month: string; // YYYY-MM periodo
+  amount: number;
+  notes: string | null;
+}
+
+export async function listTaxes(): Promise<TaxDeclaration[]> {
+  return apiRequest('/finance/taxes');
+}
+
+export async function putTax(month: string, body: { amount: number; notes?: string | null }): Promise<TaxDeclaration> {
+  return apiRequest(`/finance/taxes/${month}`, { method: 'PUT', body: JSON.stringify(body) });
+}
+
+export async function deleteTax(month: string): Promise<void> {
+  await apiRequest(`/finance/taxes/${month}`, { method: 'DELETE' });
 }

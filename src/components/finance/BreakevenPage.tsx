@@ -9,9 +9,12 @@ import {
   createConcept,
   deleteConcept,
   deleteExpense,
+  deleteTax,
   getFinanceDashboard,
   listConcepts,
+  listTaxes,
   openMonth,
+  putTax,
   updateConcept,
   updateExpense,
   type ExpenseCategory,
@@ -19,9 +22,12 @@ import {
   type FinanceDashboard,
   type MonthlyExpense,
   type SeriesPoint,
+  type TaxDeclaration,
 } from '@/utils/financeApi';
 
-// Punto de equilibrio: venta mínima mensual = gastos fijos ÷ margen bruto.
+// Punto de equilibrio: venta mínima mensual = gastos fijos ÷ (margen bruto −
+// impuestos como % de la venta). Los impuestos no son gasto fijo: suben y
+// bajan con lo vendido, así que la tasa se mide con los acuses capturados.
 // Gastos se capturan por mes (se abren copiando la plantilla de conceptos);
 // ventas y margen vienen del ledger y de BALANCES DE VENTA.
 
@@ -31,6 +37,7 @@ const MONTHS_FULL = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
 const MARGIN_KEY = 'breakeven.marginOverride';
+const TAX_KEY = 'breakeven.taxOverride';
 
 const fmtMXN = (n: number | null | undefined): string =>
   n === null || n === undefined
@@ -65,13 +72,23 @@ const currentMonthKey = () => {
   return parts.slice(0, 7);
 };
 
-const readMarginOverride = (): number | null => {
+// Per-viewer overrides (convenience only; the measured values are the default).
+const readOverride = (key: string, allowZero = false): number | null => {
   try {
-    const v = Number(localStorage.getItem(MARGIN_KEY));
-    return v > 0 && v < 100 ? v : null;
+    const raw = localStorage.getItem(key);
+    if (raw === null || raw === '') return null;
+    const v = Number(raw);
+    return (allowZero ? v >= 0 : v > 0) && v < 100 ? v : null;
   } catch {
     return null;
   }
+};
+
+const writeOverride = (key: string, value: number | null) => {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, String(value));
+  } catch { /* private window etc. */ }
 };
 
 const Card = ({ title, action, children }: { title?: string; action?: React.ReactNode; children: React.ReactNode }) => (
@@ -232,6 +249,124 @@ const ExpenseRow = ({ line, onChange, onDelete }: {
         </button>
       </td>
     </tr>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Impuestos declarados (total a pagar de los acuses de la contadora)
+// ---------------------------------------------------------------------------
+
+const TaxRow = ({ point, declared, onSave }: {
+  point: SeriesPoint;
+  declared: TaxDeclaration | undefined;
+  onSave: (month: string, amount: number | null, notes: string | null) => Promise<void>;
+}) => {
+  const [amount, setAmount] = useState(declared ? String(declared.amount) : '');
+  const [notes, setNotes] = useState(declared?.notes ?? '');
+  useEffect(() => {
+    setAmount(declared ? String(declared.amount) : '');
+    setNotes(declared?.notes ?? '');
+  }, [declared]);
+
+  const commit = () => {
+    const trimmed = amount.trim();
+    const v = Number(trimmed);
+    if (!trimmed) {
+      if (declared) onSave(point.month, null, null);
+      return;
+    }
+    if (Number.isNaN(v) || v < 0) return;
+    if (!declared || v !== declared.amount || notes !== (declared.notes ?? '')) onSave(point.month, v, notes || null);
+  };
+
+  const share = declared && point.sales > 0 ? declared.amount / point.sales : null;
+  return (
+    <tr className="border-t border-gray-100">
+      <td className="py-1.5 pr-2 capitalize">{monthLabel(point.month, true)}</td>
+      <td className="py-1.5 pr-2 text-right text-gray-600">{fmtMXN(point.sales)}</td>
+      <td className="py-1.5 pr-2 text-right">
+        <input
+          type="number"
+          min={0}
+          step="0.01"
+          value={amount}
+          placeholder={`~${fmtCompact(point.taxes)}`}
+          onChange={(e) => setAmount(e.target.value)}
+          onBlur={commit}
+          className="w-28 text-sm text-right border border-gray-200 rounded-md px-2 py-1"
+        />
+      </td>
+      <td className="py-1.5 pr-2 text-right text-gray-600">{share !== null ? pct(share) : '—'}</td>
+      <td className="py-1.5 hidden md:table-cell">
+        <input
+          value={notes}
+          placeholder="acuse / nota"
+          onChange={(e) => setNotes(e.target.value)}
+          onBlur={commit}
+          className="w-full text-xs border border-gray-200 rounded-md px-2 py-1"
+        />
+      </td>
+    </tr>
+  );
+};
+
+const TaxesCard = ({ series, tax, onChanged }: {
+  series: SeriesPoint[];
+  tax: FinanceDashboard['tax'];
+  onChanged: () => void;
+}) => {
+  const { addNotification } = useNotifications();
+  const [taxes, setTaxes] = useState<TaxDeclaration[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      setTaxes(await listTaxes());
+    } catch (e) {
+      addNotification({ type: 'error', title: 'Impuestos', message: (e as Error).message });
+    }
+  }, [addNotification]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (month: string, amount: number | null, notes: string | null) => {
+    try {
+      if (amount === null) await deleteTax(month);
+      else await putTax(month, { amount, notes });
+      await load();
+      onChanged();
+    } catch (e) {
+      addNotification({ type: 'error', title: 'No se guardó', message: (e as Error).message });
+    }
+  };
+
+  const byMonth = new Map(taxes.map((t) => [t.month, t]));
+  return (
+    <Card title="Impuestos declarados (SAT)">
+      <p className="text-xs text-gray-500 -mt-2 mb-3">
+        Captura el <b>total a pagar</b> de los acuses que manda la contadora (ISR + IVA + retenciones; si hubo
+        complementaria, el total corregido), en el mes del <b>periodo</b> declarado. La tasa de impuestos se mide
+        con los últimos {tax.months.length || 6} meses capturados
+        {tax.measured_pct !== null && <> y hoy da <b>{pct(tax.measured_pct)}</b> de lo vendido</>}.
+        Los meses vacíos se estiman con esa tasa.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-500">
+              <th className="pb-2 font-medium">Periodo</th>
+              <th className="pb-2 font-medium text-right">Ventas</th>
+              <th className="pb-2 font-medium text-right">Total a pagar</th>
+              <th className="pb-2 font-medium text-right">% de venta</th>
+              <th className="pb-2 font-medium hidden md:table-cell">Nota</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...series].reverse().map((point) => (
+              <TaxRow key={point.month} point={point} declared={byMonth.get(point.month)} onSave={save} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 };
 
@@ -412,8 +547,10 @@ const ConceptsCard = ({ onChanged }: { onChanged: () => void }) => {
 const BreakevenPage = () => {
   const { addNotification } = useNotifications();
   const [month, setMonth] = useState(currentMonthKey());
-  const [marginOverride, setMarginOverride] = useState<number | null>(readMarginOverride());
+  const [marginOverride, setMarginOverride] = useState<number | null>(readOverride(MARGIN_KEY));
   const [marginInput, setMarginInput] = useState(marginOverride ? String(marginOverride) : '');
+  const [taxOverride, setTaxOverride] = useState<number | null>(readOverride(TAX_KEY, true));
+  const [taxInput, setTaxInput] = useState(taxOverride !== null ? String(taxOverride) : '');
   const [data, setData] = useState<FinanceDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -421,7 +558,7 @@ const BreakevenPage = () => {
 
   const load = useCallback(async () => {
     try {
-      setData(await getFinanceDashboard({ month, months: 12, marginPct: marginOverride }));
+      setData(await getFinanceDashboard({ month, months: 12, marginPct: marginOverride, taxPct: taxOverride }));
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -429,18 +566,23 @@ const BreakevenPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [month, marginOverride, addNotification]);
+  }, [month, marginOverride, taxOverride, addNotification]);
   useEffect(() => { load(); }, [load]);
 
   const applyMargin = () => {
     const v = Number(marginInput);
     const next = marginInput.trim() && v > 0 && v < 100 ? v : null;
-    try {
-      if (next) localStorage.setItem(MARGIN_KEY, String(next));
-      else localStorage.removeItem(MARGIN_KEY);
-    } catch { /* per-viewer convenience only */ }
+    writeOverride(MARGIN_KEY, next);
     setMarginOverride(next);
     if (!next) setMarginInput('');
+  };
+
+  const applyTax = () => {
+    const v = Number(taxInput);
+    const next = taxInput.trim() && v >= 0 && v < 100 ? v : null;
+    writeOverride(TAX_KEY, next);
+    setTaxOverride(next);
+    if (next === null) setTaxInput('');
   };
 
   const run = async (fn: () => Promise<unknown>, title: string) => {
@@ -502,7 +644,7 @@ const BreakevenPage = () => {
             <Kpi
               label="Venta mínima del mes"
               value={fmtMXN(fijo?.breakeven)}
-              sub={<>gastos fijos {fmtMXN(sel.fixed_total)} ÷ margen {pct(data.margin.pct)}</>}
+              sub={<>gastos fijos {fmtMXN(sel.fixed_total)} ÷ ({pct(data.margin.pct)} margen − {pct(data.tax.pct)} impuestos)</>}
             />
             <Kpi
               label={isCurrent ? `Vendido al día ${sel.days_elapsed}` : 'Vendido en el mes'}
@@ -519,7 +661,7 @@ const BreakevenPage = () => {
             <Kpi
               label="Resultado estimado"
               value={fmtMXN(sel.result)}
-              sub={<>utilidad bruta {fmtMXN(sel.gross_profit)} − gastos {fmtMXN(sel.fixed_total + sel.otro)}</>}
+              sub={<>utilidad bruta {fmtMXN(sel.gross_profit)} − impuestos {fmtMXN(sel.taxes)} − gastos {fmtMXN(sel.fixed_total + sel.otro)}</>}
               tone={sel.result >= 0 ? 'good' : 'bad'}
             />
           </div>
@@ -572,16 +714,14 @@ const BreakevenPage = () => {
                 </tbody>
               </table>
               </div>
-              <div className="mt-4 flex flex-wrap items-end gap-3 text-xs text-gray-600">
-                <div>
-                  <p>
-                    Margen bruto usado: <b>{pct(data.margin.pct)}</b>{' '}
+              <div className="mt-4 space-y-2 text-xs text-gray-600">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="flex-1 min-w-48">
+                    Margen bruto: <b>{pct(data.margin.pct)}</b>{' '}
                     {data.margin.source === 'medido' && <>(medido en {data.margin.sample} ventas conciliadas de BALANCES)</>}
                     {data.margin.source === 'manual' && <>(manual — medido: {data.margin.measured_pct !== null ? pct(data.margin.measured_pct) : '—'})</>}
                     {data.margin.source === 'supuesto' && <>(supuesto: aún no hay ventas conciliadas)</>}
                   </p>
-                </div>
-                <div className="flex items-center gap-1 ml-auto">
                   <input
                     type="number"
                     min={1}
@@ -596,6 +736,31 @@ const BreakevenPage = () => {
                     {marginInput.trim() ? 'Usar' : 'Medido'}
                   </button>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="flex-1 min-w-48">
+                    Impuestos: <b>{pct(data.tax.pct)}</b> de la venta{' '}
+                    {data.tax.source === 'medido' && <>(medido en {data.tax.months.length} meses de acuses)</>}
+                    {data.tax.source === 'manual' && <>(manual — medido: {data.tax.measured_pct !== null ? pct(data.tax.measured_pct) : '—'})</>}
+                    {data.tax.source === 'supuesto' && <>(supuesto: aún no hay acuses capturados)</>}
+                  </p>
+                  <input
+                    type="number"
+                    min={0}
+                    max={99}
+                    step="0.1"
+                    value={taxInput}
+                    placeholder="impuestos %"
+                    onChange={(e) => setTaxInput(e.target.value)}
+                    className="w-24 border border-gray-200 rounded-md px-2 py-1"
+                  />
+                  <button type="button" onClick={applyTax} className="px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-50">
+                    {taxInput.trim() ? 'Usar' : 'Medido'}
+                  </button>
+                </div>
+                <p>
+                  Queda por cada peso vendido: <b>{pct(data.effective_margin)}</b>
+                  {data.effective_margin <= 0 && <span className="text-red-700"> — con esto no hay venta que cubra los gastos</span>}
+                </p>
               </div>
               {data.arrears.total > 0 && (
                 <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
@@ -751,6 +916,7 @@ const BreakevenPage = () => {
                   <tr className="text-left text-xs text-gray-500">
                     <th className="pb-2 font-medium">Mes</th>
                     <th className="pb-2 font-medium text-right">Ventas</th>
+                    <th className="pb-2 font-medium text-right">Impuestos</th>
                     <th className="pb-2 font-medium text-right">Gastos fijos</th>
                     <th className="pb-2 font-medium text-right">Venta mínima</th>
                     <th className="pb-2 font-medium text-right">Resultado est.</th>
@@ -768,6 +934,10 @@ const BreakevenPage = () => {
                         {s.expenses_source !== 'registrado' && <span className="ml-1 text-[10px] text-gray-400">(plantilla)</span>}
                       </td>
                       <td className="py-1.5 text-right">{fmtMXN(s.sales)}</td>
+                      <td className="py-1.5 text-right">
+                        {fmtMXN(s.taxes)}
+                        {s.taxes_source === 'estimado' && <span className="ml-1 text-[10px] text-gray-400">est.</span>}
+                      </td>
                       <td className="py-1.5 text-right">{fmtMXN(s.fixed_total)}</td>
                       <td className="py-1.5 text-right">{fmtMXN(s.breakeven_fixed)}</td>
                       <td className={`py-1.5 text-right ${s.result >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{fmtMXN(s.result)}</td>
@@ -777,6 +947,8 @@ const BreakevenPage = () => {
               </table>
             </div>
           </Card>
+
+          <TaxesCard series={data.series} tax={data.tax} onChanged={load} />
 
           <ConceptsCard onChanged={load} />
         </>
