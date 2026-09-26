@@ -40,6 +40,7 @@ const RoadmapPage = lazy(() => import('./components/roadmap/RoadmapPage'));
 const CampaignsPage = lazy(() => import('./components/campaigns/CampaignsPage'));
 const CampaignDetailPage = lazy(() => import('./components/campaigns/CampaignDetailPage'));
 const SalesDashboardPage = lazy(() => import('./components/sales/SalesDashboardPage'));
+const BreakevenPage = lazy(() => import('./components/finance/BreakevenPage'));
 
 const AppContent: React.FC = () => {
   const { sessionExpired, forceReauthenticate, clearSessionExpired, reauthenticate } = useAuth();
@@ -114,6 +115,7 @@ const AppContent: React.FC = () => {
           <Route path="/quotes/new" element={<QuoteForm />} />
           <Route path="/quotes/:id" element={<QuoteDetailPage />} />
           <Route path="/sales" element={<SalesDashboardPage />} />
+          <Route path="/punto-equilibrio" element={<BreakevenPage />} />
           <Route path="/pos" element={<PosPage />} />
           <Route path="/caja" element={<CajaPage />} />
           <Route path="/social-calendar" element={<SocialCalendarPage />} />

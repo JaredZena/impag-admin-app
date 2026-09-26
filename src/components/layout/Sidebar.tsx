@@ -22,7 +22,8 @@ import {
   TrendingUp,
   ShoppingCart,
   Wallet,
-  Wrench
+  Wrench,
+  Scale
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,6 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
     { path: '/customers', label: 'Clientes', icon: <UserCircle size={20} /> },
     { path: '/quotes', label: 'Cotizaciones B2B', icon: <FileBarChart size={20} /> },
     { path: '/sales', label: 'Ventas', icon: <TrendingUp size={20} /> },
+    { path: '/punto-equilibrio', label: 'Punto de equilibrio', icon: <Scale size={20} /> },
     { path: '/pos', label: 'Punto de Venta', icon: <ShoppingCart size={20} /> },
     { path: '/caja', label: 'Caja', icon: <Wallet size={20} /> },
     { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
