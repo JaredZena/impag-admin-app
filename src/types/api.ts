@@ -18,6 +18,28 @@ export interface Product {
   is_active?: boolean;
   created_at?: string;
   last_updated?: string;
+  storefront_title?: string | null;
+  // "Vender en línea" on todoparaelcampo.com.mx. null = never configured from
+  // the admin (the storefront falls back to its own config).
+  online_sale?: OnlineSale | null;
+}
+
+export type OnlineSaleDelivery = 'recoger' | 'paqueteria' | 'flete';
+export type OnlineSaleStockStatus = 'in_stock' | 'backorder';
+
+// Body of PUT /products/{id}/online-sale (saved whole, no merge)
+export interface OnlineSaleInput {
+  enabled: boolean;
+  unit_label: string;
+  delivery: OnlineSaleDelivery[];
+  min_qty: number;
+  max_qty: number;
+  stock_status: OnlineSaleStockStatus;
+}
+
+export interface OnlineSale extends OnlineSaleInput {
+  updated_by: string | null;
+  updated_at: string;
 }
 
 export interface Supplier {

@@ -7,6 +7,8 @@ import { apiRequest } from '@/utils/api';
 import { formatCurrency } from '@/utils/currencyUtils';
 import { useNotifications } from '@/components/ui/notification';
 import { STORE_BASE_URL, useStoreLinks } from '@/hooks/useStoreLinks';
+import OnlineSaleControl from './OnlineSaleControl';
+import type { OnlineSale } from '@/types/api';
 
 export interface ProductRowProps {
   id: string | number;
@@ -26,6 +28,8 @@ export interface ProductRowProps {
   currency?: string;
   isCalculatedPrice?: boolean;
   storefrontTitle?: string | null;
+  iva?: boolean | null;
+  onlineSale?: OnlineSale | null;
   onUpdate?: (updatedData: any) => void;
   // Add more fields as needed
 }
@@ -47,6 +51,8 @@ const ProductRow: React.FC<ProductRowProps> = ({
   currency,
   isCalculatedPrice,
   storefrontTitle,
+  iva,
+  onlineSale = null,
   onUpdate
 }) => {
   const navigate = useNavigate();
@@ -327,6 +333,19 @@ const ProductRow: React.FC<ProductRowProps> = ({
               </div>
             )}
           </div>
+        )}
+        {storeLinks && storeLinks.length > 0 && (
+          <OnlineSaleControl
+            productId={id}
+            productUnit={unit}
+            price={price}
+            iva={iva}
+            currency={currency}
+            onlineSale={onlineSale}
+            storeHandle={storeLinks[0].handle}
+            storeTitle={currentStoreTitle}
+            onSaved={(saved) => onUpdate?.({ id, onlineSale: saved, lastUpdated: new Date().toISOString() })}
+          />
         )}
         {storeLinks && storeLinks.length === 0 && (
           <div className="mt-1 text-xs text-gray-400">No está ligado a la página</div>
