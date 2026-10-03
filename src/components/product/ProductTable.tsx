@@ -37,7 +37,7 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, loading = false, 
         <thead>
           <tr className="bg-gradient-to-r from-gray-50 to-green-50 border-b border-green-100">
             <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Nombre</th>
-            <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Precio de venta</th>
+            <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Precio de venta (sin IVA)</th>
             <th className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Stock</th>
             <th className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Unidad</th>
             <th className="hidden md:table-cell px-2 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 text-left text-xs sm:text-sm font-semibold text-gray-700">Categoría</th>

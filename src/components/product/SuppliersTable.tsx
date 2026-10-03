@@ -108,7 +108,7 @@ const SuppliersTable: React.FC<SuppliersTableProps> = ({ suppliers, onRemoveSupp
                 {/* Desktop View - All Fields */}
                 <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 text-xs sm:text-sm">
                   <div>
-                    <span className="text-gray-500 block sm:inline">Precio:</span>
+                    <span className="text-gray-500 block sm:inline">Costo:</span>
                     <div className="font-semibold text-gray-900 mt-1 sm:mt-0 sm:ml-1 sm:inline">
                       {supplier.price != null ? formatCurrency(supplier.price, supplier.currency) : 'N/A'}
                       {supplier.currency && (

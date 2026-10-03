@@ -6,6 +6,7 @@ import { getPipelineSummary } from '@/utils/quotesApi';
 import type { QuotePipelineSummary } from '@/types/quotes';
 import { useNotifications } from '@/components/ui/notification';
 import CaptureSaleDialog from './CaptureSaleDialog';
+import { useOpenFromLink } from '@/hooks/useOpenFromLink';
 
 // ---------------------------------------------------------------------------
 // Types (mirror of routes/sales.py in impag-quot)
@@ -1262,6 +1263,8 @@ export default function SalesDashboardPage() {
   const [stats, setStats] = useState<SalesStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [showCapture, setShowCapture] = useState(false);
+  const openCapture = useCallback(() => setShowCapture(true), []);
+  useOpenFromLink('capture', openCapture);
   const [reloadKey, setReloadKey] = useState(0);
   const currentYear = new Date().getFullYear();
 

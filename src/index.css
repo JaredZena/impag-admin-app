@@ -27,7 +27,8 @@ html, body {
 #root {
   width: 100%;
   min-height: 100vh;
-  overflow-x: hidden;
+  /* clip, not hidden: hidden turns #root into a scroll box and breaks every position: sticky */
+  overflow-x: clip;
 }
 
 a {

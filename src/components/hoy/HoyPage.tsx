@@ -5,8 +5,29 @@ import { apiRequest } from '@/utils/api';
 import { fetchPendientesText } from '@/utils/tasksApi';
 import { buildHoyText, money, short, type HoyData } from '@/utils/hoyText';
 import SeguimientoDelDia from './SeguimientoDelDia';
+import HoyAcciones from './HoyAcciones';
+import LoadError from '@/components/ui/LoadError';
 
 const todayLocal = () => new Date().toLocaleDateString('en-CA');
+
+// Lo que Hernán escribe en el reporte HOY se guarda en este equipo por día, para
+// que una recarga o cerrar la pestaña no lo borre.
+type HoyDraft = { atencion: string; bloqueantes: string; manana: string };
+const draftKey = (day: string) => `hoy-draft-${day}`;
+const loadDraft = (day: string): HoyDraft | null => {
+  try {
+    return JSON.parse(localStorage.getItem(draftKey(day)) || 'null');
+  } catch {
+    return null;
+  }
+};
+const saveDraft = (day: string, draft: HoyDraft) => {
+  try {
+    if (draft.atencion || draft.bloqueantes || draft.manana) localStorage.setItem(draftKey(day), JSON.stringify(draft));
+  } catch {
+    /* sin storage: sólo en memoria */
+  }
+};
 
 
 function CopyButton({ getText, label }: { getText: () => Promise<string> | string; label: string }) {
@@ -57,10 +78,14 @@ export default function HoyPage() {
   const [day, setDay] = useState(todayLocal());
   const [data, setData] = useState<HoyData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [atencion, setAtencion] = useState('');
-  const [bloqueantes, setBloqueantes] = useState('');
-  const [manana, setManana] = useState('');
+  const [atencion, setAtencion] = useState(() => loadDraft(todayLocal())?.atencion ?? '');
+  const [bloqueantes, setBloqueantes] = useState(() => loadDraft(todayLocal())?.bloqueantes ?? '');
+  const [manana, setManana] = useState(() => loadDraft(todayLocal())?.manana ?? '');
   const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    saveDraft(day, { atencion, bloqueantes, manana });
+  }, [day, atencion, bloqueantes, manana]);
 
   useEffect(() => {
     let alive = true;
@@ -69,7 +94,7 @@ export default function HoyPage() {
       .then((res: { data: HoyData }) => {
         if (!alive) return;
         setData(res.data);
-        if (reload === 0) setManana(res.data.priority.join('\n'));
+        if (reload === 0 && !loadDraft(day)?.manana) setManana(res.data.priority.join('\n'));
       })
       .catch((err: unknown) => alive && setError(err instanceof Error ? err.message : 'No se pudo cargar el día'));
     return () => {
@@ -95,7 +120,12 @@ export default function HoyPage() {
           value={day}
           max={todayLocal()}
           onChange={(e) => {
-            setDay(e.target.value || todayLocal());
+            const next = e.target.value || todayLocal();
+            const draft = loadDraft(next);
+            setAtencion(draft?.atencion ?? '');
+            setBloqueantes(draft?.bloqueantes ?? '');
+            setManana(draft?.manana ?? '');
+            setDay(next);
             setData(null);
             setReload(0);
           }}
@@ -104,7 +134,17 @@ export default function HoyPage() {
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <HoyAcciones data={data} isToday={day === todayLocal()} />
+
+      {error && (
+        <LoadError
+          message={error}
+          onRetry={() => {
+            setError(null);
+            setReload((n) => n + 1);
+          }}
+        />
+      )}
       {day === todayLocal() && <SeguimientoDelDia onChange={() => setReload((n) => n + 1)} />}
       {!data && !error && <div className="h-40 rounded-xl bg-gray-50 animate-pulse" />}
 

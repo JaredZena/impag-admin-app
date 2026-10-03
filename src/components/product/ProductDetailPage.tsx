@@ -79,7 +79,7 @@ const ProductDetailPage: React.FC = () => {
           const category = categoriesData.data?.find((c: any) => c.id === productData.data.category_id);
           const productWithCategory = {
             ...productData.data,
-            category_name: category?.name || 'Unknown Category'
+            category_name: category?.name || 'Sin categoría'
           };
           setProduct(productWithCategory);
           setEditedProduct(productWithCategory);
@@ -206,7 +206,7 @@ const ProductDetailPage: React.FC = () => {
       const category = categories.find(c => c.id === productData.data.category_id);
       const updatedProduct = {
         ...productData.data,
-        category_name: category?.name || 'Unknown Category'
+        category_name: category?.name || 'Sin categoría'
       };
       
       console.log('Final updated product:', updatedProduct);
@@ -546,7 +546,25 @@ const ProductDetailPage: React.FC = () => {
                     </span>
                   )}
                 </div>
-                {/* Removed price display - prices are shown in supplier table below */}
+                {/* Selling price first: the supplier table below shows costs, not prices */}
+                <div className="space-y-1">
+                  <label className="text-xs sm:text-sm font-medium text-gray-500">Precio de venta</label>
+                  {product.price != null ? (
+                    <div>
+                      <p className="text-lg sm:text-xl font-bold text-gray-900">
+                        {formatCurrency(product.price, 'MXN')} <span className="text-xs font-normal text-gray-500">sin IVA</span>
+                      </p>
+                      {product.iva && (
+                        <p className="text-xs sm:text-sm text-gray-600">con IVA {formatCurrency(product.price * 1.16, 'MXN')}</p>
+                      )}
+                      {product.is_calculated_price && (
+                        <p className="text-xs text-gray-500">calculado con costo + ganancia</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs sm:text-sm text-amber-700">Sin precio. Ponlo en Precios de venta.</p>
+                  )}
+                </div>
                 {/* Removed stock display - stock is shown per supplier in supplier table below */}
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Margen por Defecto</label>

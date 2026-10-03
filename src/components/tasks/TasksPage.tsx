@@ -11,10 +11,10 @@ import {
   AlertTriangle,
   RefreshCw,
   Copy,
-  Upload,
   ArrowUpDown,
   Sparkles,
   MessageSquareText,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useNotifications } from '@/components/ui/notification';
 import { fetchTasks, fetchUsers, fetchCategories, fetchCurrentUser, updateTaskStatus, autoClassifyTasks, fetchPendientesText } from '@/utils/tasksApi';
@@ -24,8 +24,8 @@ import type { QuotePipelineSummary } from '@/types/quotes';
 import TaskCard from './TaskCard';
 import TaskForm from './TaskForm';
 import TaskDetailModal from './TaskDetailModal';
-import TaskImportModal from './TaskImportModal';
 import PendientesSyncModal from './PendientesSyncModal';
+import { useOpenFromLink } from '@/hooks/useOpenFromLink';
 
 type TabKey = 'pending' | 'in_progress' | 'done';
 
@@ -137,6 +137,27 @@ const QuotePipelineStrip: React.FC = () => {
   );
 };
 
+// ── Opción del menú ⋯ ────────────────────────────────
+
+const MenuItem: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  onSelect: () => void;
+  disabled?: boolean;
+  dot?: boolean;
+}> = ({ icon, label, onSelect, disabled, dot }) => (
+  <button
+    role="menuitem"
+    onClick={onSelect}
+    disabled={disabled}
+    className="w-full flex items-center gap-3 min-h-[44px] px-4 py-2 text-left text-[15px] text-slate-700 hover:bg-slate-50 active:bg-slate-100 disabled:opacity-40 transition-colors"
+  >
+    <span className="text-slate-500 shrink-0">{icon}</span>
+    <span className="flex-1">{label}</span>
+    {dot && <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />}
+  </button>
+);
+
 const TasksPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -155,8 +176,9 @@ const TasksPage: React.FC = () => {
     (searchParams.get('tab') as TabKey) || 'pending'
   );
   const [showForm, setShowForm] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [showSync, setShowSync] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
@@ -182,6 +204,7 @@ const TasksPage: React.FC = () => {
   const PULL_THRESHOLD = 80;
 
   const hasActiveFilters = filterAssignee || filterPriority || filterCategory;
+  const isFiltering = !!(hasActiveFilters || searchTerm);
 
   // ── Data Loading ──────────────────────────────────────
 
@@ -205,8 +228,8 @@ const TasksPage: React.FC = () => {
       setUsers(usersRes.data);
       setCategories(categoriesRes.data);
       setCurrentUser(meRes.data);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar las tareas');
+    } catch (err) {
+      setError((err instanceof Error && err.message) || 'Error al cargar las tareas');
     } finally {
       setLoading(false);
     }
@@ -227,6 +250,33 @@ const TasksPage: React.FC = () => {
     if (filterCategory) params.set('category_id', filterCategory);
     setSearchParams(params, { replace: true });
   }, [activeTab, searchTerm, filterAssignee, filterPriority, filterCategory, setSearchParams]);
+
+  // Un enlace a /tasks?pegar=1 abre directo el pegado de la lista
+  const openSync = useCallback(() => setShowSync(true), []);
+  useOpenFromLink('pegar', openSync);
+
+  // ── Menú ⋯ ────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  const runMenuItem = (action: () => void) => {
+    setMenuOpen(false);
+    action();
+  };
 
   // ── Task Actions ──────────────────────────────────────
 
@@ -267,12 +317,6 @@ const TasksPage: React.FC = () => {
     addNotification({ type: 'success', title: 'Tarea archivada', duration: 3000 });
   }, [addNotification]);
 
-  const handleTasksImported = useCallback(async (newTasks: Task[]) => {
-    addNotification({ type: 'success', title: `${newTasks.length} tareas importadas`, duration: 4000 });
-    // Full reload to reflect renumbered existing tasks
-    await loadData();
-  }, [addNotification, loadData]);
-
   const handleClassify = useCallback(async () => {
     setClassifying(true);
     try {
@@ -288,8 +332,8 @@ const TasksPage: React.FC = () => {
         });
         await loadData();
       }
-    } catch (err: any) {
-      const msg = err?.message || '';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
       if (msg.includes('Espera')) {
         addNotification({ type: 'error', title: msg, duration: 6000 });
       } else {
@@ -485,9 +529,10 @@ const TasksPage: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] bg-[#f8f9fc] pb-24 md:pb-8">
-      {/* ── Mobile Sticky Header ────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-16 pr-4 py-3 md:px-6 md:py-4">
-        <div className="flex items-center justify-between">
+      {/* ── Sticky Header ───────────────────────────────── */}
+      {/* pr-16 / md:pr-20 deja libre la campana de notificaciones (fija arriba a la derecha) */}
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-16 pr-16 py-3 md:pl-6 md:pr-20 md:py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {showSearch ? (
             <div className="flex-1 flex items-center gap-2">
               <input
@@ -496,11 +541,12 @@ const TasksPage: React.FC = () => {
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Buscar tareas..."
                 autoFocus
-                className="flex-1 bg-slate-100 rounded-xl px-4 py-2.5 text-[15px] text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-200"
+                className="flex-1 min-w-0 h-10 bg-slate-100 rounded-xl px-4 text-base text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-200"
               />
               <button
                 onClick={() => { setShowSearch(false); setSearchTerm(''); }}
-                className="p-2 rounded-xl text-slate-500"
+                className="w-10 h-10 p-0 shrink-0 flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                aria-label="Cerrar búsqueda"
               >
                 <X size={20} />
               </button>
@@ -508,84 +554,78 @@ const TasksPage: React.FC = () => {
           ) : (
             <>
               <h1 className="text-xl font-bold text-slate-800 tracking-tight">Pendientes</h1>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2 ml-auto">
                 <button
                   onClick={() => setShowSync(true)}
-                  className="hidden sm:inline-flex items-center gap-1.5 mr-1 px-3 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700"
-                  title="Pegar la lista PENDIENTES de WhatsApp"
+                  className="hidden sm:inline-flex items-center gap-1.5 h-10 px-3 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors"
                 >
                   <MessageSquareText size={16} />
-                  Pegar lista de WhatsApp
-                </button>
-                <button
-                  onClick={() => setShowSync(true)}
-                  className="sm:hidden p-2 rounded-xl text-green-700 hover:bg-green-50"
-                  title="Pegar la lista PENDIENTES de WhatsApp"
-                >
-                  <MessageSquareText size={20} />
-                </button>
-                <button
-                  onClick={() => setSortMode(s => s === 'priority' ? 'task_number' : 'priority')}
-                  className={`p-2 rounded-xl transition-colors ${
-                    sortMode === 'task_number' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-100'
-                  }`}
-                  title={sortMode === 'priority' ? 'Ordenar por número' : 'Ordenar por prioridad'}
-                >
-                  <ArrowUpDown size={20} />
-                </button>
-                <button
-                  onClick={handleClassify}
-                  disabled={classifying}
-                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-40"
-                  title="Clasificar tareas con IA"
-                >
-                  {classifying
-                    ? <Loader2 size={20} className="animate-spin" />
-                    : <Sparkles size={20} />
-                  }
+                  <span>Pegar lista<span className="hidden xl:inline"> de WhatsApp</span></span>
                 </button>
                 <button
                   onClick={handleExportTasks}
-                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
-                  title="Copiar PENDIENTES para WhatsApp"
+                  className="hidden sm:inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors"
                 >
-                  <Copy size={20} />
+                  <Copy size={16} />
+                  <span>Copiar<span className="hidden xl:inline"> PENDIENTES</span></span>
                 </button>
-                <button
-                  onClick={() => setShowImport(true)}
-                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
-                  title="Importar tareas"
-                >
-                  <Upload size={20} />
-                </button>
-                <button
-                  onClick={() => navigate('/tasks/archive')}
-                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
-                  title="Archivo"
-                >
-                  <Archive size={20} />
-                </button>
-                <button
-                  onClick={() => setShowSearch(true)}
-                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
-                >
-                  <Search size={20} />
-                </button>
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`relative p-2 rounded-xl transition-colors ${
-                    hasActiveFilters ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-100'
-                  }`}
-                >
-                  <SlidersHorizontal size={20} />
-                  {hasActiveFilters && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-indigo-500" />
+
+                {/* Menú ⋯ con las acciones secundarias */}
+                <div ref={menuRef} className="relative">
+                  <button
+                    onClick={() => setMenuOpen(o => !o)}
+                    className={`relative w-10 h-10 p-0 flex items-center justify-center rounded-xl transition-colors ${
+                      menuOpen || hasActiveFilters ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                    aria-label="Más opciones"
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                  >
+                    <MoreHorizontal size={22} />
+                    {hasActiveFilters && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-indigo-500" />
+                    )}
+                  </button>
+                  {menuOpen && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full mt-2 w-60 py-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl z-50"
+                    >
+                      <MenuItem
+                        icon={<ArrowUpDown size={18} />}
+                        label={sortMode === 'priority' ? 'Ordenar por número' : 'Ordenar por prioridad'}
+                        onSelect={() => runMenuItem(() => setSortMode(s => s === 'priority' ? 'task_number' : 'priority'))}
+                      />
+                      <MenuItem
+                        icon={classifying ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                        label={classifying ? 'Clasificando…' : 'Clasificar con IA'}
+                        onSelect={() => runMenuItem(handleClassify)}
+                        disabled={classifying}
+                      />
+                      <MenuItem
+                        icon={<Archive size={18} />}
+                        label="Archivo"
+                        onSelect={() => runMenuItem(() => navigate('/tasks/archive'))}
+                      />
+                      <MenuItem
+                        icon={<Search size={18} />}
+                        label="Buscar"
+                        onSelect={() => runMenuItem(() => setShowSearch(true))}
+                      />
+                      <MenuItem
+                        icon={<SlidersHorizontal size={18} />}
+                        label={showFilters ? 'Ocultar filtros' : 'Filtros'}
+                        onSelect={() => runMenuItem(() => setShowFilters(f => !f))}
+                        dot={!!hasActiveFilters}
+                      />
+                    </div>
                   )}
-                </button>
+                </div>
+
                 {/* Desktop create button */}
                 <button
                   onClick={() => setShowForm(true)}
-                  className="hidden md:flex items-center gap-2 ml-2 px-4 py-2 bg-indigo-500 text-white rounded-xl text-sm font-medium hover:bg-indigo-600 transition-colors"
+                  className="hidden md:flex items-center gap-2 h-10 px-4 bg-indigo-500 text-white rounded-xl text-sm font-medium hover:bg-indigo-600 transition-colors"
                 >
                   <Plus size={18} />
                   Nueva Tarea
@@ -593,6 +633,24 @@ const TasksPage: React.FC = () => {
               </div>
             </>
           )}
+        </div>
+
+        {/* Teléfono: las dos acciones del día con texto, debajo del título */}
+        <div className="sm:hidden -mx-12 mt-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setShowSync(true)}
+            className="h-10 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 text-white text-[15px] font-semibold active:bg-green-700"
+          >
+            <MessageSquareText size={18} />
+            Pegar lista
+          </button>
+          <button
+            onClick={handleExportTasks}
+            className="h-10 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[15px] font-medium active:bg-slate-100"
+          >
+            <Copy size={18} />
+            Copiar
+          </button>
         </div>
       </div>
 
@@ -722,13 +780,13 @@ const TasksPage: React.FC = () => {
       )}
 
       {/* ── Mobile Status Tabs ──────────────────────────── */}
-      <div className="sticky top-[52px] z-20 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-4 md:hidden">
+      <div className="sticky top-[116px] sm:top-[64px] z-20 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-4 md:hidden">
         <div className="flex relative">
           {TAB_CONFIG.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 py-3 text-center text-[13px] font-medium transition-colors relative ${
+              className={`flex-1 px-1 py-3 text-center text-[13px] font-medium whitespace-nowrap transition-colors relative ${
                 activeTab === tab.key
                   ? 'text-indigo-600 font-semibold'
                   : 'text-slate-400'
@@ -834,18 +892,38 @@ const TasksPage: React.FC = () => {
                 <ClipboardList size={40} className="text-indigo-300" />
               </div>
               <h3 className="text-lg font-semibold text-slate-700 mt-6">
-                {tasks.length === 0 ? 'No hay tareas todavía' : 'No hay tareas aquí'}
+                {tasks.length > 0 ? 'No hay tareas aquí' : isFiltering ? 'Sin resultados' : 'No hay tareas todavía'}
               </h3>
               <p className="text-sm text-slate-400 text-center max-w-[260px] mt-2 leading-relaxed">
-                {tasks.length === 0
-                  ? 'Toca el botón + para crear tu primera tarea'
-                  : `No hay tareas con estado "${TAB_CONFIG.find(t => t.key === activeTab)?.label}"`}
+                {tasks.length > 0
+                  ? `No hay tareas con estado "${TAB_CONFIG.find(t => t.key === activeTab)?.label}"`
+                  : isFiltering
+                    ? 'Ninguna tarea coincide con la búsqueda o los filtros.'
+                    : 'Toca «Pegar lista» y pega el mensaje PENDIENTES de WhatsApp.'}
               </p>
+              {tasks.length === 0 && (
+                isFiltering ? (
+                  <button
+                    onClick={clearFilters}
+                    className="mt-5 h-11 px-5 rounded-xl bg-white border border-slate-200 text-slate-700 text-[15px] font-medium active:bg-slate-100"
+                  >
+                    Quitar búsqueda y filtros
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowSync(true)}
+                    className="mt-5 h-11 px-5 inline-flex items-center gap-2 rounded-xl bg-green-600 text-white text-[15px] font-semibold active:bg-green-700"
+                  >
+                    <MessageSquareText size={18} />
+                    Pegar lista
+                  </button>
+                )
+              )}
             </div>
           ) : (
             groupTasksByCategory(currentTasks, categories).map(({ category, tasks: groupTasks }) => (
               <div key={category?.id ?? 'uncategorized'} className="mb-2">
-                <div className="flex items-center gap-2 px-4 py-2 sticky top-[104px] z-10 bg-[#f8f9fc]/90 backdrop-blur-sm">
+                <div className="flex items-center gap-2 px-4 py-2 sticky top-[160px] sm:top-[108px] z-10 bg-[#f8f9fc]/90 backdrop-blur-sm">
                   {category && (
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: category.color }} />
                   )}
@@ -920,12 +998,6 @@ const TasksPage: React.FC = () => {
         />
       )}
 
-      {showImport && (
-        <TaskImportModal
-          onClose={() => setShowImport(false)}
-          onImported={handleTasksImported}
-        />
-      )}
     </div>
   );
 };

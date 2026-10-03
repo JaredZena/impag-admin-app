@@ -8,6 +8,8 @@ import { parseQuoteNotes } from '@/utils/quoteNotes';
 import PaymentStatusChip from './PaymentStatusChip';
 import CaptureQuoteDialog from './CaptureQuoteDialog';
 import { isWebOrder, WEB_ORDER_PREFIX } from '@/utils/webOrder';
+import LoadError from '@/components/ui/LoadError';
+import { useOpenFromLink } from '@/hooks/useOpenFromLink';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Todas' },
@@ -28,7 +30,10 @@ export default function QuotesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showCapture, setShowCapture] = useState(false);
+  const openCapture = useCallback(() => setShowCapture(true), []);
+  useOpenFromLink('capture', openCapture);
   // "Pedidos web" (quote_number WEB-…): el filtro aparece hasta que la lista
   // trae al menos un pedido de la tienda en línea.
   const [webOnly, setWebOnly] = useState(false);
@@ -36,6 +41,7 @@ export default function QuotesPage() {
 
   const fetchQuotes = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [quotesRes, statsRes] = await Promise.all([
         listQuotes({
@@ -49,6 +55,7 @@ export default function QuotesPage() {
       setStats(statsRes);
     } catch (err) {
       console.error('Failed to fetch quotes:', err);
+      setLoadError(err instanceof Error ? err.message : 'Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -175,6 +182,8 @@ export default function QuotesPage() {
         {/* Quote List */}
         {loading ? (
           <div className="text-center py-12 text-gray-400">Cargando...</div>
+        ) : loadError ? (
+          <LoadError message={loadError} onRetry={fetchQuotes} />
         ) : visibleQuotes.length === 0 ? (
           <div className="text-center py-16 bg-white border border-gray-100 rounded-xl">
             <FileText size={48} className="mx-auto text-gray-300 mb-4" />

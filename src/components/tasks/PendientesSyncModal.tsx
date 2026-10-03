@@ -60,7 +60,8 @@ export default function PendientesSyncModal({ onClose, onSynced }: PendientesSyn
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        // A stray tap outside must not throw away a pasted message; use the X.
+        if (e.target === e.currentTarget && !text.trim()) onClose();
       }}
     >
       <div role="dialog" aria-label="Sincronizar pendientes" className="w-full max-w-lg bg-white rounded-xl shadow-xl flex flex-col max-h-[90vh]">

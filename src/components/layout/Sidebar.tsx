@@ -25,6 +25,7 @@ import {
   Scale,
   ChevronDown,
   MoreHorizontal,
+  Search,
   Sun
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -49,10 +50,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
   // Lo demás (casi sin uso en prod a oct 2026) vive en "Más", cerrado.
   const navigationItems: NavItem[] = [
     { path: '/hoy', label: 'Hoy', icon: <Sun size={20} /> },
+    { path: '/consulta', label: 'Consulta', icon: <Search size={20} /> },
     { path: '/tasks', label: 'Pendientes', icon: <CheckSquare size={20} /> },
-    { path: '/customers', label: 'Clientes', icon: <UserCircle size={20} /> },
     { path: '/quotes', label: 'Cotizaciones', icon: <FileBarChart size={20} /> },
     { path: '/sales', label: 'Ventas', icon: <TrendingUp size={20} /> },
+    { path: '/customers', label: 'Clientes', icon: <UserCircle size={20} /> },
   ];
 
   const navigationGroups: { key: string; label: string; icon: React.ReactNode; items: NavItem[] }[] = [
@@ -61,9 +63,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
       label: 'Catálogo',
       icon: <Package size={20} />,
       items: [
-        { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
         { path: '/product-admin', label: 'Precios de venta', icon: <Tag size={20} /> },
-        { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },
+        { path: '/stock', label: 'Stock', icon: <ClipboardList size={20} /> },
+        { path: '/supplier-products', label: 'Costos de proveedor', icon: <Package size={20} /> },
         { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
         { path: '/tools', label: 'Herramientas', icon: <Wrench size={20} /> },
       ],
@@ -80,8 +82,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
         { path: '/whatsapp', label: 'WhatsApp', icon: <MessageCircle size={20} /> },
         { path: '/social-calendar', label: 'Calendario Social', icon: <Calendar size={20} /> },
         { path: '/campaigns', label: 'Campañas', icon: <Megaphone size={20} /> },
-        { path: '/tiktok', label: 'TikTok Studio', icon: <Music size={20} /> },
-        { path: '/roadmap', label: 'Roadmap', icon: <MapIcon size={20} /> },
+        { path: '/tiktok', label: 'TikTok', icon: <Music size={20} /> },
+        { path: '/roadmap', label: 'Plan de la app', icon: <MapIcon size={20} /> },
       ],
     },
   ];
@@ -195,7 +197,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
             {navigationItems.map(renderItem)}
             {navigationGroups.map((group) => {
               const hasActive = group.items.some((item) => isActive(item.path));
-              const open = openGroups[group.key] ?? hasActive;
+              // Catálogo starts open: Precios de venta is Hernán's most used screen.
+              const open = openGroups[group.key] ?? (hasActive || group.key === 'catalogo');
               return (
                 <div key={group.key} className="pt-2">
                   <button

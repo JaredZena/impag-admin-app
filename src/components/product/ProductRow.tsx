@@ -120,6 +120,13 @@ const ProductRow: React.FC<ProductRowProps> = ({
             lastUpdated: new Date().toISOString()
           });
         }
+        // The store only changes on the next publish: say so, or the edit looks lost.
+        addNotification({
+          type: 'success',
+          title: `Precio guardado: ${formatCurrency(newPrice, currency)}`,
+          message: 'En la tienda en línea cambia cuando pulses «Publicar en tienda» (o sola, una vez al día).',
+          duration: 6000,
+        });
       } else {
         addNotification({
           type: 'error',
@@ -410,12 +417,15 @@ const ProductRow: React.FC<ProductRowProps> = ({
           >
             <div>
               <div className="text-sm sm:text-base font-semibold text-gray-900">
-                {price != null ? formatCurrency(price, currency) : 'N/A'}
+                {price != null ? formatCurrency(price, currency) : 'Sin precio'}
               </div>
-              {(currency || isCalculatedPrice) && (
+              {price != null && iva && (currency || 'MXN').toUpperCase() === 'MXN' && (
+                <div className="text-xs text-gray-500 mt-1">con IVA {formatCurrency(price * 1.16, currency)}</div>
+              )}
+              {((currency && currency.toUpperCase() !== 'MXN') || isCalculatedPrice) && (
                 <div className="text-xs text-gray-500 mt-1">
-                  {currency}
-                  {isCalculatedPrice ? ' · calculado' : ''}
+                  {currency && currency.toUpperCase() !== 'MXN' ? currency : ''}
+                  {isCalculatedPrice ? ' calculado con costo + ganancia' : ''}
                 </div>
               )}
             </div>

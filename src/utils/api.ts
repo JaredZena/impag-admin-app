@@ -12,6 +12,46 @@ export class ApiError extends Error {
   }
 }
 
+// Backend messages that are still in English, as the team should read them.
+const ENGLISH_DETAILS: [RegExp, string][] = [
+  [/quote not found/i, 'No se encontró la cotización. Puede que ya se haya borrado; recarga la página.'],
+  [/task not found/i, 'No se encontró el pendiente. Puede que ya se haya cerrado; recarga la página.'],
+  [/item not found/i, 'No se encontró ese producto en la cotización. Recarga la página.'],
+  [/only draft quotes can be deleted/i, 'Solo se pueden borrar cotizaciones en borrador.'],
+  [/cannot send a quote with no items/i, 'La cotización no tiene productos. Agrega al menos uno antes de enviarla.'],
+  [/not found/i, 'No se encontró. Puede que ya se haya borrado; recarga la página.'],
+  [/not authenticated|forbidden|not allowed/i, 'Tu cuenta no tiene permiso para esto. Avísale a Jared.'],
+];
+
+// Turns an HTTP error body into one sentence a non-technical person can act on:
+// no raw HTML, no [object Object], no English.
+export const friendlyErrorMessage = (status: number, body: string): string => {
+  let detail: unknown = null;
+  try {
+    const data = JSON.parse(body);
+    detail = data.detail ?? data.error ?? data.message ?? null;
+  } catch {
+    // HTML or empty body: the generic message below is better than the raw text
+  }
+  if (Array.isArray(detail)) {
+    // FastAPI validation errors: [{loc: [..., 'field'], msg: '...'}]
+    const fields = detail
+      .map((d) => (d && Array.isArray(d.loc) ? String(d.loc[d.loc.length - 1]) : ''))
+      .filter(Boolean);
+    return fields.length
+      ? `Revisa los datos: falta o no es válido «${fields.join('», «')}».`
+      : 'Revisa los datos: falta algo o tiene un formato incorrecto.';
+  }
+  if (typeof detail === 'string' && detail.trim()) {
+    const english = ENGLISH_DETAILS.find(([re]) => re.test(detail as string));
+    return english ? english[1] : detail;
+  }
+  if (status >= 500) return 'El servidor tuvo un problema. Espera un minuto e intenta de nuevo.';
+  if (status === 404) return 'No se encontró. Puede que ya se haya borrado; recarga la página.';
+  if (status === 403) return 'Tu cuenta no tiene permiso para esto. Avísale a Jared.';
+  return `No se pudo completar (error ${status}). Intenta de nuevo.`;
+};
+
 // Global session expiration handler - will be set by App.tsx
 let sessionExpirationHandler: (() => void) | null = null;
 
@@ -50,10 +90,16 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    // fetch only throws when the request never reached the server
+    throw new ApiError('Sin conexión con el servidor. Revisa el internet e intenta de nuevo.', 0);
+  }
 
   if (response.status === 401) {
     // Token expired - use the session expiration handler if available
@@ -71,22 +117,7 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
   }
 
   if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `Error del servidor (${response.status}). Intenta de nuevo.`;
-    
-    try {
-      const errorData = JSON.parse(errorText);
-      if (errorData.detail) {
-        errorMessage = errorData.detail;
-      }
-    } catch {
-      // If not JSON, use the raw text
-      if (errorText) {
-        errorMessage = errorText;
-      }
-    }
-    
-    throw new ApiError(errorMessage, response.status);
+    throw new ApiError(friendlyErrorMessage(response.status, await response.text()), response.status);
   }
 
   return response.json();

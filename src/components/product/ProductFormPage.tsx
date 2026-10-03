@@ -339,7 +339,7 @@ const ProductFormPage: React.FC = () => {
               {/* SKU */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  SKU *
+                  Código (SKU) *
                 </label>
                 <Input
                   value={formData.sku}
@@ -472,7 +472,7 @@ const ProductFormPage: React.FC = () => {
                     onChange={(e) => handleInputChange('iva', e.target.checked)}
                     className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                   />
-                  <span className="ml-2 text-sm text-gray-700">IVA incluido</span>
+                  <span className="ml-2 text-sm text-gray-700">Lleva IVA (el precio es sin IVA; la tienda le suma 16%)</span>
                 </label>
                 <label className="flex items-center">
                   <input

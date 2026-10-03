@@ -99,7 +99,8 @@ export default function CaptureQuoteDialog({ onClose, onSaved }: CaptureQuoteDia
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        // A stray tap outside must not throw away a pasted message; use the X.
+        if (e.target === e.currentTarget && !text.trim() && !pdf) onClose();
       }}
     >
       <div

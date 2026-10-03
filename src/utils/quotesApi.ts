@@ -1,3 +1,4 @@
+import { apiRequest } from './api';
 import type {
   Quote,
   CreateQuotePayload,
@@ -16,48 +17,11 @@ import type {
   QuoteFileUploadResult,
 } from '@/types/quotes';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-const quotesApiRequest = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-  const token = localStorage.getItem('google_token');
-  if (!token) throw new Error('Tu sesión no está activa. Vuelve a entrar con Google.');
-
-  const headers: Record<string, string> = {
-    'Authorization': `Bearer ${token}`,
-  };
-
-  if (options.headers) {
-    if (options.headers instanceof Headers) {
-      options.headers.forEach((value, key) => { headers[key] = value; });
-    } else {
-      Object.assign(headers, options.headers);
-    }
-  }
-
-  if (!(options.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-
-  if (response.status === 401) {
-    localStorage.removeItem('google_token');
-    window.location.reload();
-    throw new Error('Tu sesión expiró. Vuelve a entrar con Google.');
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `Error del servidor (${response.status}). Intenta de nuevo.`;
-    try {
-      const errorData = JSON.parse(errorText);
-      if (errorData.detail) errorMessage = errorData.detail;
-    } catch { /* ignore */ }
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
-};
+// Same auth, errors and re-login dialog as the rest of the app. Never reload
+// the page on 401: that would throw away whatever was pasted in a dialog.
+const quotesApiRequest = <T>(endpoint: string, options: RequestInit = {}): Promise<T> =>
+  apiRequest(endpoint, options) as Promise<T>;
 
 // ==================== Quotes ====================
 

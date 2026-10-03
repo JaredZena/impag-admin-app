@@ -87,7 +87,7 @@ const ProductManagementPage: React.FC = () => {
       const supplierNames = (p.suppliers || []).map((s: any) => s.name || s);
       return {
         id: p.id,
-        name: p.name || 'Unnamed Product',
+        name: p.name || 'Producto sin nombre',
         price: p.price ?? null,
         stock: p.stock || 0,
         unit: p.unit || 'N/A',
@@ -419,7 +419,7 @@ const ProductManagementPage: React.FC = () => {
                 Precios de venta
               </h1>
               <p className="text-sm sm:text-base text-gray-600">
-                Precio de venta por producto — el que usan las cotizaciones y se publica en todoparaelcampo.com.mx
+                Precio de venta de cada producto, sin IVA. Toca un precio para cambiarlo; la tienda en línea se actualiza al pulsar «Publicar en tienda».
               </p>
             </div>
             <PublishStorefrontButton />

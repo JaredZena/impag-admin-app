@@ -1,3 +1,4 @@
+import { apiRequest } from './api';
 import type {
   Task,
   TaskWithComments,
@@ -13,57 +14,11 @@ import type {
   PendientesSyncPreview,
 } from '@/types/tasks';
 
-const TASKS_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-const tasksApiRequest = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-  const token = localStorage.getItem('google_token');
-
-  if (!token) {
-    throw new Error('Tu sesión no está activa. Vuelve a entrar con Google.');
-  }
-
-  const headers: Record<string, string> = {
-    'Authorization': `Bearer ${token}`,
-  };
-
-  if (options.headers) {
-    if (options.headers instanceof Headers) {
-      options.headers.forEach((value, key) => { headers[key] = value; });
-    } else {
-      Object.assign(headers, options.headers);
-    }
-  }
-
-  if (!(options.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const response = await fetch(`${TASKS_API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  if (response.status === 401) {
-    localStorage.removeItem('google_token');
-    window.location.reload();
-    throw new Error('Tu sesión expiró. Vuelve a entrar con Google.');
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `Error del servidor (${response.status}). Intenta de nuevo.`;
-    try {
-      const errorData = JSON.parse(errorText);
-      if (errorData.detail) errorMessage = errorData.detail;
-      if (errorData.error) errorMessage = errorData.error;
-    } catch {
-      if (errorText) errorMessage = errorText;
-    }
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
-};
+// Same auth, errors and re-login dialog as the rest of the app. Never reload
+// the page on 401: that would throw away whatever was pasted in a dialog.
+const tasksApiRequest = <T>(endpoint: string, options: RequestInit = {}): Promise<T> =>
+  apiRequest(endpoint, options) as Promise<T>;
 
 // ── Users ──────────────────────────────────────────────
 

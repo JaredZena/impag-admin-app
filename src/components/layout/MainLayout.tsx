@@ -30,9 +30,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         toggleCollapse={() => setIsCollapsed(!isCollapsed)} 
       />
       
-      {/* Top bar with notification bell */}
-      <div className={`fixed top-0 right-0 z-40 h-16 flex items-center pr-6 transition-all duration-300 ${isCollapsed ? 'left-0 md:left-20' : 'left-0 md:left-64'}`}>
-        <div className="ml-auto">
+      {/* Top bar with notification bell. The bar lets taps through so the page
+          headers underneath (Pendientes, Herramientas, POS) stay clickable. */}
+      <div className={`pointer-events-none fixed top-0 right-0 z-40 h-16 flex items-center pr-6 transition-all duration-300 ${isCollapsed ? 'left-0 md:left-20' : 'left-0 md:left-64'}`}>
+        <div className="ml-auto pointer-events-auto">
           <NotificationBell />
         </div>
       </div>
