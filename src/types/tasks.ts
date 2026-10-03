@@ -105,3 +105,14 @@ export interface ImportResult {
   total_created: number;
   total_duplicates: number;
 }
+
+// Sincronizar el tablero con la lista *PENDIENTES ddmmaa* de WhatsApp
+// (POST /tasks/pendientes/sync en impag-quot).
+export interface PendientesSyncPreview {
+  stamp: string | null;
+  total: number;
+  create: { section: string; title: string }[];
+  keep: { id: number; title: string; section: string }[];
+  move: { id: number; title: string; section: string; from: string | null }[];
+  close: { id: number; title: string; category: string | null }[];
+}

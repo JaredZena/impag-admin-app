@@ -14,9 +14,10 @@ import {
   Upload,
   ArrowUpDown,
   Sparkles,
+  MessageSquareText,
 } from 'lucide-react';
 import { useNotifications } from '@/components/ui/notification';
-import { fetchTasks, fetchUsers, fetchCategories, fetchCurrentUser, updateTaskStatus, autoClassifyTasks } from '@/utils/tasksApi';
+import { fetchTasks, fetchUsers, fetchCategories, fetchCurrentUser, updateTaskStatus, autoClassifyTasks, fetchPendientesText } from '@/utils/tasksApi';
 import { getPipelineSummary } from '@/utils/quotesApi';
 import type { Task, TaskUser, TaskCategory, TaskStatus } from '@/types/tasks';
 import type { QuotePipelineSummary } from '@/types/quotes';
@@ -24,6 +25,7 @@ import TaskCard from './TaskCard';
 import TaskForm from './TaskForm';
 import TaskDetailModal from './TaskDetailModal';
 import TaskImportModal from './TaskImportModal';
+import PendientesSyncModal from './PendientesSyncModal';
 
 type TabKey = 'pending' | 'in_progress' | 'done';
 
@@ -154,6 +156,7 @@ const TasksPage: React.FC = () => {
   );
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showSync, setShowSync] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
@@ -425,62 +428,17 @@ const TasksPage: React.FC = () => {
 
   // ── Export to WhatsApp ───────────────────────────────
 
-  const handleExportTasks = useCallback(() => {
-    const statusSections: { label: string; key: TabKey }[] = [
-      { label: 'PENDIENTES', key: 'pending' },
-      { label: 'EN CURSO', key: 'in_progress' },
-      { label: 'COMPLETADAS', key: 'done' },
-    ];
-
-    const sections: string[] = [];
-    let totalTasks = 0;
-
-    for (const { label, key } of statusSections) {
-      const statusTasks = tasksByStatus[key];
-      if (statusTasks.length === 0) continue;
-
-      const sectionLines: string[] = [`*${label}*`];
-      const groups = groupTasksByCategory(statusTasks, categories);
-
-      for (const { category, tasks: groupTasks } of groups) {
-        sectionLines.push('');
-        sectionLines.push(category ? category.name.toUpperCase() : 'SIN CATEGORÍA');
-        let counter = 1;
-        for (const task of groupTasks) {
-          const num = task.task_number ?? counter;
-          let line = `${num}. ${task.title}`;
-          if (task.description) line += ` ${task.description}`;
-          if (task.priority === 'urgent') line += ' (URGENTE)';
-          if (task.due_date) {
-            const [yyyy, mm, dd] = task.due_date.split('-');
-            line += `\t${dd}/${mm}/${yyyy}`;
-          } else if (task.created_at) {
-            const d = new Date(task.created_at);
-            const dd = String(d.getDate()).padStart(2, '0');
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const yyyy = d.getFullYear();
-            line += `\t${dd}/${mm}/${yyyy}`;
-          }
-          sectionLines.push(line);
-          counter++;
-          totalTasks++;
-        }
-      }
-      sections.push(sectionLines.join('\n'));
-    }
-
-    if (totalTasks === 0) {
-      addNotification({ type: 'error', title: 'No hay tareas para exportar', duration: 3000 });
-      return;
-    }
-
-    const text = sections.join('\n\n');
-    navigator.clipboard.writeText(text).then(() => {
-      addNotification({ type: 'success', title: `${totalTasks} tareas copiadas al portapapeles`, duration: 3000 });
-    }).catch(() => {
+  // Copia el tablero como el mensaje *PENDIENTES ddmmaa* que Hernán manda al
+  // grupo (mismas seis secciones, numeradas por sección).
+  const handleExportTasks = useCallback(async () => {
+    try {
+      const res = await fetchPendientesText();
+      await navigator.clipboard.writeText(res.data.text);
+      addNotification({ type: 'success', title: 'PENDIENTES copiados para WhatsApp', duration: 3000 });
+    } catch {
       addNotification({ type: 'error', title: 'Error al copiar', duration: 3000 });
-    });
-  }, [tasksByStatus, categories, addNotification]);
+    }
+  }, [addNotification]);
 
   // ── Loading State ─────────────────────────────────────
 
@@ -488,7 +446,7 @@ const TasksPage: React.FC = () => {
     return (
       <div className="min-h-[100dvh] bg-[#f8f9fc]">
         <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-16 pr-4 py-3 md:px-6 md:py-4">
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Tareas</h1>
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Pendientes</h1>
         </div>
         <div className="p-4 space-y-3">
           {[0, 1, 2].map(i => (
@@ -549,8 +507,23 @@ const TasksPage: React.FC = () => {
             </div>
           ) : (
             <>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Tareas</h1>
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Pendientes</h1>
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowSync(true)}
+                  className="hidden sm:inline-flex items-center gap-1.5 mr-1 px-3 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700"
+                  title="Pegar la lista PENDIENTES de WhatsApp"
+                >
+                  <MessageSquareText size={16} />
+                  Pegar lista de WhatsApp
+                </button>
+                <button
+                  onClick={() => setShowSync(true)}
+                  className="sm:hidden p-2 rounded-xl text-green-700 hover:bg-green-50"
+                  title="Pegar la lista PENDIENTES de WhatsApp"
+                >
+                  <MessageSquareText size={20} />
+                </button>
                 <button
                   onClick={() => setSortMode(s => s === 'priority' ? 'task_number' : 'priority')}
                   className={`p-2 rounded-xl transition-colors ${
@@ -574,7 +547,7 @@ const TasksPage: React.FC = () => {
                 <button
                   onClick={handleExportTasks}
                   className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
-                  title="Copiar lista para WhatsApp"
+                  title="Copiar PENDIENTES para WhatsApp"
                 >
                   <Copy size={20} />
                 </button>
@@ -932,6 +905,17 @@ const TasksPage: React.FC = () => {
           onDeleted={handleTaskDeleted}
           onStatusChanged={(task, newStatus) => {
             handleToggleDone({ ...task, status: newStatus === 'done' ? 'pending' : 'done' } as Task);
+          }}
+        />
+      )}
+
+      {showSync && (
+        <PendientesSyncModal
+          onClose={() => setShowSync(false)}
+          onSynced={() => {
+            setShowSync(false);
+            loadData();
+            addNotification({ type: 'success', title: 'Pendientes sincronizados con WhatsApp', duration: 3000 });
           }}
         />
       )}

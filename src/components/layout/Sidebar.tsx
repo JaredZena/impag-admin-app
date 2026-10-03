@@ -24,7 +24,8 @@ import {
   Wrench,
   Scale,
   ChevronDown,
-  MoreHorizontal
+  MoreHorizontal,
+  Sun
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,16 +44,15 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
 
   type NavItem = { path: string; label: string; icon: React.ReactNode };
 
-  // Lo del día a día arriba; el catálogo agrupado; lo que casi no se usa
-  // (sin datos en prod a oct 2026) dentro de "Más", cerrado por defecto.
+  // Plan de adopción (Obsidian «IMPAG App Adoption Plan»): seis entradas para
+  // el equipo — Hoy, Pendientes, Clientes, Cotizaciones, Ventas, Catálogo.
+  // Lo demás (casi sin uso en prod a oct 2026) vive en "Más", cerrado.
   const navigationItems: NavItem[] = [
-    { path: '/tasks', label: 'Tareas', icon: <CheckSquare size={20} /> },
+    { path: '/hoy', label: 'Hoy', icon: <Sun size={20} /> },
+    { path: '/tasks', label: 'Pendientes', icon: <CheckSquare size={20} /> },
     { path: '/customers', label: 'Clientes', icon: <UserCircle size={20} /> },
     { path: '/quotes', label: 'Cotizaciones', icon: <FileBarChart size={20} /> },
     { path: '/sales', label: 'Ventas', icon: <TrendingUp size={20} /> },
-    { path: '/punto-equilibrio', label: 'Punto de equilibrio', icon: <Scale size={20} /> },
-    { path: '/tools', label: 'Herramientas', icon: <Wrench size={20} /> },
-    { path: '/files', label: 'Archivos', icon: <FolderOpen size={20} /> },
   ];
 
   const navigationGroups: { key: string; label: string; icon: React.ReactNode; items: NavItem[] }[] = [
@@ -65,6 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
         { path: '/product-admin', label: 'Precios de venta', icon: <Tag size={20} /> },
         { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },
         { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
+        { path: '/tools', label: 'Herramientas', icon: <Wrench size={20} /> },
       ],
     },
     {
@@ -72,6 +73,8 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
       label: 'Más',
       icon: <MoreHorizontal size={20} />,
       items: [
+        { path: '/punto-equilibrio', label: 'Punto de equilibrio', icon: <Scale size={20} /> },
+        { path: '/files', label: 'Archivos', icon: <FolderOpen size={20} /> },
         { path: '/pos', label: 'Punto de Venta', icon: <ShoppingCart size={20} /> },
         { path: '/caja', label: 'Caja', icon: <Wallet size={20} /> },
         { path: '/whatsapp', label: 'WhatsApp', icon: <MessageCircle size={20} /> },

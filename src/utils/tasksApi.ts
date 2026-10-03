@@ -10,6 +10,7 @@ import type {
   UpdateCategoryPayload,
   TasksApiResponse,
   ImportResult,
+  PendientesSyncPreview,
 } from '@/types/tasks';
 
 const TASKS_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -169,3 +170,14 @@ export const reorderCategories = (order: number[]) =>
     method: 'PUT',
     body: JSON.stringify({ order }),
   });
+
+// Lista *PENDIENTES ddmmaa* de WhatsApp → tablero (nuevas, siguen, se cierran).
+export const syncPendientes = (text: string, dryRun: boolean) =>
+  tasksApiRequest<TasksApiResponse<PendientesSyncPreview>>('/tasks/pendientes/sync', {
+    method: 'POST',
+    body: JSON.stringify({ text, dry_run: dryRun }),
+  });
+
+// El tablero como mensaje *PENDIENTES ddmmaa*, listo para el grupo.
+export const fetchPendientesText = () =>
+  tasksApiRequest<TasksApiResponse<{ text: string }>>('/tasks/pendientes/text');

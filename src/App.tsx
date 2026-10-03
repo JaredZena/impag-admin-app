@@ -41,6 +41,7 @@ const CampaignsPage = lazy(() => import('./components/campaigns/CampaignsPage'))
 const CampaignDetailPage = lazy(() => import('./components/campaigns/CampaignDetailPage'));
 const SalesDashboardPage = lazy(() => import('./components/sales/SalesDashboardPage'));
 const BreakevenPage = lazy(() => import('./components/finance/BreakevenPage'));
+const HoyPage = lazy(() => import('./components/hoy/HoyPage'));
 
 const AppContent: React.FC = () => {
   const { sessionExpired, forceReauthenticate, clearSessionExpired, reauthenticate } = useAuth();
@@ -109,6 +110,7 @@ const AppContent: React.FC = () => {
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance" element={<ProductBalancePage />} />
           <Route path="/balance/:balanceId" element={<ProductBalancePage />} />
+          <Route path="/hoy" element={<HoyPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/archive" element={<TaskArchivePage />} />
           <Route path="/quotes" element={<QuotesPage />} />
@@ -130,7 +132,7 @@ const AppContent: React.FC = () => {
           <Route path="/roadmap" element={<RoadmapPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/customers/:id" element={<CustomerDetailPage />} />
-          <Route path="*" element={<Navigate to="/tasks" replace />} />
+          <Route path="*" element={<Navigate to="/hoy" replace />} />
         </Routes>
         </Suspense>
       </ProtectedRoute>
