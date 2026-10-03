@@ -22,7 +22,9 @@ import {
   ShoppingCart,
   Wallet,
   Wrench,
-  Scale
+  Scale,
+  ChevronDown,
+  MoreHorizontal
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,26 +41,65 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
   const { user, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const navigationItems = [
+  type NavItem = { path: string; label: string; icon: React.ReactNode };
+
+  // Lo del día a día arriba; el catálogo agrupado; lo que casi no se usa
+  // (sin datos en prod a oct 2026) dentro de "Más", cerrado por defecto.
+  const navigationItems: NavItem[] = [
     { path: '/tasks', label: 'Tareas', icon: <CheckSquare size={20} /> },
     { path: '/customers', label: 'Clientes', icon: <UserCircle size={20} /> },
     { path: '/quotes', label: 'Cotizaciones', icon: <FileBarChart size={20} /> },
     { path: '/sales', label: 'Ventas', icon: <TrendingUp size={20} /> },
     { path: '/punto-equilibrio', label: 'Punto de equilibrio', icon: <Scale size={20} /> },
-    { path: '/pos', label: 'Punto de Venta', icon: <ShoppingCart size={20} /> },
-    { path: '/caja', label: 'Caja', icon: <Wallet size={20} /> },
-    { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
-    { path: '/product-admin', label: 'Precios de venta', icon: <Tag size={20} /> },
-    { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
-    { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },
     { path: '/tools', label: 'Herramientas', icon: <Wrench size={20} /> },
     { path: '/files', label: 'Archivos', icon: <FolderOpen size={20} /> },
-    { path: '/whatsapp', label: 'WhatsApp', icon: <MessageCircle size={20} /> },
-    { path: '/roadmap', label: 'Roadmap', icon: <MapIcon size={20} /> },
-    { path: '/social-calendar', label: 'Calendario Social', icon: <Calendar size={20} /> },
-    { path: '/campaigns', label: 'Campañas', icon: <Megaphone size={20} /> },
-    { path: '/tiktok', label: 'TikTok Studio', icon: <Music size={20} /> },
   ];
+
+  const navigationGroups: { key: string; label: string; icon: React.ReactNode; items: NavItem[] }[] = [
+    {
+      key: 'catalogo',
+      label: 'Catálogo',
+      icon: <Package size={20} />,
+      items: [
+        { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
+        { path: '/product-admin', label: 'Precios de venta', icon: <Tag size={20} /> },
+        { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },
+        { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
+      ],
+    },
+    {
+      key: 'mas',
+      label: 'Más',
+      icon: <MoreHorizontal size={20} />,
+      items: [
+        { path: '/pos', label: 'Punto de Venta', icon: <ShoppingCart size={20} /> },
+        { path: '/caja', label: 'Caja', icon: <Wallet size={20} /> },
+        { path: '/whatsapp', label: 'WhatsApp', icon: <MessageCircle size={20} /> },
+        { path: '/social-calendar', label: 'Calendario Social', icon: <Calendar size={20} /> },
+        { path: '/campaigns', label: 'Campañas', icon: <Megaphone size={20} /> },
+        { path: '/tiktok', label: 'TikTok Studio', icon: <Music size={20} /> },
+        { path: '/roadmap', label: 'Roadmap', icon: <MapIcon size={20} /> },
+      ],
+    },
+  ];
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('sidebar_open_groups') || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const toggleGroup = (key: string) =>
+    setOpenGroups((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem('sidebar_open_groups', JSON.stringify(next));
+      } catch {
+        /* sin storage: sólo en memoria */
+      }
+      return next;
+    });
 
   const isActive = (path: string) => {
      // El Cotizador IA (/quotation-history, /quotation-chat) vive dentro de Cotizaciones.
@@ -69,6 +110,35 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
   };
 
   const toggleMobile = () => setIsMobileOpen(!isMobileOpen);
+
+  const renderItem = (item: NavItem) => {
+    const active = isActive(item.path);
+    return (
+      <button
+        key={item.path}
+        onClick={() => {
+          navigate(item.path);
+          setIsMobileOpen(false);
+        }}
+        className={`
+          w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative border
+          ${active
+            ? '!bg-blue-600/25 !border-blue-400/50 !text-blue-50 font-semibold shadow-[0_0_18px_rgba(59,130,246,0.25)]'
+            : '!bg-slate-800/60 !border-slate-700/80 !text-slate-100 hover:!bg-slate-800 hover:!text-white hover:!border-slate-500/70 font-medium'}
+        `}
+        title={isCollapsed ? item.label : ''}
+      >
+        <span className={`shrink-0 ${active ? '!text-blue-50' : '!text-slate-100 group-hover:!text-white'}`}>
+          {item.icon}
+        </span>
+        {!isCollapsed && (
+          <span className="font-medium text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+            {item.label}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <>
@@ -119,33 +189,26 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
         {/* Navigation Links */}
         <div className="flex-1 py-6 overflow-y-auto overflow-x-hidden">
           <nav className="space-y-1 px-3">
-            {navigationItems.map((item) => {
-              const active = isActive(item.path);
+            {navigationItems.map(renderItem)}
+            {navigationGroups.map((group) => {
+              const hasActive = group.items.some((item) => isActive(item.path));
+              const open = openGroups[group.key] ?? hasActive;
               return (
-                <button
-                  key={item.path}
-                  onClick={() => {
-                    navigate(item.path);
-                    setIsMobileOpen(false);
-                  }}
-                  className={`
-                    w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative border
-                    ${active 
-                      ? '!bg-blue-600/25 !border-blue-400/50 !text-blue-50 font-semibold shadow-[0_0_18px_rgba(59,130,246,0.25)]' 
-                      : '!bg-slate-800/60 !border-slate-700/80 !text-slate-100 hover:!bg-slate-800 hover:!text-white hover:!border-slate-500/70 font-medium'}
-                  `}
-                  title={isCollapsed ? item.label : ''}
-                >
-                  <span className={`shrink-0 ${active ? '!text-blue-50' : '!text-slate-100 group-hover:!text-white'}`}>
-                    {item.icon}
-                  </span>
-                  
-                  {!isCollapsed && (
-                    <span className="font-medium text-sm whitespace-nowrap overflow-hidden text-ellipsis">
-                      {item.label}
-                    </span>
-                  )}
-                </button>
+                <div key={group.key} className="pt-2">
+                  <button
+                    onClick={() => toggleGroup(group.key)}
+                    aria-expanded={open}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl !bg-transparent !border-transparent !text-slate-400 hover:!text-white text-xs font-semibold uppercase tracking-wider"
+                    title={isCollapsed ? group.label : ''}
+                  >
+                    <span className="shrink-0">{group.icon}</span>
+                    {!isCollapsed && <span className="flex-1 text-left">{group.label}</span>}
+                    {!isCollapsed && (
+                      <ChevronDown size={14} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
+                    )}
+                  </button>
+                  {open && <div className="space-y-1 mt-1">{group.items.map(renderItem)}</div>}
+                </div>
               );
             })}
           </nav>
