@@ -219,7 +219,8 @@ export default function QuotesPage() {
                       <p className="text-xs text-gray-400">{quote.items.length} items</p>
                     </td>
                     <td className="px-4 py-3 text-right hidden md:table-cell">
-                      <p className="text-xs text-gray-500">{formatDate(quote.created_at)}</p>
+                      {/* Fecha de envío (las cargadas desde WhatsApp/PDF se crearon después) */}
+                      <p className="text-xs text-gray-500">{formatDate(quote.sent_at ?? quote.created_at)}</p>
                     </td>
                   </tr>
                 ))}
