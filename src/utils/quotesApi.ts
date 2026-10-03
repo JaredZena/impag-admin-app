@@ -8,6 +8,9 @@ import type {
   QuotePipelineTopQuote,
   ProductSearchResult,
   QuoteNotification,
+  CaptureQuotePayload,
+  CaptureQuoteResult,
+  ManualQuoteStatus,
 } from '@/types/quotes';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -107,6 +110,28 @@ export async function sendQuote(id: number): Promise<{ data: Quote; quote_url: s
     { method: 'POST' }
   );
   return { data: res.data, quote_url: res.quote_url };
+}
+
+// Registra (o reenvía, si el folio ya existe) una cotización pegando el mensaje
+// *Cotización Enviada* de WhatsApp. dry_run: true sólo devuelve la vista previa.
+export async function captureQuote(payload: CaptureQuotePayload): Promise<CaptureQuoteResult> {
+  const res = await quotesApiRequest<{ success: boolean; data: CaptureQuoteResult }>(
+    '/quotes/capture',
+    { method: 'POST', body: JSON.stringify(payload) }
+  );
+  return res.data;
+}
+
+export async function changeQuoteStatus(
+  id: number,
+  status: ManualQuoteStatus,
+  reason?: string
+): Promise<Quote> {
+  const res = await quotesApiRequest<{ success: boolean; data: Quote }>(`/quotes/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status, reason: reason || undefined }),
+  });
+  return res.data;
 }
 
 export async function getQuoteStats(): Promise<QuoteStats> {

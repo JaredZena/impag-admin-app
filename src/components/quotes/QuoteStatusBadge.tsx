@@ -4,8 +4,9 @@ const statusConfig: Record<QuoteStatus, { label: string; className: string }> = 
   draft: { label: 'Borrador', className: 'bg-gray-100 text-gray-700' },
   sent: { label: 'Enviada', className: 'bg-blue-100 text-blue-700' },
   viewed: { label: 'Vista', className: 'bg-yellow-100 text-yellow-700' },
+  needs_work: { label: 'Por ajustar', className: 'bg-orange-100 text-orange-700' },
   accepted: { label: 'Aceptada', className: 'bg-green-100 text-green-700' },
-  rejected: { label: 'Rechazada', className: 'bg-red-100 text-red-700' },
+  rejected: { label: 'Perdida', className: 'bg-red-100 text-red-700' },
   expired: { label: 'Expirada', className: 'bg-gray-100 text-gray-500' },
 };
 

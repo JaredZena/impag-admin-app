@@ -66,7 +66,19 @@ export type QuotePaymentStatus =
   | 'amount_mismatch'
   | (string & {});
 
-export type QuoteStatus = 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'expired';
+// needs_work = "Por ajustar" (le debemos una cotización corregida). rejected se
+// muestra como "Perdida".
+export type QuoteStatus =
+  | 'draft'
+  | 'sent'
+  | 'viewed'
+  | 'needs_work'
+  | 'accepted'
+  | 'rejected'
+  | 'expired';
+
+// Estados que se cambian a mano (POST /quotes/{id}/status).
+export type ManualQuoteStatus = 'sent' | 'needs_work' | 'accepted' | 'rejected' | 'expired';
 
 export interface CreateQuotePayload {
   customer_name: string;
@@ -101,6 +113,8 @@ export interface UpdateQuotePayload {
   validity_days?: number;
   assigned_to?: string;
   status?: string;
+  // Sólo cotizaciones sin productos (registradas desde el PDF / WhatsApp).
+  total?: number;
 }
 
 export interface QuoteStats {
@@ -108,6 +122,34 @@ export interface QuoteStats {
   accepted_value: number;
   pending_sent: number;
   pending_viewed: number;
+  needs_work?: number;
+}
+
+// POST /quotes/capture — registrar desde el mensaje *Cotización Enviada*.
+export interface CaptureQuotePayload {
+  text: string;
+  total?: string;
+  customer_phone?: string;
+  sent_date?: string; // YYYY-MM-DD
+  dry_run?: boolean;
+}
+
+export interface CaptureQuotePreview {
+  action: 'created' | 'updated';
+  quote_number: string;
+  folio: string;
+  tag: string | null;
+  customer_name: string | null;
+  customer_location: string | null;
+  delivery: string | null;
+  material: string | null;
+  existing: { id: number; status: QuoteStatus; total: number; customer_name: string } | null;
+}
+
+export interface CaptureQuoteResult {
+  preview: CaptureQuotePreview;
+  warnings: string[];
+  quote: Quote | null;
 }
 
 // Resumen del pipeline de cotizaciones abiertas (GET /quotes/pipeline-summary).

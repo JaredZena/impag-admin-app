@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, FileText, Globe } from 'lucide-react';
+import { Plus, Search, FileText, Globe, MessageSquareText } from 'lucide-react';
 import { listQuotes, getQuoteStats } from '@/utils/quotesApi';
 import type { Quote, QuoteStats } from '@/types/quotes';
 import QuoteStatusBadge from './QuoteStatusBadge';
 import PaymentStatusChip from './PaymentStatusChip';
+import CaptureQuoteDialog from './CaptureQuoteDialog';
 import { isWebOrder, WEB_ORDER_PREFIX } from '@/utils/webOrder';
 
 const STATUS_FILTERS = [
@@ -12,7 +13,9 @@ const STATUS_FILTERS = [
   { value: 'draft', label: 'Borrador' },
   { value: 'sent', label: 'Enviadas' },
   { value: 'viewed', label: 'Vistas' },
+  { value: 'needs_work', label: 'Por ajustar' },
   { value: 'accepted', label: 'Aceptadas' },
+  { value: 'rejected', label: 'Perdidas' },
   { value: 'expired', label: 'Expiradas' },
 ];
 
@@ -23,6 +26,7 @@ export default function QuotesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showCapture, setShowCapture] = useState(false);
   // "Pedidos web" (quote_number WEB-…): el filtro aparece hasta que la lista
   // trae al menos un pedido de la tienda en línea.
   const [webOnly, setWebOnly] = useState(false);
@@ -63,23 +67,32 @@ export default function QuotesPage() {
     <>
       <div className="p-6 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Cotizaciones B2B</h1>
             <p className="text-sm text-gray-500 mt-1">Gestiona cotizaciones para tus clientes</p>
           </div>
-          <button
-            onClick={() => navigate('/quotes/new')}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={16} />
-            Nueva cotización
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowCapture(true)}
+              className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            >
+              <MessageSquareText size={16} />
+              Registrar desde WhatsApp
+            </button>
+            <button
+              onClick={() => navigate('/quotes/new')}
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={16} />
+              Nueva cotización
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Este mes</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total_this_month}</p>
@@ -96,6 +109,10 @@ export default function QuotesPage() {
               <p className="text-xs text-gray-500 uppercase tracking-wider">Vistas</p>
               <p className="text-2xl font-bold text-yellow-600 mt-1">{stats.pending_viewed}</p>
             </div>
+            <div className="bg-white border border-gray-100 rounded-xl p-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wider">Por ajustar</p>
+              <p className="text-2xl font-bold text-orange-600 mt-1">{stats.needs_work ?? 0}</p>
+            </div>
           </div>
         )}
 
@@ -111,7 +128,7 @@ export default function QuotesPage() {
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex flex-wrap gap-1 bg-gray-100 rounded-lg p-1">
             {STATUS_FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -150,7 +167,9 @@ export default function QuotesPage() {
             <FileText size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500 mb-4">
               {webOnly ? 'No hay pedidos web' : 'No hay cotizaciones'}
-              {statusFilter ? ` con estado "${statusFilter}"` : ''}
+              {statusFilter
+                ? ` con estado "${STATUS_FILTERS.find((f) => f.value === statusFilter)?.label ?? statusFilter}"`
+                : ''}
             </p>
             <button
               onClick={() => navigate('/quotes/new')}
@@ -209,6 +228,15 @@ export default function QuotesPage() {
           </div>
         )}
       </div>
+      {showCapture && (
+        <CaptureQuoteDialog
+          onClose={() => setShowCapture(false)}
+          onSaved={(quote) => {
+            setShowCapture(false);
+            navigate(`/quotes/${quote.id}`);
+          }}
+        />
+      )}
     </>
   );
 }

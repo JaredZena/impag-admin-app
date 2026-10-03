@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, Check, Trash2, ExternalLink } from 'lucide-react';
-import { getQuote, sendQuote, deleteQuote } from '@/utils/quotesApi';
+import { ArrowLeft, Send, Copy, Check, Trash2, ExternalLink, Pencil } from 'lucide-react';
+import { getQuote, sendQuote, deleteQuote, updateQuote } from '@/utils/quotesApi';
 import type { Quote } from '@/types/quotes';
 import QuoteStatusBadge from './QuoteStatusBadge';
 import PaymentStatusChip from './PaymentStatusChip';
 import WebOrderPanel from './WebOrderPanel';
 import { isWebOrder, parseWebOrderNotes, stripWebOrderBlock } from '@/utils/webOrder';
 import QuoteItemRow from './QuoteItemRow';
+import QuoteStatusPanel from './QuoteStatusPanel';
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,10 @@ export default function QuoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
+  // Total plano (cotización registrada desde el PDF / WhatsApp, sin productos).
+  const [editingTotal, setEditingTotal] = useState(false);
+  const [totalInput, setTotalInput] = useState('');
+  const [totalError, setTotalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -62,6 +67,22 @@ export default function QuoteDetailPage() {
     } catch (err) {
       console.error('Failed to delete quote:', err);
       alert('Error al eliminar');
+    }
+  };
+
+  const handleSaveTotal = async () => {
+    if (!quote) return;
+    const value = Number(totalInput.replace(/[^\d.]/g, ''));
+    if (!totalInput.trim() || !Number.isFinite(value)) {
+      setTotalError('Total no válido');
+      return;
+    }
+    try {
+      setQuote(await updateQuote(quote.id, { total: value }));
+      setEditingTotal(false);
+      setTotalError(null);
+    } catch (err) {
+      setTotalError(err instanceof Error ? err.message : 'No se pudo guardar el total');
     }
   };
 
@@ -179,6 +200,11 @@ export default function QuoteDetailPage() {
           </div>
         </div>
 
+        {/* Estado manual (no aplica a borradores ni a pedidos web) */}
+        {quote.status !== 'draft' && !isWebOrder(quote) && (
+          <QuoteStatusPanel quote={quote} onChanged={setQuote} />
+        )}
+
         {/* Pedido web (solo lectura) */}
         <WebOrderPanel quote={quote} details={webOrder} />
 
@@ -231,10 +257,44 @@ export default function QuoteDetailPage() {
                   <span className="text-gray-500">IVA (16%):</span>
                   <span>${quote.iva_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2">
+                <div className="flex justify-between items-center text-lg font-bold border-t border-gray-200 pt-2">
                   <span>Total MXN:</span>
-                  <span>${quote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                  {editingTotal ? (
+                    <span className="flex items-center gap-1">
+                      <input
+                        value={totalInput}
+                        onChange={(e) => setTotalInput(e.target.value)}
+                        inputMode="decimal"
+                        aria-label="Total del PDF"
+                        autoFocus
+                        className="w-28 px-2 py-1 text-sm font-normal border border-gray-200 rounded-md text-right"
+                      />
+                      <button onClick={handleSaveTotal} className="p-1 text-green-600" aria-label="Guardar total">
+                        <Check size={16} />
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      ${quote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      {quote.items.length === 0 && quote.status !== 'draft' && !isWebOrder(quote) && (
+                        <button
+                          onClick={() => {
+                            setTotalInput(quote.total ? String(quote.total) : '');
+                            setEditingTotal(true);
+                          }}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          aria-label="Editar total"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </div>
+                {quote.items.length === 0 && (
+                  <p className="text-xs text-gray-400 text-right">Total del PDF (IVA según la cotización)</p>
+                )}
+                {totalError && <p className="text-xs text-red-600 text-right">{totalError}</p>}
               </div>
             </div>
           </div>
