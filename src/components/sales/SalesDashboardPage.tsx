@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, MessageSquareText, TrendingUp } from 'lucide-react';
 import { apiRequest } from '@/utils/api';
 import { getPipelineSummary } from '@/utils/quotesApi';
 import type { QuotePipelineSummary } from '@/types/quotes';
 import { useNotifications } from '@/components/ui/notification';
+import CaptureSaleDialog from './CaptureSaleDialog';
 
 // ---------------------------------------------------------------------------
 // Types (mirror of routes/sales.py in impag-quot)
@@ -62,6 +63,8 @@ interface SalesStats {
   delivery_pending: { count: number; total: number };
   invoice_pending_registration: { count: number; total: number };
   quarantined: { count: number };
+  // Lo que deben los clientes de sus *Venta* de WhatsApp (ausente antes del deploy).
+  receivable?: { count: number; total: number };
   grand_total: number;
   ytd_total: number;
   label: string;
@@ -118,6 +121,10 @@ interface SaleRow {
   quarantined: boolean;
   quarantine_reason: string | null;
   imported_at: string | null;
+  // *Venta* registrada desde WhatsApp (sheet_tab === 'WHATSAPP')
+  paid_amount?: number | null;
+  pending_amount?: number | null;
+  quote_id?: number | null;
 }
 
 interface SalesListResponse {
@@ -1214,6 +1221,9 @@ function RecentSalesTable({ years }: { years: number[] }) {
                   </td>
                   <td className="py-2.5 pr-3 text-sm font-medium text-gray-900 text-right whitespace-nowrap">
                     {r.amount !== null ? fmtMXNExact(r.amount) : '—'}
+                    {r.pending_amount != null && r.pending_amount > 0 && (
+                      <span className="block text-xs font-normal text-red-600">Debe {fmtMXNExact(r.pending_amount)}</span>
+                    )}
                   </td>
                   <td className="py-2.5 pr-3">
                     {r.payment_method ? (
@@ -1224,7 +1234,12 @@ function RecentSalesTable({ years }: { years: number[] }) {
                       <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="py-2.5 pr-3 font-mono text-xs text-gray-600 whitespace-nowrap">{r.folio ?? '—'}</td>
+                  <td className="py-2.5 pr-3 font-mono text-xs text-gray-600 whitespace-nowrap">
+                    {r.folio ?? '—'}
+                    {r.sheet_tab === 'WHATSAPP' && (
+                      <span className="block font-sans text-[10px] text-green-700">WhatsApp</span>
+                    )}
+                  </td>
                   <td className="py-2.5">
                     <DeliveryPill status={r.delivery_status} />
                   </td>
@@ -1246,6 +1261,8 @@ export default function SalesDashboardPage() {
   const { addNotification } = useNotifications();
   const [stats, setStats] = useState<SalesStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [showCapture, setShowCapture] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
@@ -1269,7 +1286,7 @@ export default function SalesDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [addNotification]);
+  }, [addNotification, reloadKey]);
 
   const paymentItems: BarItem[] = stats
     ? Object.entries(stats.by_payment_method)
@@ -1313,7 +1330,24 @@ export default function SalesDashboardPage() {
           <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1 text-xs font-medium">
             Instantánea operativa — no libros contables
           </span>
+          <button
+            onClick={() => setShowCapture(true)}
+            className="ml-auto inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+          >
+            <MessageSquareText size={16} />
+            Registrar venta desde WhatsApp
+          </button>
         </div>
+        {showCapture && (
+          <CaptureSaleDialog
+            onClose={() => setShowCapture(false)}
+            onSaved={() => {
+              setShowCapture(false);
+              setReloadKey((k) => k + 1);
+              addNotification({ type: 'success', title: 'Venta registrada', message: 'Se actualizó el registro de ventas.' });
+            }}
+          />
+        )}
 
         {/* KPI row */}
         {statsLoading ? (
@@ -1344,6 +1378,13 @@ export default function SalesDashboardPage() {
                 <p className="text-sm text-gray-500 mt-0.5">
                   {fmtMXN(stats.margins.margin_total)} · {stats.margins.reconciled_count} ventas
                 </p>
+              </div>
+            )}
+            {stats.receivable && (
+              <div className="bg-white border border-gray-100 rounded-xl p-4">
+                <p className="text-xs text-gray-500">Por cobrar</p>
+                <p className="text-2xl font-bold text-red-600 mt-1">{fmtMXN(stats.receivable.total)}</p>
+                <p className="text-sm text-gray-500 mt-0.5">{stats.receivable.count.toLocaleString('es-MX')} ventas con saldo</p>
               </div>
             )}
             <div className="bg-white border border-gray-100 rounded-xl p-4">
@@ -1417,7 +1458,7 @@ export default function SalesDashboardPage() {
         {stats && stats.quarantined.count > 0 && <QuarantineBanner count={stats.quarantined.count} />}
 
         {/* Ventas recientes */}
-        <RecentSalesTable years={[...new Set((stats?.monthly ?? []).map((m) => m.year))]} />
+        <RecentSalesTable key={reloadKey} years={[...new Set((stats?.monthly ?? []).map((m) => m.year))]} />
       </div>
     </>
   );
