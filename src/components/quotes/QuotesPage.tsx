@@ -4,6 +4,7 @@ import { Plus, Search, FileText, Globe, MessageSquareText } from 'lucide-react';
 import { listQuotes, getQuoteStats } from '@/utils/quotesApi';
 import type { Quote, QuoteStats } from '@/types/quotes';
 import QuoteStatusBadge from './QuoteStatusBadge';
+import { parseQuoteNotes } from '@/utils/quoteNotes';
 import PaymentStatusChip from './PaymentStatusChip';
 import CaptureQuoteDialog from './CaptureQuoteDialog';
 import { isWebOrder, WEB_ORDER_PREFIX } from '@/utils/webOrder';
@@ -211,6 +212,11 @@ export default function QuotesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-sm text-gray-900">{quote.customer_name}</p>
+                      {parseQuoteNotes(quote.notes).material && (
+                        <p className="text-xs text-gray-600 truncate max-w-[18rem]" title={parseQuoteNotes(quote.notes).material ?? ''}>
+                          {parseQuoteNotes(quote.notes).material}
+                        </p>
+                      )}
                       <p className="text-xs text-gray-400">{quote.customer_phone}</p>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
@@ -221,7 +227,9 @@ export default function QuotesPage() {
                       <p className="text-sm font-semibold text-gray-900">
                         ${quote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                       </p>
-                      <p className="text-xs text-gray-400">{quote.items.length} items</p>
+                      {quote.items.length > 0 && (
+                        <p className="text-xs text-gray-400">{quote.items.length} items</p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right hidden md:table-cell">
                       {/* Fecha de envío (las cargadas desde WhatsApp/PDF se crearon después) */}

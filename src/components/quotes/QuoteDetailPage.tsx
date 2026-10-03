@@ -11,6 +11,7 @@ import QuoteItemsEditor from './QuoteItemsEditor';
 import { needsFleteLine } from '@/utils/quoteItemsEdit';
 import QuoteStatusPanel from './QuoteStatusPanel';
 import QuotePdfPanel from './QuotePdfPanel';
+import { parseQuoteNotes, whatsappLink } from '@/utils/quoteNotes';
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -126,6 +127,11 @@ export default function QuoteDetailPage() {
   // Se muestran en el panel "Pedido web" y se quitan de "Notas" para no repetirlos.
   const webOrder = isWebOrder(quote) ? parseWebOrderNotes(quote.notes) : null;
   const visibleNotes = webOrder && quote.notes ? stripWebOrderBlock(quote.notes, webOrder.raw) : quote.notes;
+  // Registradas desde WhatsApp / PDF: lo que se cotiza va arriba, el resto es historial.
+  const summary = parseQuoteNotes(visibleNotes);
+  const hasSummary = summary.material !== null || summary.fields.length > 0;
+  const chatUrl = whatsappLink(quote.customer_phone);
+  const isRequest = quote.status === 'requested';
 
   return (
     <>
@@ -201,6 +207,17 @@ export default function QuoteDetailPage() {
             <div>
               <p className="text-gray-500 text-xs">Teléfono</p>
               <p className="font-medium text-gray-900">{quote.customer_phone}</p>
+              {chatUrl && (
+                <a
+                  href={chatUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1 text-xs text-green-700 hover:underline"
+                >
+                  <ExternalLink size={12} />
+                  Abrir WhatsApp
+                </a>
+              )}
             </div>
             {quote.customer_email && (
               <div>
@@ -216,6 +233,28 @@ export default function QuoteDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Qué se cotiza (de la solicitud / el mensaje / el PDF) */}
+        {hasSummary && (
+          <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">
+              {isRequest ? 'Solicitud' : 'Qué se cotiza'}
+            </h2>
+            {summary.material && (
+              <p className="text-base font-medium text-gray-900 mb-3">{summary.material}</p>
+            )}
+            {summary.fields.length > 0 && (
+              <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 text-sm">
+                {summary.fields.map((f, i) => (
+                  <div key={`${f.label}-${i}`} className="contents">
+                    <dt className="text-gray-500">{f.label}</dt>
+                    <dd className="text-gray-900">{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        )}
 
         {/* Estado manual (no aplica a borradores ni a pedidos web) */}
         {quote.status !== 'draft' && !isWebOrder(quote) && (
@@ -242,71 +281,86 @@ export default function QuoteDetailPage() {
           </div>
         </div>
 
-        {/* Line Items */}
-        <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
-          <QuoteItemsEditor quote={quote} webOrder={webOrder} onChanged={setQuote} />
+        {/* Line Items (una solicitud Por cotizar todavía no tiene productos ni total) */}
+        {!(isRequest && quote.items.length === 0) && (
+          <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
+            <QuoteItemsEditor quote={quote} webOrder={webOrder} onChanged={setQuote} />
 
-          {/* Totals */}
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex justify-end">
-              <div className="w-64 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Subtotal:</span>
-                  <span>${quote.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">IVA (16%):</span>
-                  <span>${quote.iva_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between items-center text-lg font-bold border-t border-gray-200 pt-2">
-                  <span>Total MXN:</span>
-                  {editingTotal ? (
-                    <span className="flex items-center gap-1">
-                      <input
-                        value={totalInput}
-                        onChange={(e) => setTotalInput(e.target.value)}
-                        inputMode="decimal"
-                        aria-label="Total del PDF"
-                        autoFocus
-                        className="w-28 px-2 py-1 text-sm font-normal border border-gray-200 rounded-md text-right"
-                      />
-                      <button onClick={handleSaveTotal} className="p-1 text-green-600" aria-label="Guardar total">
-                        <Check size={16} />
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      ${quote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                      {quote.items.length === 0 && quote.status !== 'draft' && !isWebOrder(quote) && (
-                        <button
-                          onClick={() => {
-                            setTotalInput(quote.total ? String(quote.total) : '');
-                            setEditingTotal(true);
-                          }}
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                          aria-label="Editar total"
-                        >
-                          <Pencil size={14} />
+            {/* Totals */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex justify-end">
+                <div className="w-64 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Subtotal:</span>
+                    <span>${quote.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">IVA (16%):</span>
+                    <span>${quote.iva_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-lg font-bold border-t border-gray-200 pt-2">
+                    <span>Total MXN:</span>
+                    {editingTotal ? (
+                      <span className="flex items-center gap-1">
+                        <input
+                          value={totalInput}
+                          onChange={(e) => setTotalInput(e.target.value)}
+                          inputMode="decimal"
+                          aria-label="Total del PDF"
+                          autoFocus
+                          className="w-28 px-2 py-1 text-sm font-normal border border-gray-200 rounded-md text-right"
+                        />
+                        <button onClick={handleSaveTotal} className="p-1 text-green-600" aria-label="Guardar total">
+                          <Check size={16} />
                         </button>
-                      )}
-                    </span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        ${quote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        {quote.items.length === 0 && quote.status !== 'draft' && !isWebOrder(quote) && (
+                          <button
+                            onClick={() => {
+                              setTotalInput(quote.total ? String(quote.total) : '');
+                              setEditingTotal(true);
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                            aria-label="Editar total"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {quote.items.length === 0 && (
+                    <p className="text-xs text-gray-400 text-right">Total del PDF (IVA según la cotización)</p>
                   )}
+                  {totalError && <p className="text-xs text-red-600 text-right">{totalError}</p>}
                 </div>
-                {quote.items.length === 0 && (
-                  <p className="text-xs text-gray-400 text-right">Total del PDF (IVA según la cotización)</p>
-                )}
-                {totalError && <p className="text-xs text-red-600 text-right">{totalError}</p>}
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Notes */}
-        {visibleNotes && (
-          <div className="bg-white border border-gray-100 rounded-xl p-6">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Notas</h2>
-            <p className="text-sm text-gray-600 whitespace-pre-wrap">{visibleNotes}</p>
-          </div>
+        {/* Notes: con resumen arriba, aquí sólo queda el historial */}
+        {hasSummary ? (
+          summary.history.length + summary.other.length > 0 && (
+            <div className="bg-white border border-gray-100 rounded-xl p-6">
+              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Historial</h2>
+              <ul className="space-y-1 text-sm text-gray-600">
+                {[...summary.other, ...summary.history].map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )
+        ) : (
+          visibleNotes && (
+            <div className="bg-white border border-gray-100 rounded-xl p-6">
+              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Notas</h2>
+              <p className="text-sm text-gray-600 whitespace-pre-wrap">{visibleNotes}</p>
+            </div>
+          )
         )}
       </div>
     </>
