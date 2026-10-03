@@ -216,6 +216,8 @@ export interface ProductSearchResult {
   sku: string | null;
   unit: string;
   display_price: number;
+  // precio_de_venta = Product.price set by the team; calculado = cost + margin
+  price_source?: 'precio_de_venta' | 'calculado';
   iva: boolean;
 }
 

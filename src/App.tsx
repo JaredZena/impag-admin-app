@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ProductDetailPage from './components/product/ProductDetailPage';
 import ProductFormPage from './components/product/ProductFormPage';
 import ProductManagementPage from './components/product/ProductManagementPage';
@@ -26,6 +26,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
 import { NotificationProvider, useNotifications } from './components/ui/notification';
 import { setSessionExpirationHandler } from './utils/api';
+import ScreenErrorBoundary from './components/ui/ScreenErrorBoundary';
 
 // Heavy or rarely used pages load on demand so phones download less on first open.
 const ProductBalancePage = lazy(() => import('./components/product/ProductBalancePage'));
@@ -47,6 +48,7 @@ const ConsultaPage = lazy(() => import('./components/consulta/ConsultaPage'));
 const AppContent: React.FC = () => {
   const { sessionExpired, forceReauthenticate, clearSessionExpired, reauthenticate } = useAuth();
   const { addNotification } = useNotifications();
+  const location = useLocation();
 
   useEffect(() => {
     // Set up the session expiration handler for API calls
@@ -91,6 +93,8 @@ const AppContent: React.FC = () => {
   return (
     <>
       <ProtectedRoute>
+        {/* keyed by path: moving to another screen clears a crashed one */}
+        <ScreenErrorBoundary key={location.pathname}>
         <Suspense fallback={<div className="py-16 text-center text-sm text-gray-500">Cargando…</div>}>
         <Routes>
           <Route path="/product-admin" element={<ProductManagementPage />} />
@@ -136,6 +140,7 @@ const AppContent: React.FC = () => {
           <Route path="*" element={<Navigate to="/hoy" replace />} />
         </Routes>
         </Suspense>
+        </ScreenErrorBoundary>
       </ProtectedRoute>
 
       <SessionExpiredDialog

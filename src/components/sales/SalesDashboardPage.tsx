@@ -7,6 +7,8 @@ import type { QuotePipelineSummary } from '@/types/quotes';
 import { useNotifications } from '@/components/ui/notification';
 import CaptureSaleDialog from './CaptureSaleDialog';
 import { useOpenFromLink } from '@/hooks/useOpenFromLink';
+import LoadError from '@/components/ui/LoadError';
+import { daysAgoLabel, saleReasonLabel, ventaNumberLabel } from './salesLabels';
 
 // ---------------------------------------------------------------------------
 // Types (mirror of routes/sales.py in impag-quot)
@@ -198,6 +200,8 @@ const shortDate = (iso: string | null): string => {
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 };
+
+const errorText = (err: unknown): string => (err instanceof Error ? err.message : 'Intenta de nuevo.');
 
 // ---------------------------------------------------------------------------
 // Small shared pieces
@@ -584,7 +588,7 @@ function BarList({ items, emptyMessage }: { items: BarItem[]; emptyMessage: stri
 // ---------------------------------------------------------------------------
 
 const MARGIN_STATUS_META: Record<string, { label: string; cls: string }> = {
-  reconciled: { label: 'Conciliada', cls: 'bg-green-50 text-green-700 border border-green-200' },
+  reconciled: { label: 'Cuadra', cls: 'bg-green-50 text-green-700 border border-green-200' },
   unverified: { label: 'Sin verificar', cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
   mismatch: { label: 'No cuadra', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
   // Balance armado para entregar una cotización; la venta no se concretó
@@ -593,10 +597,10 @@ const MARGIN_STATUS_META: Record<string, { label: string; cls: string }> = {
   duplicate: { label: 'Duplicada', cls: 'bg-gray-100 text-gray-600 border border-gray-200' },
 };
 
-// Folio en el título pero los totales no cuadran con el ledger — sí es un
+// Folio en el título pero los totales no cuadran con la venta — sí es un
 // problema de datos. Las cotizaciones no concretadas NO van aquí.
 const REVIEW_STATUSES = new Set(['mismatch', 'duplicate']);
-// Sin venta en el ledger (o sin folio siquiera): balance de cotización.
+// Sin venta registrada (o sin folio siquiera): balance de cotización.
 const QUOTE_STATUSES = new Set(['no_ledger_match', 'orphan']);
 
 function MarginStatusPill({ status }: { status: string }) {
@@ -623,33 +627,30 @@ const monthYearLabel = (iso: string | null): string => {
 };
 
 function MarginSection({ margins }: { margins: MarginsBlock }) {
-  const { addNotification } = useNotifications();
   const [rows, setRows] = useState<MarginRow[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const [statusFilter, setStatusFilter] = useState<'reconciled' | 'review' | 'quote' | null>(null);
   const [yearFilter, setYearFilter] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
     (async () => {
       try {
         const res = (await apiRequest('/sales/margins?limit=200')) as MarginsListResponse;
         if (!cancelled) setRows(res.items);
-      } catch {
-        if (cancelled) return;
-        addNotification({
-          type: 'error',
-          title: 'Error al cargar márgenes',
-          message: 'No se pudieron cargar los márgenes por venta. Intenta de nuevo.',
-        });
-        setRows([]);
+      } catch (err) {
+        if (!cancelled) setLoadError(errorText(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [addNotification]);
+  }, [retry]);
 
   const reviewCount = Object.entries(margins.status_counts)
     .filter(([status]) => REVIEW_STATUSES.has(status))
@@ -675,7 +676,7 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
 
   const statusFilters: { value: 'reconciled' | 'review' | 'quote' | null; label: string }[] = [
     { value: null, label: 'Todas' },
-    { value: 'reconciled', label: `Conciliadas (${margins.status_counts.reconciled ?? 0})` },
+    { value: 'reconciled', label: `Cuadran (${margins.status_counts.reconciled ?? 0})` },
     { value: 'review', label: `Por revisar (${reviewCount})` },
     { value: 'quote', label: `Cotizaciones (${quoteCount})` },
   ];
@@ -683,15 +684,15 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
   return (
     <Card title="Margen por venta">
       <p className="text-xs text-gray-500 -mt-2 mb-4">
-        Costo real por venta desde el sheet BALANCES DE VENTA, cruzado por folio con el
-        ledger. Solo las ventas conciliadas (el total del balance cuadra con la venta
-        registrada) cuentan en el margen global.
+        Costo real de cada venta, tomado de la hoja «Balances de venta» y comparado por
+        número de nota con la venta registrada. Solo cuentan en el margen las ventas cuyo
+        total cuadra con lo registrado.
       </p>
 
       {/* Summary strip */}
       <div className="flex flex-wrap gap-x-8 gap-y-3 mb-4">
         <div>
-          <p className="text-xs text-gray-500">Margen bruto conciliado</p>
+          <p className="text-xs text-gray-500">Margen bruto (ventas que cuadran)</p>
           <p className="text-2xl font-bold text-gray-900">
             {margins.margin_pct !== null ? `${margins.margin_pct.toFixed(1)}%` : '—'}
             <span className="ml-2 text-sm font-medium text-gray-500">{fmtMXN(margins.margin_total)}</span>
@@ -713,14 +714,14 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-3 mb-4">
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
           {statusFilters.map((f) => (
             <button
               key={f.label}
               type="button"
               onClick={() => setStatusFilter(f.value)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                statusFilter === f.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md border-0 transition-colors ${
+                statusFilter === f.value ? 'bg-white text-gray-900 shadow-sm' : 'bg-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
               {f.label}
@@ -728,7 +729,7 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
           ))}
         </div>
         {years.length > 1 && (
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
             {[{ value: null as number | null, label: 'Todos' }, ...years.map((y) => ({ value: y as number | null, label: String(y) }))].map((f) => (
               <button
                 key={f.label}
@@ -751,6 +752,8 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
             <Skeleton key={i} className="h-5 w-full" />
           ))}
         </div>
+      ) : loadError ? (
+        <LoadError message={loadError} onRetry={() => setRetry((r) => r + 1)} />
       ) : filtered.length === 0 ? (
         <EmptyState message="No hay balances para este filtro" />
       ) : (
@@ -758,7 +761,7 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Folio</th>
+                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Nota</th>
                 <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Mes</th>
                 <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Cliente</th>
                 <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">Ingreso</th>
@@ -843,8 +846,8 @@ function MarginSection({ margins }: { margins: MarginsBlock }) {
             <>
               <AlertTriangle size={12} className="inline mr-1 text-amber-500" aria-hidden="true" />
               {reviewCount === 1 ? '1 balance necesita revisión' : `${reviewCount} balances necesitan revisión`} en
-              el sheet: "No cuadra" = el total del balance difiere de la venta registrada (folio equivocado o
-              montos desactualizados).{' '}
+              la hoja: «No cuadra» = el total del balance no es igual a la venta registrada (número de nota
+              equivocado o montos viejos).{' '}
             </>
           )}
           {quoteCount > 0 && (
@@ -904,11 +907,11 @@ function QuotePipelineCard() {
 
   if (summary.open_count === 0) {
     return (
-      <Card title="Cotizaciones abiertas">
+      <Card title="Cotizaciones esperando respuesta">
         <p className="text-sm text-gray-400 py-1">
-          No hay cotizaciones abiertas —{' '}
-          <Link to="/quotes/new" className="font-medium text-blue-600 hover:text-blue-700 hover:underline">
-            crear una nueva
+          Ninguna cotización enviada está esperando respuesta —{' '}
+          <Link to="/quotes?capture=1" className="font-medium text-blue-600 hover:text-blue-700 hover:underline">
+            registra la próxima
           </Link>
           .
         </p>
@@ -917,16 +920,16 @@ function QuotePipelineCard() {
   }
 
   return (
-    <Card title="Cotizaciones abiertas">
+    <Card title="Cotizaciones esperando respuesta">
       {/* Summary strip */}
       <div className="flex flex-wrap gap-x-8 gap-y-3 mb-4">
         <div>
-          <p className="text-xs text-gray-500">Valor abierto</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{fmtMXN(summary.open_total)}</p>
+          <p className="text-xs text-gray-500">Enviadas o vistas, sin respuesta</p>
+          <p className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">{fmtMXN(summary.open_total)}</p>
           <p className="text-xs text-gray-500 mt-0.5">
             {summary.open_count === 1
-              ? '1 cotización abierta'
-              : `${summary.open_count.toLocaleString('es-MX')} cotizaciones abiertas`}
+              ? '1 cotización'
+              : `${summary.open_count.toLocaleString('es-MX')} cotizaciones`}
           </p>
         </div>
         <div>
@@ -952,7 +955,7 @@ function QuotePipelineCard() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Folio</th>
+                <th className="hidden sm:table-cell text-left text-xs font-medium text-gray-500 py-2 pr-3">Folio</th>
                 <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Cliente</th>
                 <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">Total</th>
                 <th className="text-right text-xs font-medium text-gray-500 py-2">Días</th>
@@ -961,7 +964,7 @@ function QuotePipelineCard() {
             <tbody>
               {summary.top_open.map((q, i) => (
                 <tr key={q.id > 0 ? q.id : `${q.quote_number}-${i}`} className="border-b border-gray-50 last:border-0">
-                  <td className="py-2.5 pr-3 font-mono text-xs whitespace-nowrap">
+                  <td className="hidden sm:table-cell py-2.5 pr-3 font-mono text-xs whitespace-nowrap">
                     {q.id > 0 ? (
                       <Link to={`/quotes/${q.id}`} className="text-blue-600 hover:text-blue-700 hover:underline">
                         {q.quote_number || `#${q.id}`}
@@ -970,11 +973,17 @@ function QuotePipelineCard() {
                       <span className="text-gray-600">{q.quote_number || '—'}</span>
                     )}
                   </td>
-                  <td className="py-2.5 pr-3 text-sm text-gray-900 max-w-[180px] truncate" title={q.customer_name || undefined}>
-                    {q.customer_name || '—'}
+                  <td className="py-2.5 pr-3 text-sm text-gray-900 max-w-[110px] sm:max-w-[180px] truncate" title={q.customer_name || undefined}>
+                    {q.id > 0 ? (
+                      <Link to={`/quotes/${q.id}`} className="text-blue-600 sm:text-gray-900 hover:underline">
+                        {q.customer_name || '—'}
+                      </Link>
+                    ) : (
+                      q.customer_name || '—'
+                    )}
                   </td>
                   <td className="py-2.5 pr-3 text-sm font-medium text-gray-900 text-right whitespace-nowrap">
-                    {fmtMXNExact(q.total)}
+                    {q.total > 0 ? fmtMXNExact(q.total) : <span className="font-normal text-gray-400">Sin total</span>}
                   </td>
                   <td className="py-2.5 text-sm text-gray-600 text-right whitespace-nowrap">
                     {daysLabel(q.days_open)}
@@ -990,115 +999,149 @@ function QuotePipelineCard() {
         to="/quotes"
         className="mt-3 inline-block text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
       >
-        Ver todas las cotizaciones
+        Ver las cotizaciones abiertas
       </Link>
     </Card>
   );
 }
 
+
 // ---------------------------------------------------------------------------
-// Cuarentena banner
+// Venta reference: "Venta 11_09_2026" + "#11 · sep 2026"
 // ---------------------------------------------------------------------------
 
-function QuarantineBanner({ count }: { count: number }) {
-  const { addNotification } = useNotifications();
-  const [open, setOpen] = useState(false);
+function VentaRef({ row }: { row: SaleRow }) {
+  const label = ventaNumberLabel(row.reference);
+  if (label) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <span className="whitespace-nowrap">{row.reference}</span>
+        <span className="whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600">{label}</span>
+      </span>
+    );
+  }
+  if (row.folio) return <span className="whitespace-nowrap">Nota {row.folio}</span>;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Nos deben (ventas con saldo pendiente)
+// ---------------------------------------------------------------------------
+
+const OWED_PAGE = 200;
+const OWED_MAX_PAGES = 5;
+
+function NosDebenCard({ receivable }: { receivable?: { count: number; total: number } }) {
   const [rows, setRows] = useState<SaleRow[] | null>(null);
-  const [totalQ, setTotalQ] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const [showAll, setShowAll] = useState(false);
+  const expected = receivable?.count;
 
-  const toggle = async () => {
-    const next = !open;
-    setOpen(next);
-    if (next && rows === null && !loading) {
-      setLoading(true);
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null);
+    setLoadError(null);
+    (async () => {
       try {
-        const res = (await apiRequest('/sales?quarantined=true&limit=50')) as SalesListResponse;
-        setRows(res.items);
-        setTotalQ(res.total);
-      } catch {
-        addNotification({
-          type: 'error',
-          title: 'Error al cargar cuarentena',
-          message: 'No se pudieron cargar las filas en cuarentena. Intenta de nuevo.',
-        });
-        setOpen(false);
-      } finally {
-        setLoading(false);
+        // GET /sales has no "with balance" filter: the balance only exists on
+        // WhatsApp *Venta* rows, which are the newest, so scan from the top.
+        const owed: SaleRow[] = [];
+        for (let page = 0; page < OWED_MAX_PAGES; page++) {
+          const res = (await apiRequest(
+            `/sales?quarantined=false&limit=${OWED_PAGE}&offset=${page * OWED_PAGE}`,
+          )) as SalesListResponse;
+          owed.push(...res.items.filter((r) => (r.pending_amount ?? 0) > 0));
+          const more = (page + 1) * OWED_PAGE < res.total;
+          if (!more || expected === undefined || owed.length >= expected) break;
+        }
+        owed.sort((a, b) => (a.sale_date ?? '9999').localeCompare(b.sale_date ?? '9999'));
+        if (!cancelled) setRows(owed);
+      } catch (err) {
+        if (!cancelled) setLoadError(errorText(err));
       }
-    }
-  };
+    })();
+    return () => { cancelled = true; };
+  }, [expected, retry]);
+
+  const owedTotal = receivable?.total ?? (rows ?? []).reduce((acc, r) => acc + (r.pending_amount ?? 0), 0);
+  const owedCount = Math.max(receivable?.count ?? 0, rows?.length ?? 0);
+  const visible = showAll ? rows ?? [] : (rows ?? []).slice(0, 8);
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
-          <AlertTriangle size={18} className="text-amber-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-amber-800">
-            {count === 1
-              ? '1 fila del sheet en cuarentena — no se cuenta en los totales'
-              : `${count.toLocaleString('es-MX')} filas del sheet en cuarentena — no se cuentan en los totales`}
-          </p>
+    <div className="bg-white border border-gray-100 rounded-xl p-4 md:p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Nos deben</h2>
+          <p className="text-xs text-gray-500">Ventas con saldo pendiente, la más vieja primero</p>
         </div>
-        <button
-          type="button"
-          onClick={toggle}
-          className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 shrink-0"
-        >
-          {open ? 'Ocultar detalles' : 'Ver detalles'}
-          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
+        {rows && rows.length > 0 && (
+          <div className="text-right">
+            <p className="text-xl font-bold text-red-600 whitespace-nowrap">{fmtMXNExact(owedTotal)}</p>
+            <p className="text-xs text-gray-500">
+              {owedCount === 1 ? '1 venta' : `${owedCount.toLocaleString('es-MX')} ventas`}
+            </p>
+          </div>
+        )}
       </div>
 
-      {open && (
-        <div className="mt-3 overflow-x-auto">
-          {loading ? (
-            <div className="space-y-2 py-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-5/6" />
-              <Skeleton className="h-4 w-4/6" />
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-amber-200/70">
-                  <th className="text-left text-xs font-medium text-amber-700 py-2 pr-4">Fila</th>
-                  <th className="text-left text-xs font-medium text-amber-700 py-2 pr-4">Motivo</th>
-                  <th className="text-left text-xs font-medium text-amber-700 py-2 pr-4">Cliente</th>
-                  <th className="text-right text-xs font-medium text-amber-700 py-2">Monto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(rows ?? []).map((r) => (
-                  <tr key={r.id} className="border-b border-amber-100 last:border-0">
-                    <td className="py-1.5 pr-4 text-amber-900 whitespace-nowrap">
-                      {r.sheet_tab ?? '—'} · fila {r.source_row ?? '—'}
-                    </td>
-                    <td className="py-1.5 pr-4 text-amber-800">{r.quarantine_reason ?? '—'}</td>
-                    <td className="py-1.5 pr-4 text-amber-900">{r.customer_name ?? '—'}</td>
-                    <td className="py-1.5 text-right text-amber-900 whitespace-nowrap">
-                      {r.amount !== null ? fmtMXNExact(r.amount) : '—'}
-                    </td>
-                  </tr>
-                ))}
-                {(rows ?? []).length > 0 && totalQ > (rows ?? []).length && (
-                  <tr>
-                    <td colSpan={4} className="py-2 text-center text-amber-600 text-xs">
-                      Mostrando {(rows ?? []).length} de {totalQ.toLocaleString('es-MX')}
-                    </td>
-                  </tr>
-                )}
-                {(rows ?? []).length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="py-3 text-center text-amber-600 text-xs">
-                      Sin filas en cuarentena
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => setRetry((r) => r + 1)} />
+      ) : rows === null ? (
+        <div className="space-y-3 py-1">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Skeleton key={i} className="h-9 w-full" />
+          ))}
         </div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-gray-500 py-2">
+          Nadie nos debe por ahora. Cuando registres una venta con anticipo o abono pendiente, aparece aquí.
+        </p>
+      ) : (
+        <>
+          <ul className="divide-y divide-gray-100">
+            {visible.map((r) => (
+              <li key={r.id} className="py-2.5 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {r.customer_id ? (
+                      <Link to={`/customers/${r.customer_id}`} className="text-gray-900 hover:text-blue-600 hover:underline">
+                        {r.customer_name ?? 'Sin nombre'}
+                      </Link>
+                    ) : (
+                      r.customer_name ?? 'Sin nombre'
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    <VentaRef row={r} />
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-bold text-red-600 whitespace-nowrap">
+                    Debe {fmtMXNExact(r.pending_amount ?? 0)}
+                  </p>
+                  <p className="text-xs text-gray-500 whitespace-nowrap">{daysAgoLabel(r.sale_date)}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {rows.length > 8 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((s) => !s)}
+              className="mt-2 bg-transparent p-0 border-0 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              {showAll ? 'Ver menos' : `Ver las ${rows.length.toLocaleString('es-MX')}`}
+            </button>
+          )}
+          {expected !== undefined && expected > rows.length && (
+            <p className="mt-2 text-xs text-gray-500">
+              {expected - rows.length === 1
+                ? 'Falta 1 venta con saldo que no aparece en la lista.'
+                : `Faltan ${(expected - rows.length).toLocaleString('es-MX')} ventas con saldo que no aparecen en la lista.`}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -1107,8 +1150,6 @@ function QuarantineBanner({ count }: { count: number }) {
 // ---------------------------------------------------------------------------
 // Ventas recientes
 // ---------------------------------------------------------------------------
-
-
 
 function DeliveryPill({ status }: { status: string | null }) {
   if (!status) return <span className="text-xs text-gray-400">—</span>;
@@ -1126,10 +1167,11 @@ function DeliveryPill({ status }: { status: string | null }) {
 }
 
 function RecentSalesTable({ years }: { years: number[] }) {
-  const { addNotification } = useNotifications();
   const [yearFilter, setYearFilter] = useState<number | null>(null);
   const [rows, setRows] = useState<SaleRow[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   const yearFilters: { value: number | null; label: string }[] = [
     { value: null, label: 'Todos' },
@@ -1141,46 +1183,48 @@ function RecentSalesTable({ years }: { years: number[] }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError(null);
     (async () => {
       try {
         const params = new URLSearchParams();
         params.set('limit', '15');
-        // Quarantined rows live in the banner, not in the recent-sales list.
+        // Rows "por revisar" live in Detalle técnico, not in the recent-sales list.
         params.set('quarantined', 'false');
         if (yearFilter !== null) params.set('year', String(yearFilter));
         const res = (await apiRequest(`/sales?${params.toString()}`)) as SalesListResponse;
         if (!cancelled) setRows(res.items);
-      } catch {
-        if (cancelled) return;
-        addNotification({
-          type: 'error',
-          title: 'Error al cargar ventas',
-          message: 'No se pudieron cargar las ventas recientes. Intenta de nuevo.',
-        });
-        setRows([]);
+      } catch (err) {
+        if (!cancelled) setLoadError(errorText(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [yearFilter, addNotification]);
+  }, [yearFilter, retry]);
+
+  const pendingOf = (r: SaleRow) => (r.pending_amount != null && r.pending_amount > 0 ? r.pending_amount : 0);
 
   return (
-    <Card title="Ventas recientes">
-      {/* Year filter chips */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-4">
-        {yearFilters.map((f) => (
-          <button
-            key={f.label}
-            type="button"
-            onClick={() => setYearFilter(f.value)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              yearFilter === f.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+    <div className="bg-white border border-gray-100 rounded-xl p-4 md:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h2 className="text-base font-semibold text-gray-900">Ventas recientes</h2>
+        {yearFilters.length > 1 && (
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 max-w-full overflow-x-auto">
+            {yearFilters.map((f) => (
+              <button
+                key={f.label}
+                type="button"
+                onClick={() => setYearFilter(f.value)}
+                aria-pressed={yearFilter === f.value}
+                className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-md border-0 transition-colors ${
+                  yearFilter === f.value ? 'bg-white text-gray-900 shadow-sm' : 'bg-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -1189,68 +1233,261 @@ function RecentSalesTable({ years }: { years: number[] }) {
             <Skeleton key={i} className="h-5 w-full" />
           ))}
         </div>
+      ) : loadError ? (
+        <LoadError message={loadError} onRetry={() => setRetry((r) => r + 1)} />
       ) : (rows ?? []).length === 0 ? (
-        <EmptyState message="No hay ventas para este filtro" />
+        <EmptyState
+          message={
+            yearFilter !== null
+              ? `No hay ventas registradas en ${yearFilter}.`
+              : 'Todavía no hay ventas. Registra la primera con «Registrar venta».'
+          }
+        />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Fecha</th>
-                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Cliente</th>
-                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Descripción</th>
-                <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">Importe</th>
-                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Forma de pago</th>
-                <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Folio</th>
-                <th className="text-left text-xs font-medium text-gray-500 py-2">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(rows ?? []).map((r) => (
-                <tr key={r.id} className="border-b border-gray-50 last:border-0">
-                  <td className="py-2.5 pr-3 whitespace-nowrap">
-                    <span className="block text-sm text-gray-900">{relativeDate(r.sale_date)}</span>
-                    {shortDate(r.sale_date) !== '' && relativeDate(r.sale_date) !== shortDate(r.sale_date) && (
-                      <span className="block text-xs text-gray-400">{shortDate(r.sale_date)}</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 pr-3 text-sm text-gray-900 max-w-[150px] truncate" title={r.customer_name ?? undefined}>
-                    {r.customer_name ?? '—'}
-                  </td>
-                  <td className="py-2.5 pr-3 text-sm text-gray-600 max-w-[180px] truncate" title={r.description ?? undefined}>
-                    {r.description ?? '—'}
-                  </td>
-                  <td className="py-2.5 pr-3 text-sm font-medium text-gray-900 text-right whitespace-nowrap">
+        <>
+          {/* Phone: cards */}
+          <ul className="md:hidden divide-y divide-gray-100">
+            {(rows ?? []).map((r) => (
+              <li key={r.id} className="py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{r.customer_name ?? 'Sin nombre'}</p>
+                    {r.description && <p className="text-sm text-gray-600 truncate">{r.description}</p>}
+                  </div>
+                  <p className="text-sm font-bold text-gray-900 whitespace-nowrap">
                     {r.amount !== null ? fmtMXNExact(r.amount) : '—'}
-                    {r.pending_amount != null && r.pending_amount > 0 && (
-                      <span className="block text-xs font-normal text-red-600">Debe {fmtMXNExact(r.pending_amount)}</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 pr-3">
-                    {r.payment_method ? (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 capitalize whitespace-nowrap">
-                        {r.payment_method}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 pr-3 font-mono text-xs text-gray-600 whitespace-nowrap">
-                    {r.folio ?? '—'}
-                    {r.sheet_tab === 'WHATSAPP' && (
-                      <span className="block font-sans text-[10px] text-green-700">WhatsApp</span>
-                    )}
-                  </td>
-                  <td className="py-2.5">
-                    <DeliveryPill status={r.delivery_status} />
-                  </td>
+                  </p>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                  <span className="whitespace-nowrap">{shortDate(r.sale_date) || 'Sin fecha'}</span>
+                  {ventaNumberLabel(r.reference) && (
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 whitespace-nowrap">
+                      Venta {ventaNumberLabel(r.reference)}
+                    </span>
+                  )}
+                  {pendingOf(r) > 0 && (
+                    <span className="ml-auto rounded-full bg-red-50 border border-red-200 px-2 py-0.5 font-medium text-red-700 whitespace-nowrap">
+                      Debe {fmtMXNExact(pendingOf(r))}
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Fecha</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Cliente</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Descripción</th>
+                  <th className="text-right text-xs font-medium text-gray-500 py-2 pr-3">Importe</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Forma de pago</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Venta / Nota</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2">Entrega</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(rows ?? []).map((r) => (
+                  <tr key={r.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                      <span className="block text-sm text-gray-900">{relativeDate(r.sale_date)}</span>
+                      {shortDate(r.sale_date) !== '' && relativeDate(r.sale_date) !== shortDate(r.sale_date) && (
+                        <span className="block text-xs text-gray-400">{shortDate(r.sale_date)}</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 text-sm text-gray-900 max-w-[150px] truncate" title={r.customer_name ?? undefined}>
+                      {r.customer_name ?? '—'}
+                    </td>
+                    <td className="py-2.5 pr-3 text-sm text-gray-600 max-w-[180px] truncate" title={r.description ?? undefined}>
+                      {r.description ?? '—'}
+                    </td>
+                    <td className="py-2.5 pr-3 text-sm font-medium text-gray-900 text-right whitespace-nowrap">
+                      {r.amount !== null ? fmtMXNExact(r.amount) : '—'}
+                      {pendingOf(r) > 0 && (
+                        <span className="block text-xs font-normal text-red-600">Debe {fmtMXNExact(pendingOf(r))}</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      {r.payment_method ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600 capitalize whitespace-nowrap">
+                          {r.payment_method}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 text-xs text-gray-600">
+                      <VentaRef row={r} />
+                      {r.sheet_tab === 'WHATSAPP' && <span className="block text-[10px] text-green-700">WhatsApp</span>}
+                    </td>
+                    <td className="py-2.5">
+                      <DeliveryPill status={r.delivery_status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Filas de la hoja por revisar (no cuentan en los totales)
+// ---------------------------------------------------------------------------
+
+function ReviewRowsSection({ count }: { count: number }) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<SaleRow[] | null>(null);
+  const [totalQ, setTotalQ] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = (await apiRequest('/sales?quarantined=true&limit=50')) as SalesListResponse;
+      setRows(res.items);
+      setTotalQ(res.total);
+    } catch (err) {
+      setLoadError(errorText(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && rows === null && !loading) load();
+  };
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle size={18} className="text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-sm text-amber-800">
+            {count === 1
+              ? '1 fila de la hoja de ventas por revisar — no cuenta en los totales'
+              : `${count.toLocaleString('es-MX')} filas de la hoja de ventas por revisar — no cuentan en los totales`}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          className="inline-flex items-center gap-1 bg-transparent p-0 border-0 text-xs font-medium text-amber-700 hover:text-amber-900 shrink-0"
+        >
+          {open ? 'Ocultar' : 'Ver filas'}
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-3 overflow-x-auto">
+          {loading ? (
+            <div className="space-y-2 py-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-4/6" />
+            </div>
+          ) : loadError ? (
+            <LoadError message={loadError} onRetry={load} />
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-amber-200/70">
+                  <th className="text-left text-xs font-medium text-amber-700 py-2 pr-4">Fila</th>
+                  <th className="text-left text-xs font-medium text-amber-700 py-2 pr-4">Por qué</th>
+                  <th className="text-left text-xs font-medium text-amber-700 py-2 pr-4">Cliente</th>
+                  <th className="text-right text-xs font-medium text-amber-700 py-2">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(rows ?? []).map((r) => {
+                  const venta = ventaNumberLabel(r.quarantine_reason);
+                  return (
+                    <tr key={r.id} className="border-b border-amber-100 last:border-0">
+                      <td className="py-1.5 pr-4 text-amber-900 whitespace-nowrap">
+                        {r.sheet_tab ?? '—'} · fila {r.source_row ?? '—'}
+                      </td>
+                      <td className="py-1.5 pr-4 text-amber-800 min-w-[12rem]">
+                        {saleReasonLabel(r.quarantine_reason)}
+                        {venta && <span className="ml-1 text-amber-600">({venta})</span>}
+                      </td>
+                      <td className="py-1.5 pr-4 text-amber-900">{r.customer_name ?? '—'}</td>
+                      <td className="py-1.5 text-right text-amber-900 whitespace-nowrap">
+                        {r.amount !== null ? fmtMXNExact(r.amount) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {(rows ?? []).length > 0 && totalQ > (rows ?? []).length && (
+                  <tr>
+                    <td colSpan={4} className="py-2 text-center text-amber-600 text-xs">
+                      Mostrando {(rows ?? []).length} de {totalQ.toLocaleString('es-MX')}
+                    </td>
+                  </tr>
+                )}
+                {(rows ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-3 text-center text-amber-600 text-xs">
+                      No hay filas por revisar
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
-    </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Detalle técnico (collapsed): margins, rows to review, where numbers come from
+// ---------------------------------------------------------------------------
+
+function TechnicalDetails({ stats }: { stats: SalesStats }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-gray-200 rounded-xl bg-gray-50/60">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left bg-transparent border-0 rounded-xl"
+      >
+        <span>
+          <span className="block text-sm font-semibold text-gray-700">Detalle técnico</span>
+          <span className="block text-xs text-gray-500">
+            Margen por venta
+            {stats.quarantined.count > 0 && ` · ${stats.quarantined.count.toLocaleString('es-MX')} filas por revisar`}
+            {' · '}de dónde salen los números
+          </span>
+        </span>
+        {open ? <ChevronUp size={18} className="text-gray-500 shrink-0" /> : <ChevronDown size={18} className="text-gray-500 shrink-0" />}
+      </button>
+      {open && (
+        <div className="px-3 pb-3 md:px-4 md:pb-4 space-y-4">
+          <p className="text-xs text-gray-600 px-1">
+            Las ventas anteriores vienen de la hoja de ventas de Hernán; las nuevas, de los mensajes *Venta* que se
+            registran aquí con «Registrar venta». Si una venta está en la hoja y también se registró aquí, se cuenta una
+            sola vez. Son números de operación, no de contabilidad.
+          </p>
+          {stats.quarantined.count > 0 && <ReviewRowsSection count={stats.quarantined.count} />}
+          {stats.margins && <MarginSection margins={stats.margins} />}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1262,6 +1499,7 @@ export default function SalesDashboardPage() {
   const { addNotification } = useNotifications();
   const [stats, setStats] = useState<SalesStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [showCapture, setShowCapture] = useState(false);
   const openCapture = useCallback(() => setShowCapture(true), []);
   useOpenFromLink('capture', openCapture);
@@ -1270,18 +1508,14 @@ export default function SalesDashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setStatsLoading(true);
+    setStatsError(null);
     (async () => {
       try {
         const s = (await apiRequest('/sales/stats')) as SalesStats;
         if (!cancelled) setStats(s);
-      } catch {
-        if (!cancelled) {
-          addNotification({
-            type: 'error',
-            title: 'Error al cargar estadísticas',
-            message: 'No se pudieron cargar las estadísticas de ventas. Intenta de nuevo.',
-          });
-        }
+      } catch (err) {
+        if (!cancelled) setStatsError(errorText(err));
       } finally {
         if (!cancelled) setStatsLoading(false);
       }
@@ -1289,7 +1523,7 @@ export default function SalesDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [addNotification, reloadKey]);
+  }, [reloadKey]);
 
   const paymentItems: BarItem[] = stats
     ? Object.entries(stats.by_payment_method)
@@ -1323,22 +1557,22 @@ export default function SalesDashboardPage() {
 
   return (
     <>
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5 md:space-y-6">
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 inline-flex items-center gap-2">
-            <TrendingUp size={24} className="text-gray-400" />
-            Ventas
-          </h1>
-          <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1 text-xs font-medium">
-            Instantánea operativa — no libros contables
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 inline-flex items-center gap-2">
+              <TrendingUp size={24} className="text-gray-400" />
+              Ventas
+            </h1>
+            <p className="text-xs text-gray-500 mt-0.5">Números de operación (no es contabilidad)</p>
+          </div>
           <button
             onClick={() => setShowCapture(true)}
-            className="ml-auto inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-green-600 border border-green-600 text-white px-4 py-3 sm:py-2.5 rounded-lg text-base sm:text-sm font-semibold hover:bg-green-700 hover:border-green-700 transition-colors"
           >
-            <MessageSquareText size={16} />
-            Registrar venta desde WhatsApp
+            <MessageSquareText size={18} />
+            Registrar venta
           </button>
         </div>
         {showCapture && (
@@ -1347,14 +1581,31 @@ export default function SalesDashboardPage() {
             onSaved={() => {
               setShowCapture(false);
               setReloadKey((k) => k + 1);
-              addNotification({ type: 'success', title: 'Venta registrada', message: 'Se actualizó el registro de ventas.' });
+              addNotification({ type: 'success', title: 'Venta registrada', message: 'Se actualizó la lista de ventas.' });
             }}
           />
         )}
 
+        {/* Nos deben — waits for stats so it knows how many to look for */}
+        {statsLoading ? (
+          <div className="bg-white border border-gray-100 rounded-xl p-5">
+            <Skeleton className="h-4 w-28 mb-4" />
+            <div className="space-y-3">
+              {Array.from({ length: 3 }, (_, i) => (
+                <Skeleton key={i} className="h-9 w-full" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <NosDebenCard key={`owed-${reloadKey}`} receivable={stats?.receivable} />
+        )}
+
+        {/* Ventas recientes */}
+        <RecentSalesTable key={`recent-${reloadKey}`} years={[...new Set((stats?.monthly ?? []).map((m) => m.year))]} />
+
         {/* KPI row */}
         {statsLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
             {Array.from({ length: 5 }, (_, i) => (
               <div key={i} className="bg-white border border-gray-100 rounded-xl p-4">
                 <Skeleton className="h-3 w-24 mb-3" />
@@ -1362,52 +1613,45 @@ export default function SalesDashboardPage() {
               </div>
             ))}
           </div>
+        ) : statsError ? (
+          <LoadError message={statsError} onRetry={() => setReloadKey((k) => k + 1)} />
         ) : stats ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500">Ventas {currentYear}</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{fmtMXN(stats.ytd_total)}</p>
+              <p className="text-xl md:text-2xl 2xl:text-3xl font-bold text-gray-900 mt-1">{fmtMXN(stats.ytd_total)}</p>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl p-4">
-              <p className="text-xs text-gray-500">Histórico total</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{fmtMXN(stats.grand_total)}</p>
+              <p className="text-xs text-gray-500">Desde que hay registro</p>
+              <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{fmtMXN(stats.grand_total)}</p>
             </div>
             {stats.margins && stats.margins.reconciled_count > 0 && (
               <div className="bg-white border border-gray-100 rounded-xl p-4">
-                <p className="text-xs text-gray-500">Margen bruto (conciliado)</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
+                <p className="text-xs text-gray-500">Margen bruto</p>
+                <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">
                   {stats.margins.margin_pct !== null ? `${stats.margins.margin_pct.toFixed(1)}%` : '—'}
                 </p>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  {fmtMXN(stats.margins.margin_total)} · {stats.margins.reconciled_count} ventas
+                <p className="text-xs md:text-sm text-gray-500 mt-0.5">
+                  {fmtMXN(stats.margins.margin_total)} · {stats.margins.reconciled_count} ventas con costo
                 </p>
-              </div>
-            )}
-            {stats.receivable && (
-              <div className="bg-white border border-gray-100 rounded-xl p-4">
-                <p className="text-xs text-gray-500">Por cobrar</p>
-                <p className="text-2xl font-bold text-red-600 mt-1">{fmtMXN(stats.receivable.total)}</p>
-                <p className="text-sm text-gray-500 mt-0.5">{stats.receivable.count.toLocaleString('es-MX')} ventas con saldo</p>
               </div>
             )}
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500">Entregas pendientes</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.delivery_pending.count.toLocaleString('es-MX')}</p>
-              <p className="text-sm text-gray-500 mt-0.5">{fmtMXN(stats.delivery_pending.total)}</p>
+              <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">{stats.delivery_pending.count.toLocaleString('es-MX')}</p>
+              <p className="text-xs md:text-sm text-gray-500 mt-0.5">{fmtMXN(stats.delivery_pending.total)}</p>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500">Facturas por registrar</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
+              <p className="text-xl md:text-2xl font-bold text-gray-900 mt-1">
                 {stats.invoice_pending_registration.count.toLocaleString('es-MX')}
               </p>
-              <p className="text-sm text-gray-500 mt-0.5">{fmtMXN(stats.invoice_pending_registration.total)}</p>
+              <p className="text-xs md:text-sm text-gray-500 mt-0.5">{fmtMXN(stats.invoice_pending_registration.total)}</p>
             </div>
           </div>
-        ) : (
-          <EmptyState message="No se pudieron cargar las estadísticas" />
-        )}
+        ) : null}
 
-        {/* Cotizaciones abiertas (pipeline) */}
+        {/* Cotizaciones esperando respuesta (pipeline) */}
         <QuotePipelineCard />
 
         {/* Chart A — Ventas por mes */}
@@ -1444,24 +1688,18 @@ export default function SalesDashboardPage() {
               <Card title="Por forma de pago">
                 <BarList items={paymentItems} emptyMessage="Sin datos de formas de pago" />
               </Card>
-              <Card title="Top 10 clientes">
+              <Card title="Clientes que más compran">
                 <BarList items={customerItems} emptyMessage="Sin datos de clientes" />
               </Card>
-              <Card title="Top conceptos">
+              <Card title="Por concepto">
                 <BarList items={conceptItems} emptyMessage="Sin datos de conceptos" />
               </Card>
             </div>
           )
         )}
 
-        {/* Margen por venta */}
-        {stats?.margins && <MarginSection margins={stats.margins} />}
-
-        {/* Cuarentena */}
-        {stats && stats.quarantined.count > 0 && <QuarantineBanner count={stats.quarantined.count} />}
-
-        {/* Ventas recientes */}
-        <RecentSalesTable key={reloadKey} years={[...new Set((stats?.monthly ?? []).map((m) => m.year))]} />
+        {/* Detalle técnico */}
+        {stats && <TechnicalDetails stats={stats} />}
       </div>
     </>
   );

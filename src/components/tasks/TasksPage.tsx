@@ -489,7 +489,7 @@ const TasksPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-[100dvh] bg-[#f8f9fc]">
-        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-16 pr-4 py-3 md:px-6 md:py-4">
+        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-4 pr-16 py-3 md:px-6 md:py-4">
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">Pendientes</h1>
         </div>
         <div className="p-4 space-y-3">
@@ -531,7 +531,7 @@ const TasksPage: React.FC = () => {
     <div className="min-h-[100dvh] bg-[#f8f9fc] pb-24 md:pb-8">
       {/* ── Sticky Header ───────────────────────────────── */}
       {/* pr-16 / md:pr-20 deja libre la campana de notificaciones (fija arriba a la derecha) */}
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-16 pr-16 py-3 md:pl-6 md:pr-20 md:py-4">
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 pl-4 pr-16 py-3 md:pl-6 md:pr-20 md:py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           {showSearch ? (
             <div className="flex-1 flex items-center gap-2">
@@ -951,7 +951,7 @@ const TasksPage: React.FC = () => {
       {/* ── FAB (Mobile Only) ───────────────────────────── */}
       <button
         onClick={() => setShowForm(true)}
-        className={`md:hidden fixed bottom-6 right-5 z-40 w-14 h-14 rounded-full bg-indigo-500 text-white flex items-center justify-center
+        className={`md:hidden fixed bottom-24 right-5 z-40 w-14 h-14 rounded-full bg-indigo-500 text-white flex items-center justify-center
           shadow-[0_8px_24px_rgba(99,102,241,0.35)] active:scale-90 transition-transform
           ${tasks.length === 0 ? 'animate-pulse' : ''}
         `}

@@ -7,7 +7,6 @@ import {
   CheckSquare,
   FolderOpen,
   LogOut,
-  Menu,
   X,
   ChevronLeft,
   ChevronRight,
@@ -35,13 +34,15 @@ interface SidebarProps {
   className?: string;
   isCollapsed: boolean;
   toggleCollapse: () => void;
+  // Phone drawer, opened from "Más" in the bottom tab bar
+  isMobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCollapse }) => {
+const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCollapse, isMobileOpen, setMobileOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   type NavItem = { path: string; label: string; icon: React.ReactNode };
 
@@ -114,7 +115,6 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
      return location.pathname === path || location.pathname.startsWith(path);
   };
 
-  const toggleMobile = () => setIsMobileOpen(!isMobileOpen);
 
   const renderItem = (item: NavItem) => {
     const active = isActive(item.path);
@@ -123,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
         key={item.path}
         onClick={() => {
           navigate(item.path);
-          setIsMobileOpen(false);
+          setMobileOpen(false);
         }}
         className={`
           w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative border
@@ -147,21 +147,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
 
   return (
     <>
-      {/* Mobile Toggle Button (Floating) */}
-      <div className="fixed top-4 left-4 z-50 md:hidden">
-        <button 
-          onClick={toggleMobile}
-          className="p-2 bg-slate-900 text-white rounded-lg shadow-lg border border-slate-700"
-        >
-          {isMobileOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
-      </div>
-
       {/* Backdrop for mobile */}
       {isMobileOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
-          onClick={() => setIsMobileOpen(false)}
+          onClick={() => setMobileOpen(false)}
         />
       )}
 
@@ -183,6 +173,14 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
           )}
           {isCollapsed && <span className="font-bold text-blue-400 text-2xl mx-auto">I</span>}
           
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Cerrar menú"
+            className="md:hidden p-2 !bg-transparent !border-0 text-slate-300 hover:text-white"
+          >
+            <X size={24} />
+          </button>
           <button 
             onClick={toggleCollapse}
             className="hidden md:flex p-1.5 bg-slate-800/70 border border-slate-700/80 rounded-md text-slate-100 hover:bg-slate-800 hover:text-white transition-colors shadow-sm"

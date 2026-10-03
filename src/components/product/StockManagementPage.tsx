@@ -55,7 +55,8 @@ const StockManagementPage: React.FC = () => {
   const [products, setProducts] = useState<StockProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  // ?q= comes from the stock link on Precios de venta
+  const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
   const [includeZeroStock, setIncludeZeroStock] = useState(true);
   const [editingProduct, setEditingProduct] = useState<number | null>(null);
   const [tempValues, setTempValues] = useState<{[key: number]: {stock: string, price: string}}>({});
@@ -195,8 +196,10 @@ const StockManagementPage: React.FC = () => {
     setTempValues(prev => ({ ...prev, [productId]: { ...prev[productId], stock } }));
 
   const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.sku || '').toLowerCase().includes(searchTerm.toLowerCase())
+    // every word must appear, in any order ("malla 50%" finds "Malla sombra 50%")
+    searchTerm.toLowerCase().split(/\s+/).filter(Boolean).every((word) =>
+      `${product.name} ${product.sku || ''}`.toLowerCase().includes(word)
+    )
   );
   const phoneProducts = filteredProducts.slice(0, phoneLimit);
   const emptyMessage = searchTerm
@@ -427,7 +430,7 @@ const StockManagementPage: React.FC = () => {
 
         {/* Error Alert (pinned to the bottom on phones so it is seen wherever the edited card is) */}
         {error && (
-          <div className="fixed inset-x-3 bottom-4 z-50 shadow-lg md:static md:shadow-none bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="fixed inset-x-3 bottom-24 z-50 shadow-lg md:static md:shadow-none bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-start">
               <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />

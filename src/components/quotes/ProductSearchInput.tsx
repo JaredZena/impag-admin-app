@@ -87,11 +87,14 @@ export default function ProductSearchInput({ onSelect }: ProductSearchInputProps
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
-                  {product.sku && <p className="text-xs text-gray-500">SKU: {product.sku}</p>}
+                  {product.sku && <p className="text-xs text-gray-500">Código: {product.sku}</p>}
                 </div>
                 <div className="text-right ml-3 shrink-0">
                   <p className="text-sm font-semibold text-gray-900">${product.display_price.toLocaleString('es-MX')}</p>
-                  <p className="text-xs text-gray-400">{product.unit}</p>
+                  <p className="text-xs text-gray-400">
+                    {product.unit?.toLowerCase()}
+                    {product.price_source === 'calculado' ? ' · calculado' : product.price_source ? ' · precio de venta' : ''}
+                  </p>
                 </div>
               </div>
             </button>

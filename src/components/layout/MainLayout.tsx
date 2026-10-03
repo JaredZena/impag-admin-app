@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import MobileTabBar from './MobileTabBar';
 import NotificationBell from '@/components/quotes/NotificationBell';
 
 interface MainLayoutProps {
@@ -17,22 +18,32 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       return false;
     }
   });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isFullBleedPage = location.pathname.startsWith('/social-calendar') || location.pathname.startsWith('/tasks') || location.pathname.startsWith('/tiktok') || location.pathname.startsWith('/pos');
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
   }, [isCollapsed]);
 
+  // Any navigation (a tab, a link on the page) closes the phone menu.
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors relative">
       <Sidebar 
         isCollapsed={isCollapsed} 
         toggleCollapse={() => setIsCollapsed(!isCollapsed)} 
+        isMobileOpen={mobileMenuOpen}
+        setMobileOpen={setMobileMenuOpen}
       />
+      <MobileTabBar onMore={() => setMobileMenuOpen((open) => !open)} moreOpen={mobileMenuOpen} />
       
       {/* Top bar with notification bell. The bar lets taps through so the page
-          headers underneath (Pendientes, Herramientas, POS) stay clickable. */}
-      <div className={`pointer-events-none fixed top-0 right-0 z-40 h-16 flex items-center pr-6 transition-all duration-300 ${isCollapsed ? 'left-0 md:left-20' : 'left-0 md:left-64'}`}>
+          headers underneath (Pendientes, Herramientas, POS) stay clickable; on
+          phones it scrolls away with the page instead of covering text. */}
+      <div className={`pointer-events-none absolute md:fixed top-0 right-0 z-40 h-16 flex items-center pr-6 transition-all duration-300 ${isCollapsed ? 'left-0 md:left-20' : 'left-0 md:left-64'}`}>
         <div className="ml-auto pointer-events-auto">
           <NotificationBell />
         </div>
@@ -41,7 +52,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <main
         className={`
           transition-all duration-300 ease-in-out min-h-screen
-          ml-0
+          ml-0 pb-20 md:pb-0
           ${isCollapsed ? 'md:ml-20' : 'md:ml-64'}
         `}
       >

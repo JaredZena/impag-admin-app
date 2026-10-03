@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { formatDate } from '@/utils/dateUtils';
 import { apiRequest } from '@/utils/api';
 import { formatCurrency } from '@/utils/currencyUtils';
@@ -60,10 +60,8 @@ const ProductRow: React.FC<ProductRowProps> = ({
   const formattedDate = formatDate(lastUpdated || createdAt);
 
   // State for inline editing
-  const [editingStock, setEditingStock] = useState(false);
   const [editingCategory, setEditingCategory] = useState(false);
   const [editingPrice, setEditingPrice] = useState(false);
-  const [tempStock, setTempStock] = useState(stock?.toString() || '0');
   const [tempCategoryId, setTempCategoryId] = useState(categoryId?.toString() || '');
   const [tempPrice, setTempPrice] = useState(price?.toString() || '');
   const [saving, setSaving] = useState(false);
@@ -191,49 +189,6 @@ const ProductRow: React.FC<ProductRowProps> = ({
     }
   };
 
-  // Handle stock update
-  const handleStockUpdate = async () => {
-    if (saving) return;
-    markEditorClosed();
-
-    const newStock = parseInt(tempStock) || 0;
-    if (newStock === stock) {
-      setEditingStock(false);
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      // NOT PATCH /products/{id}/stock: that endpoint now takes a
-      // supplier_product id, so calling it with a Product id would overwrite
-      // an unrelated supplier record.
-      const response = await apiRequest(`/products/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ stock: newStock })
-      });
-
-      setEditingStock(false);
-      
-      if (response.success && onUpdate) {
-        // Update only this product's data locally
-        onUpdate({
-          id,
-          stock: newStock,
-          lastUpdated: new Date().toISOString()
-        });
-      }
-    } catch (error) {
-      console.error('Error updating stock:', error);
-      setTempStock(stock?.toString() || '0');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // Handle category update
   const handleCategoryUpdate = async (newCategoryId: string) => {
     if (saving) return;
@@ -276,7 +231,7 @@ const ProductRow: React.FC<ProductRowProps> = ({
 
   const handleRowClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on inputs, selects, or if we're editing
-    if ((e.target as HTMLElement).closest('input, select, a') || editingStock || editingCategory || editingPrice || editingStoreTitle) {
+    if ((e.target as HTMLElement).closest('input, select, a') || editingCategory || editingPrice || editingStoreTitle) {
       return;
     }
     if (Date.now() - editorCloseGuardRef.current < 300) {
@@ -436,48 +391,19 @@ const ProductRow: React.FC<ProductRowProps> = ({
         )}
       </td>
 
-      {/* Stock - Always visible with inline editing */}
+      {/* Stock: sum of the supplier rows, the same number the Stock page edits */}
       <td className="px-2 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
-        {editingStock ? (
-          <Input
-            type="number"
-            value={tempStock}
-            onChange={(e) => setTempStock(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleStockUpdate();
-              }
-              if (e.key === 'Escape') {
-                markEditorClosed();
-                setEditingStock(false);
-                setTempStock(stock?.toString() || '0');
-              }
-            }}
-            onBlur={handleStockUpdate}
-            className="w-20 h-8 text-sm"
-            min="0"
-            disabled={saving}
-            autoFocus
-          />
-        ) : (
-          <div 
-            className="flex items-center cursor-pointer hover:bg-gray-100 rounded px-2 py-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingStock(true);
-            }}
-          >
-            <span className={`text-sm font-medium ${
-              (stock || 0) > 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {stock?.toLocaleString() || '0'}
-            </span>
-            <svg className="w-3 h-3 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-          </div>
-        )}
+        <Link
+          to={`/stock?q=${encodeURIComponent(name.split(/\s+/).slice(0, 3).join(' '))}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex flex-col rounded px-2 py-1 hover:bg-gray-100"
+          title="Cambiar en Stock"
+        >
+          <span className={`text-sm font-medium ${(stock || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {stock?.toLocaleString() || '0'}
+          </span>
+          <span className="text-[11px] text-gray-400">cambiar en Stock</span>
+        </Link>
       </td>
       
       {/* Unit - Hidden on mobile */}

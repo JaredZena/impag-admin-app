@@ -89,7 +89,7 @@ const ProductManagementPage: React.FC = () => {
         id: p.id,
         name: p.name || 'Producto sin nombre',
         price: p.price ?? null,
-        stock: p.stock || 0,
+        stock: p.supplier_stock ?? p.stock ?? 0,
         unit: p.unit || 'N/A',
         category: categoryName,
         suppliers: supplierNames,
