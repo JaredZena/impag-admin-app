@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, FileText, Globe, MessageSquareText } from 'lucide-react';
+import { Plus, Search, FileText, Globe, MessageSquareText, Sparkles } from 'lucide-react';
 import { listQuotes, getQuoteStats } from '@/utils/quotesApi';
 import type { Quote, QuoteStats } from '@/types/quotes';
 import QuoteStatusBadge from './QuoteStatusBadge';
@@ -71,10 +71,17 @@ export default function QuotesPage() {
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Cotizaciones B2B</h1>
-            <p className="text-sm text-gray-500 mt-1">Gestiona cotizaciones para tus clientes</p>
+            <h1 className="text-2xl font-bold text-gray-900">Cotizaciones</h1>
+            <p className="text-sm text-gray-500 mt-1">Solicitudes, cotizaciones enviadas y su seguimiento</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => navigate('/quotation-history')}
+              className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              <Sparkles size={16} />
+              Cotizador IA
+            </button>
             <button
               onClick={() => setShowCapture(true)}
               className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"

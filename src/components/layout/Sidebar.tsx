@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Package,
   Users,
-  FileText,
   ClipboardList,
   Calendar,
   CheckSquare,
@@ -43,7 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
   const navigationItems = [
     { path: '/tasks', label: 'Tareas', icon: <CheckSquare size={20} /> },
     { path: '/customers', label: 'Clientes', icon: <UserCircle size={20} /> },
-    { path: '/quotes', label: 'Cotizaciones B2B', icon: <FileBarChart size={20} /> },
+    { path: '/quotes', label: 'Cotizaciones', icon: <FileBarChart size={20} /> },
     { path: '/sales', label: 'Ventas', icon: <TrendingUp size={20} /> },
     { path: '/punto-equilibrio', label: 'Punto de equilibrio', icon: <Scale size={20} /> },
     { path: '/pos', label: 'Punto de Venta', icon: <ShoppingCart size={20} /> },
@@ -51,7 +50,6 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
     { path: '/supplier-products', label: 'Productos', icon: <Package size={20} /> },
     { path: '/product-admin', label: 'Precios de venta', icon: <Tag size={20} /> },
     { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
-    { path: '/quotation-history', label: 'Cotizaciones', icon: <FileText size={20} /> },
     { path: '/stock', label: 'Inventario', icon: <ClipboardList size={20} /> },
     { path: '/tools', label: 'Herramientas', icon: <Wrench size={20} /> },
     { path: '/files', label: 'Archivos', icon: <FolderOpen size={20} /> },
@@ -63,8 +61,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
   ];
 
   const isActive = (path: string) => {
-     if (path === '/quotation-history') {
-       return location.pathname === '/quotation-history' || location.pathname === '/quotation-chat';
+     // El Cotizador IA (/quotation-history, /quotation-chat) vive dentro de Cotizaciones.
+     if (path === '/quotes') {
+       return ['/quotes', '/quotation-history', '/quotation-chat'].some((p) => location.pathname.startsWith(p));
      }
      return location.pathname === path || location.pathname.startsWith(path);
   };

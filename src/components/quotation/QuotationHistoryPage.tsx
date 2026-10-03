@@ -465,11 +465,18 @@ const QuotationHistoryPage: React.FC = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <button
+            type="button"
+            onClick={() => navigate('/quotes')}
+            className="text-xs text-gray-500 hover:text-gray-700 mb-1"
+          >
+            ← Cotizaciones
+          </button>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-            Historial de Cotizaciones
+            Cotizador IA
           </h1>
           <p className="text-xs text-gray-500 sm:text-sm mt-1">
-            Accede a todas tus cotizaciones generadas anteriormente
+            Borradores de cotización generados con IA
           </p>
         </div>
         <Button
