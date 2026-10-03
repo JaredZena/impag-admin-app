@@ -7,7 +7,8 @@ import QuoteStatusBadge from './QuoteStatusBadge';
 import PaymentStatusChip from './PaymentStatusChip';
 import WebOrderPanel from './WebOrderPanel';
 import { isWebOrder, parseWebOrderNotes, stripWebOrderBlock } from '@/utils/webOrder';
-import QuoteItemRow from './QuoteItemRow';
+import QuoteItemsEditor from './QuoteItemsEditor';
+import { needsFleteLine } from '@/utils/quoteItemsEdit';
 import QuoteStatusPanel from './QuoteStatusPanel';
 
 export default function QuoteDetailPage() {
@@ -32,7 +33,22 @@ export default function QuoteDetailPage() {
 
   const handleSend = async () => {
     if (!quote) return;
-    if (!confirm('¿Enviar esta cotización? Se generará un enlace para el cliente.')) return;
+    if (isWebOrder(quote)) {
+      // Pedido web: el cliente paga lo que diga la cotización al enviarla.
+      if (quote.items.some((i) => i.unit_price <= 0)) {
+        alert('Hay productos sin precio. Edita los productos y captura el precio antes de enviar.');
+        return;
+      }
+      const details = parseWebOrderNotes(quote.notes);
+      if (
+        needsFleteLine(details, quote.items.map((i) => i.description)) &&
+        !confirm('El cliente pidió envío y la cotización no cobra flete. ¿Enviarla así?')
+      ) {
+        return;
+      }
+    }
+    const who = isWebOrder(quote) && quote.customer_email ? ' y se le avisará al cliente por correo' : '';
+    if (!confirm(`¿Enviar esta cotización? Se generará un enlace para el cliente${who}.`)) return;
 
     setSending(true);
     try {
@@ -222,28 +238,7 @@ export default function QuoteDetailPage() {
 
         {/* Line Items */}
         <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Productos</h2>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left text-xs font-medium text-gray-500 uppercase py-2">Descripción</th>
-                <th className="text-center text-xs font-medium text-gray-500 uppercase py-2">Cant.</th>
-                <th className="text-right text-xs font-medium text-gray-500 uppercase py-2">Precio</th>
-                <th className="text-right text-xs font-medium text-gray-500 uppercase py-2">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quote.items.map((item) => (
-                <QuoteItemRow
-                  key={item.id}
-                  item={item}
-                  onUpdate={() => {}}
-                  onDelete={() => {}}
-                  editable={false}
-                />
-              ))}
-            </tbody>
-          </table>
+          <QuoteItemsEditor quote={quote} webOrder={webOrder} onChanged={setQuote} />
 
           {/* Totals */}
           <div className="mt-4 pt-4 border-t border-gray-100">
