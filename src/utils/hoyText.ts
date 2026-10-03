@@ -4,7 +4,13 @@ export interface HoyData {
   sales: { id: number; reference: string | null; customer_name: string | null; description: string | null; amount: number; pending: number; source: string }[];
   quotes_sent: { id: number; quote_number: string; customer_name: string; material: string | null; total: number }[];
   requests: { id: number; quote_number: string; customer_name: string; material: string | null }[];
-  followups: { quote_id: number; quote_number: string; customer_name: string; material: string | null; detail: string }[];
+  followups: {
+    quote_id: number | null;
+    quote_number: string | null;
+    customer_name: string;
+    material: string | null;
+    detail: string;
+  }[];
   closed_tasks: { id: number; title: string }[];
   receivable: { total: number; rows: { customer_name: string | null; pending: number; reference: string | null }[] };
   open_by_section: Record<string, number>;

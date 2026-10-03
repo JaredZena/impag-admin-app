@@ -4,6 +4,7 @@ import { Check, ClipboardCopy, Sun } from 'lucide-react';
 import { apiRequest } from '@/utils/api';
 import { fetchPendientesText } from '@/utils/tasksApi';
 import { buildHoyText, money, short, type HoyData } from '@/utils/hoyText';
+import SeguimientoDelDia from './SeguimientoDelDia';
 
 const todayLocal = () => new Date().toLocaleDateString('en-CA');
 
@@ -59,22 +60,22 @@ export default function HoyPage() {
   const [atencion, setAtencion] = useState('');
   const [bloqueantes, setBloqueantes] = useState('');
   const [manana, setManana] = useState('');
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    setData(null);
     setError(null);
     apiRequest(`/hoy?day=${day}`)
       .then((res: { data: HoyData }) => {
         if (!alive) return;
         setData(res.data);
-        setManana(res.data.priority.join('\n'));
+        if (reload === 0) setManana(res.data.priority.join('\n'));
       })
       .catch((err: unknown) => alive && setError(err instanceof Error ? err.message : 'No se pudo cargar el día'));
     return () => {
       alive = false;
     };
-  }, [day]);
+  }, [day, reload]);
 
   const hoyText = useMemo(
     () => (data ? buildHoyText(data, atencion, bloqueantes, manana) : ''),
@@ -93,13 +94,18 @@ export default function HoyPage() {
           type="date"
           value={day}
           max={todayLocal()}
-          onChange={(e) => setDay(e.target.value || todayLocal())}
+          onChange={(e) => {
+            setDay(e.target.value || todayLocal());
+            setData(null);
+            setReload(0);
+          }}
           aria-label="Día"
           className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
         />
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {day === todayLocal() && <SeguimientoDelDia onChange={() => setReload((n) => n + 1)} />}
       {!data && !error && <div className="h-40 rounded-xl bg-gray-50 animate-pulse" />}
 
       {data && (
@@ -131,13 +137,19 @@ export default function HoyPage() {
             </Block>
             <Block title="Seguimientos" count={data.followups.length}>
               {data.followups.length === 0 ? (
-                <Empty text="Ninguno registrado en cotizaciones" />
+                <Empty text="Ninguno registrado hoy" />
               ) : (
-                data.followups.map((f, i) => (
-                  <Link key={i} to={`/quotes/${f.quote_id}`} className="block hover:underline">
-                    {f.customer_name} · {f.detail}
-                  </Link>
-                ))
+                data.followups.map((f, i) =>
+                  f.quote_id ? (
+                    <Link key={i} to={`/quotes/${f.quote_id}`} className="block hover:underline">
+                      {f.customer_name} · {f.detail}
+                    </Link>
+                  ) : (
+                    <p key={i}>
+                      {f.customer_name} · {f.detail}
+                    </p>
+                  )
+                )
               )}
             </Block>
             <Block title="Solicitudes nuevas" count={data.requests.length} to="/quotes">
