@@ -144,6 +144,34 @@ export interface CaptureQuotePreview {
   delivery: string | null;
   material: string | null;
   existing: { id: number; status: QuoteStatus; total: number; customer_name: string } | null;
+  // Sólo al registrar desde PDF (POST /quotes/capture-pdf).
+  total?: number | null;
+  pdf_date?: string | null; // YYYY-MM-DD, la «Fecha:» del PDF
+  contexto?: string | null;
+}
+
+export interface CaptureQuotePdfPayload {
+  file: File;
+  text?: string; // mensaje *Cotización Enviada* opcional; sus datos ganan
+  customer_phone?: string;
+  sent_date?: string; // YYYY-MM-DD; sin ella, la fecha del PDF
+  dry_run?: boolean;
+}
+
+// PDF de la cotización guardado en R2 (GET /quotes/{id}/files).
+export interface QuoteFile {
+  id: number;
+  filename: string;
+  size: number;
+  created_at: string | null;
+  view_url: string; // URL firmada, vence en 1 hora
+}
+
+export interface QuoteFileUploadResult {
+  files: QuoteFile[];
+  total_set: number | null;
+  warnings: string[];
+  quote: Quote;
 }
 
 export interface CaptureQuoteResult {

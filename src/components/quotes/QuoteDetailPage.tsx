@@ -10,6 +10,7 @@ import { isWebOrder, parseWebOrderNotes, stripWebOrderBlock } from '@/utils/webO
 import QuoteItemsEditor from './QuoteItemsEditor';
 import { needsFleteLine } from '@/utils/quoteItemsEdit';
 import QuoteStatusPanel from './QuoteStatusPanel';
+import QuotePdfPanel from './QuotePdfPanel';
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -223,6 +224,11 @@ export default function QuoteDetailPage() {
 
         {/* Pedido web (solo lectura) */}
         <WebOrderPanel quote={quote} details={webOrder} />
+
+        {/* PDF enviado al cliente (cotizaciones COT-IMPAG hechas fuera de la app) */}
+        {quote.quote_number.startsWith('COT-IMPAG-') && (
+          <QuotePdfPanel quote={quote} onQuoteChanged={setQuote} />
+        )}
 
         {/* Timeline */}
         <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">

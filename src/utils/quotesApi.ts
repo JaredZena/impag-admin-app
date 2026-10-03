@@ -10,7 +10,10 @@ import type {
   QuoteNotification,
   CaptureQuotePayload,
   CaptureQuoteResult,
+  CaptureQuotePdfPayload,
   ManualQuoteStatus,
+  QuoteFile,
+  QuoteFileUploadResult,
 } from '@/types/quotes';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -118,6 +121,37 @@ export async function captureQuote(payload: CaptureQuotePayload): Promise<Captur
   const res = await quotesApiRequest<{ success: boolean; data: CaptureQuoteResult }>(
     '/quotes/capture',
     { method: 'POST', body: JSON.stringify(payload) }
+  );
+  return res.data;
+}
+
+// Igual que captureQuote, pero desde el PDF: folio, cliente, fecha y total
+// salen del PDF y el PDF queda guardado con la cotización.
+export async function captureQuotePdf(payload: CaptureQuotePdfPayload): Promise<CaptureQuoteResult> {
+  const form = new FormData();
+  form.append('file', payload.file);
+  if (payload.text?.trim()) form.append('text', payload.text);
+  if (payload.customer_phone?.trim()) form.append('customer_phone', payload.customer_phone);
+  if (payload.sent_date) form.append('sent_date', payload.sent_date);
+  form.append('dry_run', payload.dry_run ? 'true' : 'false');
+  const res = await quotesApiRequest<{ success: boolean; data: CaptureQuoteResult }>(
+    '/quotes/capture-pdf',
+    { method: 'POST', body: form }
+  );
+  return res.data;
+}
+
+export async function listQuoteFiles(id: number): Promise<QuoteFile[]> {
+  const res = await quotesApiRequest<{ success: boolean; data: QuoteFile[] }>(`/quotes/${id}/files`);
+  return res.data;
+}
+
+export async function uploadQuoteFile(id: number, file: File): Promise<QuoteFileUploadResult> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await quotesApiRequest<{ success: boolean; data: QuoteFileUploadResult }>(
+    `/quotes/${id}/files`,
+    { method: 'POST', body: form }
   );
   return res.data;
 }

@@ -1,15 +1,25 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CaptureQuoteResult, Quote } from '@/types/quotes';
-import { captureQuote, changeQuoteStatus } from '@/utils/quotesApi';
+import {
+  captureQuote,
+  captureQuotePdf,
+  changeQuoteStatus,
+  listQuoteFiles,
+  uploadQuoteFile,
+} from '@/utils/quotesApi';
 import CaptureQuoteDialog from '../CaptureQuoteDialog';
+import QuotePdfPanel from '../QuotePdfPanel';
 import QuoteStatusPanel from '../QuoteStatusPanel';
 import QuoteStatusBadge from '../QuoteStatusBadge';
 
 vi.mock('@/utils/quotesApi', () => ({
   captureQuote: vi.fn(),
+  captureQuotePdf: vi.fn(),
   changeQuoteStatus: vi.fn(),
+  listQuoteFiles: vi.fn(),
+  uploadQuoteFile: vi.fn(),
 }));
 
 function makeQuote(overrides: Partial<Quote> = {}): Quote {
@@ -58,7 +68,85 @@ const PREVIEW: CaptureQuoteResult = {
 
 beforeEach(() => {
   vi.mocked(captureQuote).mockReset();
+  vi.mocked(captureQuotePdf).mockReset();
   vi.mocked(changeQuoteStatus).mockReset();
+  vi.mocked(listQuoteFiles).mockReset();
+  vi.mocked(uploadQuoteFile).mockReset();
+});
+
+const PDF = new File(['%PDF-1.4'], 'COT-IMPAG-400926DGO-MIGUEL CORDERO-BOLSA.pdf', {
+  type: 'application/pdf',
+});
+
+describe('CaptureQuoteDialog with a PDF', () => {
+  test('reads total and date from the PDF; message optional; no date sent unless edited', async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const pdfPreview: CaptureQuoteResult = {
+      ...PREVIEW,
+      preview: { ...PREVIEW.preview, total: 18500, pdf_date: '2026-09-30', contexto: 'Vivero nuevo' },
+      warnings: [],
+    };
+    vi.mocked(captureQuotePdf)
+      .mockResolvedValueOnce(pdfPreview)
+      .mockResolvedValueOnce({ ...pdfPreview, quote: makeQuote() });
+
+    render(<CaptureQuoteDialog onClose={() => {}} onSaved={onSaved} />);
+    expect(screen.getByRole('button', { name: 'Revisar' })).toBeDisabled();
+    await user.upload(screen.getByLabelText(/Adjunta el PDF/), PDF);
+    expect(screen.getByLabelText('Total del PDF')).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Revisar' }));
+
+    expect(captureQuotePdf).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ file: PDF, dry_run: true, sent_date: undefined })
+    );
+    expect(captureQuote).not.toHaveBeenCalled();
+    expect(screen.getByText('$18,500.00')).toBeInTheDocument();
+    expect(screen.getByText('30/09/2026')).toBeInTheDocument();
+    expect(screen.getByText('Vivero nuevo')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Registrar' }));
+    expect(captureQuotePdf).toHaveBeenLastCalledWith(expect.objectContaining({ dry_run: false }));
+    expect(onSaved).toHaveBeenCalled();
+  });
+});
+
+describe('QuotePdfPanel', () => {
+  const FILE = {
+    id: 3,
+    filename: 'COT-IMPAG-400926DGO-MIGUEL CORDERO-BOLSA.pdf',
+    size: 1000,
+    created_at: '2026-09-30T18:00:00Z',
+    view_url: 'https://r2.test/cotizacion/3/x.pdf',
+  };
+
+  test('previews the stored PDF', async () => {
+    vi.mocked(listQuoteFiles).mockResolvedValue([FILE]);
+    render(<QuotePdfPanel quote={makeQuote()} onQuoteChanged={() => {}} />);
+    const frame = await screen.findByTitle('PDF COT-IMPAG-400926DGO');
+    expect(frame).toHaveAttribute('src', FILE.view_url);
+    expect(screen.getByRole('link', { name: /Abrir/ })).toHaveAttribute('href', FILE.view_url);
+  });
+
+  test('upload fills a $0 total and reports it', async () => {
+    const user = userEvent.setup();
+    const onQuoteChanged = vi.fn();
+    vi.mocked(listQuoteFiles).mockResolvedValue([]);
+    const updated = makeQuote({ total: 18500 });
+    vi.mocked(uploadQuoteFile).mockResolvedValue({
+      files: [FILE],
+      total_set: 18500,
+      warnings: [],
+      quote: updated,
+    });
+    render(<QuotePdfPanel quote={makeQuote({ total: 0 })} onQuoteChanged={onQuoteChanged} />);
+    expect(await screen.findByText(/Sin PDF guardado/)).toBeInTheDocument();
+    await user.upload(screen.getByLabelText('Subir PDF de la cotización'), PDF);
+    await waitFor(() => expect(onQuoteChanged).toHaveBeenCalledWith(updated));
+    expect(screen.getByText(/Total \$18,500.00 leído del PDF/)).toBeInTheDocument();
+    expect(screen.getByTitle('PDF COT-IMPAG-400926DGO')).toBeInTheDocument();
+  });
 });
 
 describe('CaptureQuoteDialog', () => {
