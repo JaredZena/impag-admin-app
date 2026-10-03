@@ -52,7 +52,7 @@ const fmtDate = (iso: string | null) =>
 
 // What the customer pays: the row price plus IVA when the product carries it.
 const customerPrice = (p: ProductHit): number | null =>
-  p.price == null ? null : Math.round(p.price * (p.iva ? 1 + IVA_RATE : 1) * 100) / 100;
+  p.price == null || p.price <= 0 ? null : Math.round(p.price * (p.iva ? 1 + IVA_RATE : 1) * 100) / 100;
 
 function CopyLine({ text }: { text: string }) {
   const [done, setDone] = useState(false);
