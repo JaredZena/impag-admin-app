@@ -1,6 +1,7 @@
 import type { QuoteStatus } from '@/types/quotes';
 
 const statusConfig: Record<QuoteStatus, { label: string; className: string }> = {
+  requested: { label: 'Por cotizar', className: 'bg-purple-100 text-purple-700' },
   draft: { label: 'Borrador', className: 'bg-gray-100 text-gray-700' },
   sent: { label: 'Enviada', className: 'bg-blue-100 text-blue-700' },
   viewed: { label: 'Vista', className: 'bg-yellow-100 text-yellow-700' },

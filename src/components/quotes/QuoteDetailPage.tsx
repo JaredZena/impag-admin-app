@@ -226,7 +226,7 @@ export default function QuoteDetailPage() {
         <WebOrderPanel quote={quote} details={webOrder} />
 
         {/* PDF enviado al cliente (cotizaciones COT-IMPAG hechas fuera de la app) */}
-        {quote.quote_number.startsWith('COT-IMPAG-') && (
+        {(quote.quote_number.startsWith('COT-IMPAG-') || quote.status === 'requested') && (
           <QuotePdfPanel quote={quote} onQuoteChanged={setQuote} />
         )}
 

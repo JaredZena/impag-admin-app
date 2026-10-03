@@ -48,6 +48,10 @@ export default function QuotePdfPanel({ quote, onQuoteChanged }: QuotePdfPanelPr
       setFiles(result.files);
       setSelected(0);
       const lines = [...result.warnings];
+      if (result.converted_from) {
+        lines.unshift(`Solicitud ${result.converted_from} enviada como ${result.quote.quote_number}.`);
+        onQuoteChanged(result.quote);
+      }
       if (result.total_set != null) {
         lines.unshift(
           `Total $${result.total_set.toLocaleString('es-MX', { minimumFractionDigits: 2 })} leído del PDF.`
@@ -157,7 +161,9 @@ export default function QuotePdfPanel({ quote, onQuoteChanged }: QuotePdfPanelPr
       ) : (
         files && (
           <p className="text-sm text-gray-500">
-            Sin PDF guardado. Súbelo para tenerlo aquí{quote.items.length === 0 ? ' y leer el total' : ''}.
+            {quote.status === 'requested'
+              ? 'Cuando la cotización esté lista, sube el PDF: la solicitud pasa a Enviada con su folio, fecha y total.'
+              : `Sin PDF guardado. Súbelo para tenerlo aquí${quote.items.length === 0 ? ' y leer el total' : ''}.`}
           </p>
         )
       )}

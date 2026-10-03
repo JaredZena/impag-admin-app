@@ -169,7 +169,7 @@ export default function CaptureQuoteDialog({ onClose, onSaved }: CaptureQuoteDia
               </div>
               <div>
                 <label htmlFor="capture-text" className="block text-xs font-medium text-gray-600 mb-1">
-                  Pega el mensaje «Cotización Enviada»{pdf ? ' (opcional)' : ''}
+                  Pega el mensaje «Cotización Enviada» o «Solicitud de Cotización»{pdf ? ' (opcional)' : ''}
                 </label>
                 <textarea
                   id="capture-text"
@@ -232,7 +232,19 @@ export default function CaptureQuoteDialog({ onClose, onSaved }: CaptureQuoteDia
           ) : (
             <div className="space-y-3">
               <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm">
-                {p.action === 'created' ? (
+                {p.kind === 'request' ? (
+                  <p className="font-medium text-gray-900 flex items-center gap-2">
+                    {p.action === 'created' ? 'Nueva solicitud' : 'Ya tenía solicitud abierta'}{' '}
+                    <span className="font-mono">{p.quote_number}</span>
+                    <QuoteStatusBadge status="requested" />
+                  </p>
+                ) : p.action === 'converted' ? (
+                  <p className="font-medium text-gray-900">
+                    Cotización <span className="font-mono">{p.quote_number}</span> de la solicitud{' '}
+                    <span className="font-mono">{p.request_number}</span>
+                    {p.existing ? ` (${p.existing.customer_name})` : ''}
+                  </p>
+                ) : p.action === 'created' ? (
                   <p className="font-medium text-gray-900">
                     Nueva cotización <span className="font-mono">{p.quote_number}</span>
                   </p>
@@ -259,9 +271,25 @@ export default function CaptureQuoteDialog({ onClose, onSaved }: CaptureQuoteDia
                 <dd className="text-gray-900">{p.delivery || '—'}</dd>
                 <dt className="text-gray-500">Material</dt>
                 <dd className="text-gray-900">{p.material || '—'}</dd>
-                <dt className="text-gray-500">Total</dt>
-                <dd className="text-gray-900">{previewTotal}</dd>
-                <dt className="text-gray-500">Enviada</dt>
+                {p.phone && (
+                  <>
+                    <dt className="text-gray-500">Teléfono</dt>
+                    <dd className="text-gray-900">{p.phone}</dd>
+                  </>
+                )}
+                {p.datos && (
+                  <>
+                    <dt className="text-gray-500">Datos</dt>
+                    <dd className="text-gray-900">{p.datos}</dd>
+                  </>
+                )}
+                {p.kind !== 'request' && (
+                  <>
+                    <dt className="text-gray-500">Total</dt>
+                    <dd className="text-gray-900">{previewTotal}</dd>
+                  </>
+                )}
+                <dt className="text-gray-500">{p.kind === 'request' ? 'Solicitada' : 'Enviada'}</dt>
                 <dd className="text-gray-900">{previewDate.split('-').reverse().join('/')}</dd>
                 {p.contexto && (
                   <>
@@ -322,7 +350,15 @@ export default function CaptureQuoteDialog({ onClose, onSaved }: CaptureQuoteDia
                 disabled={busy}
                 className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
               >
-                {busy ? 'Guardando...' : p.action === 'created' ? 'Registrar' : 'Registrar reenvío'}
+                {busy
+                  ? 'Guardando...'
+                  : p.kind === 'request'
+                    ? 'Registrar solicitud'
+                    : p.action === 'converted'
+                      ? 'Registrar cotización'
+                      : p.action === 'created'
+                        ? 'Registrar'
+                        : 'Registrar reenvío'}
               </button>
             </>
           )}

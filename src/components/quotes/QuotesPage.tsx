@@ -10,6 +10,7 @@ import { isWebOrder, WEB_ORDER_PREFIX } from '@/utils/webOrder';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Todas' },
+  { value: 'requested', label: 'Por cotizar' },
   { value: 'draft', label: 'Borrador' },
   { value: 'sent', label: 'Enviadas' },
   { value: 'viewed', label: 'Vistas' },
@@ -92,7 +93,7 @@ export default function QuotesPage() {
 
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Este mes</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total_this_month}</p>
@@ -100,6 +101,10 @@ export default function QuotesPage() {
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Aceptadas (MXN)</p>
               <p className="text-2xl font-bold text-green-600 mt-1">${stats.accepted_value.toLocaleString('es-MX')}</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-xl p-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wider">Por cotizar</p>
+              <p className="text-2xl font-bold text-purple-600 mt-1">{stats.requested ?? 0}</p>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Enviadas</p>

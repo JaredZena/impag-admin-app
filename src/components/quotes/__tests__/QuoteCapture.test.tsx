@@ -224,3 +224,58 @@ test('badge labels the new statuses', () => {
   expect(screen.getByText('Por ajustar')).toBeInTheDocument();
   expect(screen.getByText('Perdida')).toBeInTheDocument();
 });
+
+describe('Solicitud de Cotización (Por cotizar)', () => {
+  test('a pasted request previews as Por cotizar and saves', async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const requestPreview: CaptureQuoteResult = {
+      preview: {
+        ...PREVIEW.preview,
+        action: 'created',
+        kind: 'request',
+        quote_number: 'SOL-011026-1',
+        folio: '',
+        customer_name: 'Camila Ortiz Aviña',
+        phone: '+52 393 131 2326',
+        datos: 'Área: 1 Ha Cultivo: Jitomate',
+      },
+      warnings: [],
+      quote: null,
+    };
+    vi.mocked(captureQuote)
+      .mockResolvedValueOnce(requestPreview)
+      .mockResolvedValueOnce({ ...requestPreview, quote: makeQuote({ status: 'requested' }) });
+
+    render(<CaptureQuoteDialog onClose={() => {}} onSaved={onSaved} />);
+    await user.type(screen.getByLabelText(/Solicitud de Cotización/), 'Solicitud de Cotización Cliente: Camila');
+    await user.click(screen.getByRole('button', { name: 'Revisar' }));
+
+    expect(screen.getByText('SOL-011026-1')).toBeInTheDocument();
+    expect(screen.getByText('Por cotizar')).toBeInTheDocument();
+    expect(screen.getByText('Área: 1 Ha Cultivo: Jitomate')).toBeInTheDocument();
+    expect(screen.queryByText('Total')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Registrar solicitud' }));
+    expect(onSaved).toHaveBeenCalled();
+  });
+
+  test('a Cotización Enviada for a pending request says which request it closes', async () => {
+    const user = userEvent.setup();
+    vi.mocked(captureQuote).mockResolvedValueOnce({
+      ...PREVIEW,
+      preview: {
+        ...PREVIEW.preview,
+        action: 'converted',
+        kind: 'quote',
+        quote_number: 'COT-IMPAG-051026JAL',
+        request_number: 'SOL-011026-1',
+        existing: { id: 9, status: 'requested', total: 0, customer_name: 'Camila Ortiz Aviña' },
+      },
+    });
+    render(<CaptureQuoteDialog onClose={() => {}} onSaved={() => {}} />);
+    await user.type(screen.getByLabelText(/Solicitud de Cotización/), 'Cotización Enviada 051026JAL');
+    await user.click(screen.getByRole('button', { name: 'Revisar' }));
+    expect(screen.getByText('SOL-011026-1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar cotización' })).toBeInTheDocument();
+  });
+});

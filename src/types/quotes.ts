@@ -66,9 +66,12 @@ export type QuotePaymentStatus =
   | 'amount_mismatch'
   | (string & {});
 
+// requested = "Por cotizar" (el cliente pidió cotización y aún no sale; número
+// SOL-ddmmyy-N hasta que se registra su «Cotización Enviada» o se sube el PDF).
 // needs_work = "Por ajustar" (le debemos una cotización corregida). rejected se
 // muestra como "Perdida".
 export type QuoteStatus =
+  | 'requested'
   | 'draft'
   | 'sent'
   | 'viewed'
@@ -123,6 +126,7 @@ export interface QuoteStats {
   pending_sent: number;
   pending_viewed: number;
   needs_work?: number;
+  requested?: number;
 }
 
 // POST /quotes/capture — registrar desde el mensaje *Cotización Enviada*.
@@ -135,7 +139,12 @@ export interface CaptureQuotePayload {
 }
 
 export interface CaptureQuotePreview {
-  action: 'created' | 'updated';
+  // converted: la «Cotización Enviada» de una solicitud Por cotizar.
+  action: 'created' | 'updated' | 'converted';
+  kind?: 'quote' | 'request'; // request = «Solicitud de Cotización»
+  request_number?: string | null;
+  phone?: string | null;
+  datos?: string | null;
   quote_number: string;
   folio: string;
   tag: string | null;
@@ -170,6 +179,7 @@ export interface QuoteFile {
 export interface QuoteFileUploadResult {
   files: QuoteFile[];
   total_set: number | null;
+  converted_from?: string; // la solicitud SOL-… que este PDF envió
   warnings: string[];
   quote: Quote;
 }
