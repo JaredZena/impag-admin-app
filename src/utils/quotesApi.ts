@@ -13,6 +13,7 @@ import type {
   CaptureQuoteResult,
   CaptureQuotePdfPayload,
   ManualQuoteStatus,
+  QuoteNextActionPayload,
   QuoteFile,
   QuoteFileUploadResult,
 } from '@/types/quotes';
@@ -31,6 +32,11 @@ export async function listQuotes(params?: {
   search?: string;
   limit?: number;
   offset?: number;
+  // Sólo las que tienen un siguiente paso para ese día o antes (YYYY-MM-DD).
+  next_action_due_to?: string;
+  has_next_action?: boolean;
+  // next_action = por fecha del siguiente paso, la más próxima primero.
+  order?: 'next_action';
 }): Promise<{ data: Quote[]; total: number }> {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.set('status', params.status);
@@ -38,6 +44,9 @@ export async function listQuotes(params?: {
   if (params?.search) searchParams.set('search', params.search);
   if (params?.limit) searchParams.set('limit', String(params.limit));
   if (params?.offset) searchParams.set('offset', String(params.offset));
+  if (params?.next_action_due_to) searchParams.set('next_action_due_to', params.next_action_due_to);
+  if (params?.has_next_action) searchParams.set('has_next_action', 'true');
+  if (params?.order) searchParams.set('order', params.order);
 
   const qs = searchParams.toString();
   const res = await quotesApiRequest<{ success: boolean; data: Quote[]; total: number }>(
@@ -128,6 +137,15 @@ export async function changeQuoteStatus(
   const res = await quotesApiRequest<{ success: boolean; data: Quote }>(`/quotes/${id}/status`, {
     method: 'POST',
     body: JSON.stringify({ status, reason: reason || undefined }),
+  });
+  return res.data;
+}
+
+// Siguiente paso de la cotización. Todo en null = «Hecho».
+export async function setQuoteNextAction(id: number, payload: QuoteNextActionPayload): Promise<Quote> {
+  const res = await quotesApiRequest<{ success: boolean; data: Quote }>(`/quotes/${id}/next-action`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   });
   return res.data;
 }

@@ -9,6 +9,8 @@ import PaymentStatusChip from './PaymentStatusChip';
 import CaptureQuoteDialog from './CaptureQuoteDialog';
 import { isWebOrder, WEB_ORDER_PREFIX } from '@/utils/webOrder';
 import LoadError from '@/components/ui/LoadError';
+import NextActionLine from './NextActionLine';
+import NextStepsSection from './NextStepsSection';
 import { useOpenFromLink } from '@/hooks/useOpenFromLink';
 import {
   OPEN_QUOTE_STATUSES,
@@ -281,6 +283,9 @@ export default function QuotesPage() {
           </button>
         </div>
 
+        {/* Qué sigue: siguientes pasos que vencen esta semana */}
+        <NextStepsSection />
+
         {/* Stats — phone: two figures */}
         {(openCount !== null || stats) && (
           <div className="md:hidden grid grid-cols-[1fr,auto] gap-2 mb-3">
@@ -450,6 +455,7 @@ export default function QuotesPage() {
                         <div className="min-w-0">
                           <p className="font-semibold text-gray-900 truncate">{quote.customer_name || 'Sin nombre'}</p>
                           {quoted && <p className="text-sm text-gray-600 line-clamp-2">{quoted}</p>}
+                          <NextActionLine quote={quote} maxChars={90} className="mt-1" />
                         </div>
                         {quote.total > 0 ? (
                           <p className="shrink-0 font-bold text-gray-900 whitespace-nowrap">{money(quote.total)}</p>
@@ -509,6 +515,7 @@ export default function QuotesPage() {
                             </p>
                           )}
                           <p className="text-xs text-gray-400">{quote.customer_phone}</p>
+                          <NextActionLine quote={quote} size="xs" maxChars={70} className="mt-0.5 max-w-[26rem]" />
                         </td>
                         <td className="px-4 py-3">
                           <QuoteStatusBadge status={quote.status} />

@@ -11,6 +11,7 @@ import QuoteItemsEditor from './QuoteItemsEditor';
 import { needsFleteLine } from '@/utils/quoteItemsEdit';
 import QuoteStatusPanel from './QuoteStatusPanel';
 import QuotePdfPanel from './QuotePdfPanel';
+import NextStepCard from './NextStepCard';
 import { parseQuoteNotes, whatsappLink } from '@/utils/quoteNotes';
 
 export default function QuoteDetailPage() {
@@ -182,6 +183,9 @@ export default function QuoteDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Siguiente paso: qué hacer, quién y para cuándo */}
+        <NextStepCard quote={quote} onChanged={setQuote} />
 
         {/* Quote URL banner */}
         {quoteUrl && (

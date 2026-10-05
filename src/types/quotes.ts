@@ -46,6 +46,18 @@ export interface Quote {
   payment_method?: string | null;
   payment_reference?: string | null;
   customer_id?: number | null;
+  // Siguiente paso: qué hay que hacer, quién (nombre de pila: "Hernán", "JD",
+  // "Daniel", "Jared") y para cuándo (YYYY-MM-DD). null = no hay nada pendiente.
+  next_action?: string | null;
+  next_action_owner?: string | null;
+  next_action_due?: string | null;
+}
+
+// PUT /quotes/{id}/next-action. next_action null = «Hecho» (borra quién y cuándo).
+export interface QuoteNextActionPayload {
+  next_action: string | null;
+  owner: string | null;
+  due: string | null; // YYYY-MM-DD
 }
 
 // Valores que escribe POST /storefront/orders. Se deja abierto a otros strings
