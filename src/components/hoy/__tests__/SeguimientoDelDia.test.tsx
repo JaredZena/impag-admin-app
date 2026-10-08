@@ -2,11 +2,16 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SeguimientoDelDia from '../SeguimientoDelDia';
 import { apiRequest } from '@/utils/api';
-import { waDigits, type SeguimientoDia } from '@/utils/seguimientoApi';
+import { openWhatsApp, waDigits, waUrl, type SeguimientoDia } from '@/utils/seguimientoApi';
 
 vi.mock('@/utils/api', () => ({
   apiRequest: vi.fn(),
   setSessionExpirationHandler: vi.fn(),
+}));
+
+vi.mock('@/utils/seguimientoApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/seguimientoApi')>()),
+  openWhatsApp: vi.fn(),
 }));
 
 const mockedApiRequest = vi.mocked(apiRequest);
@@ -43,6 +48,8 @@ const day: SeguimientoDia = {
 };
 
 beforeEach(() => {
+  localStorage.clear();
+  vi.mocked(openWhatsApp).mockReset();
   mockedApiRequest.mockReset();
   mockedApiRequest.mockImplementation(async (endpoint: string) =>
     endpoint.startsWith('/hoy/seguimiento?') ? { data: day } : { data: { id: 1 } }
@@ -55,17 +62,22 @@ test('waDigits adds the Mexican country code', () => {
   expect(waDigits('123')).toBeNull();
 });
 
+test('waUrl opens the desktop app, WhatsApp Web or wa.me on a phone', () => {
+  expect(waUrl('526771059056', 'Hola')).toBe('whatsapp://send?phone=526771059056&text=Hola');
+  expect(waUrl('526771059056', undefined, 'web')).toBe('https://web.whatsapp.com/send?phone=526771059056');
+  const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Linux; Android 14)');
+  expect(waUrl('526771059056', 'Hola', 'web')).toBe('https://wa.me/526771059056?text=Hola');
+  ua.mockRestore();
+});
+
 test('WhatsApp opens the chat with the message and records it', async () => {
-  const open = vi.spyOn(window, 'open').mockReturnValue(null);
   const onChange = vi.fn();
   render(<SeguimientoDelDia onChange={onChange} />);
   await screen.findByText('Morales');
 
-  fireEvent.click(screen.getAllByRole('button', { name: /WhatsApp/ })[0]);
-  expect(open).toHaveBeenCalledWith(
-    `https://wa.me/526771059056?text=${encodeURIComponent(day.todo[0].message)}`,
-    '_blank',
-    'noopener'
+  fireEvent.click(screen.getAllByRole('button', { name: 'WhatsApp' })[0]);
+  expect(openWhatsApp).toHaveBeenCalledWith(
+    `whatsapp://send?phone=526771059056&text=${encodeURIComponent(day.todo[0].message)}`
   );
   await waitFor(() => expect(onChange).toHaveBeenCalled());
   const post = mockedApiRequest.mock.calls.find(([, opts]) => opts?.method === 'POST');
@@ -75,18 +87,42 @@ test('WhatsApp opens the chat with the message and records it', async () => {
     quote_ids: [7],
     outcome: 'enviado',
   });
-  open.mockRestore();
+});
+
+test('WhatsApp Web is remembered and used instead of the app', async () => {
+  render(<SeguimientoDelDia onChange={vi.fn()} />);
+  await screen.findByText('Morales');
+  fireEvent.click(screen.getByRole('button', { name: 'WhatsApp Web' }));
+  expect(localStorage.getItem('seguimiento.waTarget')).toBe('web');
+
+  fireEvent.click(screen.getAllByRole('button', { name: 'WhatsApp' })[0]);
+  expect(openWhatsApp).toHaveBeenCalledWith(
+    expect.stringMatching(/^https:\/\/web\.whatsapp\.com\/send\?phone=526771059056&text=/)
+  );
+  await waitFor(() => expect(mockedApiRequest.mock.calls.some(([, opts]) => opts?.method === 'POST')).toBe(true));
+});
+
+test('Ya compró closes it without writing to them', async () => {
+  const onChange = vi.fn();
+  render(<SeguimientoDelDia onChange={onChange} />);
+  await screen.findByText('Morales');
+
+  fireEvent.click(screen.getAllByRole('button', { name: 'Ya compró' })[0]);
+  await waitFor(() => expect(onChange).toHaveBeenCalled());
+  expect(openWhatsApp).not.toHaveBeenCalled();
+  const post = mockedApiRequest.mock.calls.find(([, opts]) => opts?.method === 'POST');
+  expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({ quote_ids: [7], outcome: 'venta' });
 });
 
 test('without a number: type it to enable WhatsApp, or copy the message', async () => {
   render(<SeguimientoDelDia onChange={vi.fn()} />);
   await screen.findByText('Maria Fernandez');
-  const buttons = screen.getAllByRole('button', { name: /WhatsApp/ });
+  const buttons = screen.getAllByRole('button', { name: 'WhatsApp' });
   expect(buttons[1]).toBeDisabled();
   expect(screen.getByRole('button', { name: /Copiar/ })).toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText('Teléfono de Maria Fernandez'), {
     target: { value: '618 123 4567' },
   });
-  expect(screen.getAllByRole('button', { name: /WhatsApp/ })[1]).toBeEnabled();
+  expect(screen.getAllByRole('button', { name: 'WhatsApp' })[1]).toBeEnabled();
 });

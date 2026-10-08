@@ -4,15 +4,21 @@ import {
   KIND_LABEL,
   OUTCOME_LABEL,
   fetchSeguimiento,
+  isPhone,
   logSeguimiento,
+  openWhatsApp,
+  saveWaTarget,
+  savedWaTarget,
   setSeguimientoOutcome,
   waDigits,
+  waLinkProps,
   waUrl,
   type SeguimientoCard,
   type SeguimientoContact,
   type SeguimientoDia,
   type SeguimientoKind,
   type SeguimientoOutcome,
+  type WaTarget,
 } from '@/utils/seguimientoApi';
 
 const KIND_STYLE: Record<SeguimientoKind, string> = {
@@ -40,6 +46,7 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
   const [copied, setCopied] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [waTarget, setWaTarget] = useState<WaTarget>(savedWaTarget);
 
   const load = useCallback(
     () =>
@@ -75,8 +82,13 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
   const send = (card: SeguimientoCard) => {
     const digits = digitsFor(card);
     // Abrir antes del await: el navegador sólo deja abrir ventanas en el clic.
-    if (digits) window.open(waUrl(digits, card.message), '_blank', 'noopener');
+    if (digits) openWhatsApp(waUrl(digits, card.message, waTarget));
     run(card.key, () => logSeguimiento(card, phoneFor(card), card.message));
+  };
+
+  const chooseTarget = (target: WaTarget) => {
+    setWaTarget(target);
+    saveWaTarget(target);
   };
 
   const copy = async (card: SeguimientoCard) => {
@@ -90,6 +102,9 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
 
   const notInterested = (card: SeguimientoCard) =>
     run(card.key, () => logSeguimiento(card, phoneFor(card), card.message, 'no_interesa'));
+
+  const alreadyBought = (card: SeguimientoCard) =>
+    run(card.key, () => logSeguimiento(card, phoneFor(card), card.message, 'venta'));
 
   const outcome = (c: SeguimientoContact, value: SeguimientoOutcome) =>
     run(`c${c.id}`, () => setSeguimientoOutcome(c.id, value));
@@ -119,10 +134,37 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
           <div className="h-full bg-green-500" style={{ width: `${pct}%` }} />
         </div>
       </div>
-      <p className="text-xs text-gray-500 mb-3">
+      <p className="text-xs text-gray-500 mb-2">
         Cotizaciones sin respuesta, quien compró en esta temporada el año pasado y clientes que dejaron de comprar.
-        El botón abre WhatsApp con el mensaje escrito; revísalo y envíalo desde Impag Local.
+        El botón abre WhatsApp con el mensaje escrito; revísalo y envíalo desde Impag Local. Si ya compró, márcalo
+        con «Ya compró» sin escribirle.
       </p>
+      {!isPhone() && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mb-3">
+          <span>Abrir en:</span>
+          {(
+            [
+              ['app', 'App de escritorio'],
+              ['web', 'WhatsApp Web'],
+            ] as [WaTarget, string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={waTarget === value}
+              onClick={() => chooseTarget(value)}
+              className={`px-2 py-0.5 rounded-full border ${
+                waTarget === value
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {waTarget === 'app' && <span>La primera vez Chrome pregunta: marca «Permitir siempre» y Abrir.</span>}
+        </div>
+      )}
       {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
 
       {data.todo.length === 0 ? (
@@ -194,6 +236,19 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
                         Copiar
                       </button>
                     ))}
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => alreadyBought(card)}
+                    title={
+                      card.kind === 'cotizacion'
+                        ? 'Ya compró: cerrar la cotización como Aceptada, sin escribirle'
+                        : 'Ya compró: quitarlo de la lista, sin escribirle'
+                    }
+                    className="border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    Ya compró
+                  </button>
                   {confirming === card.key ? (
                     <span className="inline-flex items-center gap-1 text-xs">
                       <button
@@ -238,12 +293,7 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
                   <span className="text-gray-900">{c.customer_name}</span>
                   <KindBadge kind={c.kind} />
                   {c.wa && (
-                    <a
-                      href={`https://wa.me/${c.wa}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-green-700 hover:underline"
-                    >
+                    <a {...waLinkProps(waUrl(c.wa, undefined, waTarget))} className="text-xs text-green-700 hover:underline">
                       abrir chat
                     </a>
                   )}

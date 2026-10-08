@@ -58,18 +58,63 @@ export function waDigits(phone: string): string | null {
   return d.length >= 11 ? d : null;
 }
 
-export const waUrl = (digits: string, message: string) =>
-  `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+// En la compu, wa.me pasa por una pestaña de api.whatsapp.com que pregunta
+// cada vez; whatsapp:// abre la app de escritorio directo. "web" es para quien
+// no tiene la app: WhatsApp Web, siempre en la misma pestaña. En el teléfono
+// wa.me ya abre la app.
+export type WaTarget = 'app' | 'web';
+export const WA_WEB_TAB = 'whatsapp-web';
+
+export const isPhone = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+export function waUrl(digits: string, message?: string, target: WaTarget = 'app') {
+  const text = message ? `text=${encodeURIComponent(message)}` : '';
+  if (isPhone()) return `https://wa.me/${digits}${text && `?${text}`}`;
+  const base = target === 'web' ? 'https://web.whatsapp.com/send' : 'whatsapp://send';
+  return `${base}?phone=${digits}${text && `&${text}`}`;
+}
+
+// Props for an <a> that opens the chat: the app needs no tab at all.
+export function waLinkProps(url: string) {
+  if (url.startsWith('whatsapp:')) return { href: url };
+  if (url.startsWith('https://web.whatsapp.com')) return { href: url, target: WA_WEB_TAB };
+  return { href: url, target: '_blank', rel: 'noopener noreferrer' };
+}
+
+export function openWhatsApp(url: string) {
+  const { href, target, rel } = waLinkProps(url);
+  if (!target) window.location.href = href;
+  else window.open(href, target, rel ? 'noopener' : undefined);
+}
+
+const TARGET_KEY = 'seguimiento.waTarget';
+
+export function savedWaTarget(): WaTarget {
+  try {
+    return localStorage.getItem(TARGET_KEY) === 'web' ? 'web' : 'app';
+  } catch {
+    return 'app';
+  }
+}
+
+export function saveWaTarget(target: WaTarget) {
+  try {
+    localStorage.setItem(TARGET_KEY, target);
+  } catch {
+    // Sin almacenamiento: vale sólo por esta visita.
+  }
+}
 
 export const fetchSeguimiento = (extra = 0) =>
   apiRequest(`/hoy/seguimiento?extra=${extra}`) as Promise<{ data: SeguimientoDia }>;
 
-// outcome 'no_interesa': quitarlo sin escribirle (en una cotización, la cierra como Perdida).
+// Sin escribirle: 'no_interesa' (en una cotización, la cierra como Perdida)
+// o 'venta' (ya compró: la cierra como Aceptada).
 export const logSeguimiento = (
   card: SeguimientoCard,
   phone: string | null,
   message: string,
-  outcome: 'enviado' | 'no_interesa' = 'enviado'
+  outcome: 'enviado' | 'no_interesa' | 'venta' = 'enviado'
 ) =>
   apiRequest('/hoy/seguimiento', {
     method: 'POST',
