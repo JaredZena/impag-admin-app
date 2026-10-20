@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import SuppliersTable, { Supplier } from './SuppliersTable';
 import AddSupplierModal from './AddSupplierModal';
 import ProductImagesSection, { ProductImage } from './ProductImagesSection';
+import StoreDescriptionSection from './StoreDescriptionSection';
 import { apiRequest } from '@/utils/api';
 import { formatReadableDate } from '@/utils/dateUtils';
 import { formatCurrency } from '@/utils/currencyUtils';
@@ -35,6 +36,8 @@ interface Product {
   is_calculated_price?: boolean;
   // Product images (presigned URLs, ~1h validity)
   images?: ProductImage[];
+  // "Especificaciones en la página" (todoparaelcampo.com.mx); null = the page's own text
+  storefront_description?: string | null;
 }
 
 const ProductDetailPage: React.FC = () => {
@@ -782,6 +785,16 @@ const ProductDetailPage: React.FC = () => {
                 </div>
               </Card>
             )}
+
+            {/* Description rows on todoparaelcampo.com.mx (linked products only) */}
+            <StoreDescriptionSection
+              key={`store-${productId}`}
+              productId={productId!}
+              saved={product.storefront_description ?? null}
+              onSaved={(value) =>
+                setProduct((prev) => (prev ? { ...prev, storefront_description: value } : prev))
+              }
+            />
 
             {/* Product Images Section */}
             <ProductImagesSection
