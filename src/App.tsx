@@ -45,6 +45,12 @@ const SalesDashboardPage = lazy(() => import('./components/sales/SalesDashboardP
 const BreakevenPage = lazy(() => import('./components/finance/BreakevenPage'));
 const HoyPage = lazy(() => import('./components/hoy/HoyPage'));
 const ConsultaPage = lazy(() => import('./components/consulta/ConsultaPage'));
+// Campo IA: apoyos de gobierno, Agroproyectos y uso de IA (tienda en línea).
+const ApoyosPage = lazy(() => import('./components/campo/ApoyosPage'));
+const ApoyoEditorPage = lazy(() => import('./components/campo/ApoyoEditorPage'));
+const AgroPage = lazy(() => import('./components/campo/AgroPage'));
+const AgroDetailPage = lazy(() => import('./components/campo/AgroDetailPage'));
+const AIUsagePage = lazy(() => import('./components/campo/AIUsagePage'));
 
 const AppContent: React.FC = () => {
   const { sessionExpired, forceReauthenticate, clearSessionExpired, reauthenticate } = useAuth();
@@ -145,6 +151,12 @@ const AppContent: React.FC = () => {
           <Route path="/roadmap" element={<RoadmapPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/customers/:id" element={<CustomerDetailPage />} />
+          <Route path="/apoyos" element={<ApoyosPage />} />
+          <Route path="/apoyos/nuevo" element={<ApoyoEditorPage />} />
+          <Route path="/apoyos/:id" element={<ApoyoEditorPage />} />
+          <Route path="/agroproyectos" element={<AgroPage />} />
+          <Route path="/agroproyectos/:id" element={<AgroDetailPage />} />
+          <Route path="/uso-ia" element={<AIUsagePage />} />
           <Route path="*" element={<Navigate to="/hoy" replace />} />
         </Routes>
         </Suspense>

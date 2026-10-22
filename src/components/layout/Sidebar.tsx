@@ -25,7 +25,11 @@ import {
   ChevronDown,
   MoreHorizontal,
   Search,
-  Sun
+  Sun,
+  Sprout,
+  Landmark,
+  Lightbulb,
+  Gauge
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -72,6 +76,18 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
         { path: '/supplier-products', label: 'Costos de proveedor', icon: <Package size={20} /> },
         { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },
         { path: '/tools', label: 'Herramientas', icon: <Wrench size={20} /> },
+      ],
+    },
+    {
+      // Herramientas de IA de la tienda (todoparaelcampo.com.mx): apoyos de
+      // gobierno publicados, leads del diseñador de proyectos y su costo.
+      key: 'campo',
+      label: 'Campo IA',
+      icon: <Sprout size={20} />,
+      items: [
+        { path: '/apoyos', label: 'Apoyos de gobierno', icon: <Landmark size={20} /> },
+        { path: '/agroproyectos', label: 'Agroproyectos', icon: <Lightbulb size={20} /> },
+        { path: '/uso-ia', label: 'Uso de IA', icon: <Gauge size={20} /> },
       ],
     },
     {
