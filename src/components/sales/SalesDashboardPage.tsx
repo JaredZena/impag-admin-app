@@ -62,7 +62,7 @@ interface SalesStats {
   by_payment_method: Record<string, PaymentBucket>;
   by_concept: ConceptRow[];
   top_customers: TopCustomerRow[];
-  margins?: MarginsBlock; // absent until the backend deploy lands
+  margins?: MarginsBlock | null; // null = not an owner (OWNER_EMAILS in impag-quot)
   delivery_pending: { count: number; total: number };
   invoice_pending_registration: { count: number; total: number };
   quarantined: { count: number };

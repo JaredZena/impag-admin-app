@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsOwner } from '@/hooks/useIsOwner';
 
 interface SidebarProps {
   className?: string;
@@ -43,8 +44,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const isOwner = useIsOwner();
 
-  type NavItem = { path: string; label: string; icon: React.ReactNode };
+  // ownerOnly: finanzas, sólo Jared y JD (GET /auth/me).
+  type NavItem = { path: string; label: string; icon: React.ReactNode; ownerOnly?: boolean };
 
   // Plan de adopción (Obsidian «IMPAG App Adoption Plan»): seis entradas para
   // el equipo — Hoy, Pendientes, Clientes, Cotizaciones, Ventas, Catálogo.
@@ -76,7 +79,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
       label: 'Más',
       icon: <MoreHorizontal size={20} />,
       items: [
-        { path: '/punto-equilibrio', label: 'Punto de equilibrio', icon: <Scale size={20} /> },
+        { path: '/punto-equilibrio', label: 'Punto de equilibrio', icon: <Scale size={20} />, ownerOnly: true },
         { path: '/files', label: 'Archivos', icon: <FolderOpen size={20} /> },
         { path: '/pos', label: 'Punto de Venta', icon: <ShoppingCart size={20} /> },
         { path: '/caja', label: 'Caja', icon: <Wallet size={20} /> },
@@ -211,7 +214,11 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
                       <ChevronDown size={14} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
                     )}
                   </button>
-                  {open && <div className="space-y-1 mt-1">{group.items.map(renderItem)}</div>}
+                  {open && (
+                    <div className="space-y-1 mt-1">
+                      {group.items.filter((item) => !item.ownerOnly || isOwner).map(renderItem)}
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -23,6 +23,7 @@ import ToolFormPage from './components/tools/ToolFormPage';
 import ToolDetailPage from './components/tools/ToolDetailPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import OwnerRoute from './components/auth/OwnerRoute';
 import SessionExpiredDialog from './components/auth/SessionExpiredDialog';
 import { NotificationProvider, useNotifications } from './components/ui/notification';
 import { setSessionExpirationHandler } from './utils/api';
@@ -122,7 +123,14 @@ const AppContent: React.FC = () => {
           <Route path="/quotes/new" element={<QuoteForm />} />
           <Route path="/quotes/:id" element={<QuoteDetailPage />} />
           <Route path="/sales" element={<SalesDashboardPage />} />
-          <Route path="/punto-equilibrio" element={<BreakevenPage />} />
+          <Route
+            path="/punto-equilibrio"
+            element={
+              <OwnerRoute>
+                <BreakevenPage />
+              </OwnerRoute>
+            }
+          />
           <Route path="/pos" element={<PosPage />} />
           <Route path="/caja" element={<CajaPage />} />
           <Route path="/social-calendar" element={<SocialCalendarPage />} />

@@ -6,6 +6,7 @@ import { fetchPendientesText } from '@/utils/tasksApi';
 import { buildHoyText, money, short, type HoyData } from '@/utils/hoyText';
 import SeguimientoDelDia from './SeguimientoDelDia';
 import HoyAcciones from './HoyAcciones';
+import ComoVamos from './ComoVamos';
 import LoadError from '@/components/ui/LoadError';
 
 const todayLocal = () => new Date().toLocaleDateString('en-CA');
@@ -133,6 +134,8 @@ export default function HoyPage() {
           className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
         />
       </div>
+
+      {day === todayLocal() && <ComoVamos />}
 
       <HoyAcciones data={data} isToday={day === todayLocal()} />
 
