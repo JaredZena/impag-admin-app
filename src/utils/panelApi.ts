@@ -32,6 +32,7 @@ export interface PanelData {
   };
   tienda: {
     last_day: string | null;
+    first_day: string | null;
     visits_28d: number | null;
     visits_prev_28d: number | null;
     whatsapp_28d: number | null;

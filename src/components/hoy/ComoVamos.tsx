@@ -5,8 +5,8 @@ import { getPanel, type PanelData, type ProfileMetric } from '@/utils/panelApi';
 import { getFinanceDashboard, type FinanceDashboard } from '@/utils/financeApi';
 
 // «Cómo vamos»: lo primero al entrar. Para todo el equipo: ventas del mes,
-// Google (reseñas, búsquedas, perfil) y la tienda en línea (Umami + pedidos
-// web); lo que nos deben y las cotizaciones abiertas ya están abajo en
+// Google (reseñas, búsquedas, perfil) y la tienda en línea (Google Analytics +
+// pedidos web); lo que nos deben y las cotizaciones abiertas ya están abajo en
 // HoyAcciones. Punto de equilibrio y estado de resultados: dueños (hoy, todo
 // el equipo: OWNER_EMAILS sin definir en impag-quot).
 // Números de fuera: POST /jobs/google-metrics-sync (diario) en impag-quot.
@@ -223,7 +223,7 @@ const Big = ({ children }: { children: React.ReactNode }) => (
   <p className="text-xl font-semibold text-gray-900">{children}</p>
 );
 
-/** todoparaelcampo.com.mx: tráfico (Umami) y lo que la tienda registró. */
+/** todoparaelcampo.com.mx: tráfico (Google Analytics, desde el 22 oct 2026) y lo que la tienda registró. */
 function TiendaTile({ t }: { t: PanelData['tienda'] }) {
   const vs = '28 días antes';
   return (
@@ -231,7 +231,7 @@ function TiendaTile({ t }: { t: PanelData['tienda'] }) {
       <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
         <MiniStat label="Visitas">
           {t.visits_28d === null ? (
-            <p className="mt-1 text-sm text-gray-400">Falta conectar Umami</p>
+            <p className="mt-1 text-sm text-gray-400">Sin datos todavía</p>
           ) : (
             <>
               <Big>{int(t.visits_28d)}</Big>
@@ -248,7 +248,7 @@ function TiendaTile({ t }: { t: PanelData['tienda'] }) {
         </MiniStat>
         <MiniStat label="Clics a WhatsApp">
           {t.whatsapp_28d === null ? (
-            <p className="mt-1 text-sm text-gray-400">Falta conectar Umami</p>
+            <p className="mt-1 text-sm text-gray-400">Sin datos todavía</p>
           ) : (
             <>
               <Big>{int(t.whatsapp_28d)}</Big>
@@ -273,7 +273,11 @@ function TiendaTile({ t }: { t: PanelData['tienda'] }) {
           </p>
         </MiniStat>
       </div>
-      {t.last_day && <p className="mt-2 text-xs text-gray-400">Visitas al {shortDate(t.last_day)}</p>}
+      {t.last_day && t.first_day && (
+        <p className="mt-2 text-xs text-gray-400">
+          Google Analytics, del {shortDate(t.first_day)} al {shortDate(t.last_day)}
+        </p>
+      )}
     </Tile>
   );
 }
