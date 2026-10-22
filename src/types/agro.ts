@@ -13,15 +13,6 @@ export type LandUnit = 'm2' | 'ha';
 export type AgroStatus = 'pending' | 'plan_ready' | 'products_ready' | 'done' | 'error';
 export type LeadStatus = 'nuevo' | 'contactado' | 'en_seguimiento' | 'cotizado' | 'ganado' | 'perdido' | 'descartado';
 export type Verdict = 'viable' | 'viable-con-ajustes' | 'requiere-mas-presupuesto' | 'no-recomendado';
-export type BudgetCategory =
-  | 'infraestructura'
-  | 'equipo'
-  | 'animales'
-  | 'plantas-semilla'
-  | 'insumos'
-  | 'mano-de-obra'
-  | 'tramites'
-  | 'otros';
 export type ProductPriority = 'esencial' | 'recomendado' | 'opcional';
 export type IrrigationSystemType = 'goteo' | 'cintilla' | 'aspersion' | 'microaspersion' | 'nebulizacion' | 'otro';
 export type PumpPowerSource = 'solar' | 'cfe' | 'gasolina' | 'existente' | 'gravedad';
@@ -72,44 +63,27 @@ export interface AgroInputs {
 
 // ── plan / products / irrigation (structured AI outputs) ───────────────────
 
-export interface AgroBudgetBreakdownItem {
-  concept: string;
-  category: BudgetCategory;
-  amount_min_mxn: number;
-  amount_max_mxn: number;
-  notes: string | null;
-}
-
 export interface AgroKeyNumber {
   label: string;
   value: string;
   note: string | null;
 }
 
+// options[].pros/cons were dropped by the backend (folded into `why` prose) —
+// claude-opus-5 hard-400s ("compiled grammar too large") on the full nested
+// Plan schema. See be-agro's note 2026-10-22; verified against
+// /private/tmp/claude-501/agro-sample-{1,2}.json.
 export interface AgroOption {
   name: string;
   kind: 'raza' | 'variedad' | 'especie' | 'sistema';
   recommended: boolean;
-  why: string;
-  pros: string[];
-  cons: string[];
-}
-
-export interface AgroInfrastructureItem {
-  item: string;
-  spec: string;
   why: string;
 }
 
 export interface AgroTimelinePhase {
   phase: string;
   duration: string;
-  tasks: string[];
-}
-
-export interface AgroRisk {
-  risk: string;
-  mitigation: string;
+  tasks_summary: string; // was tasks: string[] — flattened for the same reason
 }
 
 export interface AgroPlan {
@@ -125,12 +99,12 @@ export interface AgroPlan {
     working_capital_mxn: number;
     recommended_start_mxn: number;
     gap_mxn: number | null;
-    breakdown: AgroBudgetBreakdownItem[];
+    breakdown: string[]; // was AgroBudgetBreakdownItem[] — see AgroOption comment above
   };
   key_numbers: AgroKeyNumber[];
   scale: { recommendation: string; rationale: string };
   options: AgroOption[];
-  infrastructure: AgroInfrastructureItem[];
+  infrastructure: string[]; // was AgroInfrastructureItem[] — see AgroOption comment above
   economics: {
     monthly_operating_cost_mxn: number;
     monthly_income_min_mxn: number;
@@ -141,7 +115,7 @@ export interface AgroPlan {
     assumptions: string[];
   };
   timeline: AgroTimelinePhase[];
-  risks: AgroRisk[];
+  risks: string[]; // was AgroRisk[] — see AgroOption comment above
   next_steps: string[];
   needs_irrigation: boolean;
   irrigation_hint: string | null;
@@ -299,6 +273,11 @@ export interface AgroUsageRow {
   error_code: string | null;
 }
 
+// Which step is in flight right now (a storefront tab has an open generation
+// request) — distinct from `status`, which only moves once a step finishes.
+// The detail page shows a "Generando…" badge while this is set.
+export type GeneratingStep = 'plan' | 'productos' | 'riego';
+
 export interface AgroAdmin extends AgroListItem {
   inputs: AgroInputs;
   plan: AgroPlan | null;
@@ -313,6 +292,8 @@ export interface AgroAdmin extends AgroListItem {
   error: string | null;
   model: string | null;
   generation_ms: number | null;
+  generating: GeneratingStep | null;
+  generating_since: string | null;
   public_url: string;
   whatsapp_url: string | null;
   usage: AgroUsageRow[];

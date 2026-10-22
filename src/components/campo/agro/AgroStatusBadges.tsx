@@ -1,4 +1,5 @@
-import type { AgroStatus, LeadStatus, Verdict } from '@/types/agro';
+import { Loader2 } from 'lucide-react';
+import type { AgroStatus, GeneratingStep, LeadStatus, Verdict } from '@/types/agro';
 
 export const LEAD_STATUS_META: Record<LeadStatus, { label: string; cls: string }> = {
   nuevo: { label: 'Nuevo', cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
@@ -56,6 +57,22 @@ export function AgroStatusBadge({ status }: { status: AgroStatus }) {
   return (
     <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${meta.cls}`}>
       {meta.label}
+    </span>
+  );
+}
+
+const GENERATING_LABEL: Record<GeneratingStep, string> = {
+  plan: 'Generando el plan…',
+  productos: 'Generando productos…',
+  riego: 'Generando el diseño de riego…',
+};
+
+/** A storefront tab has an open generation request right now (distinct from `status`, which only moves once a step finishes). */
+export function GeneratingBadge({ step }: { step: GeneratingStep }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs font-medium text-blue-700">
+      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+      {GENERATING_LABEL[step] ?? 'Generando…'}
     </span>
   );
 }

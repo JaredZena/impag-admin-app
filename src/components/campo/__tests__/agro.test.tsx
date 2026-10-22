@@ -130,6 +130,8 @@ const AGRO_ADMIN: AgroAdmin = {
   error: null,
   model: 'claude-opus-5',
   generation_ms: 12000,
+  generating: null,
+  generating_since: null,
   public_url: 'https://www.todoparaelcampo.com.mx/agroproyectos?p=t1',
   whatsapp_url: 'https://wa.me/528181234567',
   usage: [
@@ -190,6 +192,18 @@ describe('AgroDetailPage', () => {
         '/agroproyectos/projects/1',
         expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ lead_status: 'contactado' }) })
       );
+    });
+  });
+
+  test('shows a "Generando…" badge while a step is in flight', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      success: true,
+      data: { ...AGRO_ADMIN, generating: 'productos', generating_since: '2026-10-22T10:00:00Z' },
+    });
+    renderDetail();
+
+    await waitFor(() => {
+      expect(screen.getByText('Generando productos…')).toBeInTheDocument();
     });
   });
 });

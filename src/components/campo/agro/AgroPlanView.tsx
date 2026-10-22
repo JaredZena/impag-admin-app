@@ -152,34 +152,17 @@ export function AgroPlanView({
       </Card>
 
       <Card title="Desglose de presupuesto">
+        {/* One formatted line per concept (amounts are inline text, not a
+            separate column) — the backend flattened this to a plain string
+            list because the full nested schema 400s on claude-opus-5. */}
         {plan.budget.breakdown.length === 0 ? (
           <EmptyState message="Sin desglose." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Concepto</th>
-                  <th className="text-left text-xs font-medium text-gray-500 py-2 pr-3">Categoría</th>
-                  <th className="text-right text-xs font-medium text-gray-500 py-2">Rango</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.budget.breakdown.map((b, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0">
-                    <td className="py-2 pr-3 text-sm text-gray-900">
-                      {b.concept}
-                      {b.notes && <span className="block text-xs text-gray-500">{b.notes}</span>}
-                    </td>
-                    <td className="py-2 pr-3 text-sm text-gray-600 capitalize">{b.category.replace(/-/g, ' ')}</td>
-                    <td className="py-2 text-sm text-gray-700 text-right whitespace-nowrap">
-                      {moneyRange(b.amount_min_mxn, b.amount_max_mxn)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="text-sm text-gray-700 space-y-1.5 list-disc pl-4">
+            {plan.budget.breakdown.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
         )}
       </Card>
 
@@ -196,19 +179,8 @@ export function AgroPlanView({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mb-2">{opt.why}</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <ul className="space-y-0.5">
-                    {opt.pros.map((p, j) => (
-                      <li key={j} className="text-green-700">+ {p}</li>
-                    ))}
-                  </ul>
-                  <ul className="space-y-0.5">
-                    {opt.cons.map((c, j) => (
-                      <li key={j} className="text-red-600">− {c}</li>
-                    ))}
-                  </ul>
-                </div>
+                {/* pros/cons were dropped by the backend — folded into why */}
+                <p className="text-xs text-gray-600">{opt.why}</p>
               </div>
             ))}
           </div>
@@ -251,13 +223,9 @@ export function AgroPlanView({
 
       {plan.infrastructure.length > 0 && (
         <Card title="Infraestructura">
-          <ul className="space-y-2">
-            {plan.infrastructure.map((it, i) => (
-              <li key={i} className="text-sm">
-                <span className="font-medium text-gray-900">{it.item}</span>
-                <span className="text-gray-600"> — {it.spec}</span>
-                <span className="block text-xs text-gray-400">{it.why}</span>
-              </li>
+          <ul className="text-sm text-gray-700 space-y-1.5 list-disc pl-4">
+            {plan.infrastructure.map((line, i) => (
+              <li key={i}>{line}</li>
             ))}
           </ul>
         </Card>
@@ -271,11 +239,7 @@ export function AgroPlanView({
                 <p className="text-sm font-semibold text-gray-900">
                   {phase.phase} <span className="text-xs text-gray-400 font-normal">· {phase.duration}</span>
                 </p>
-                <ul className="text-sm text-gray-600 list-disc pl-4">
-                  {phase.tasks.map((t, j) => (
-                    <li key={j}>{t}</li>
-                  ))}
-                </ul>
+                <p className="text-sm text-gray-600">{phase.tasks_summary}</p>
               </li>
             ))}
           </ol>
@@ -284,12 +248,9 @@ export function AgroPlanView({
 
       {plan.risks.length > 0 && (
         <Card title="Riesgos">
-          <ul className="space-y-2">
-            {plan.risks.map((r, i) => (
-              <li key={i} className="text-sm">
-                <span className="font-medium text-amber-700">{r.risk}</span>
-                <span className="block text-gray-600">{r.mitigation}</span>
-              </li>
+          <ul className="text-sm text-amber-800 space-y-1.5 list-disc pl-4">
+            {plan.risks.map((line, i) => (
+              <li key={i}>{line}</li>
             ))}
           </ul>
         </Card>
