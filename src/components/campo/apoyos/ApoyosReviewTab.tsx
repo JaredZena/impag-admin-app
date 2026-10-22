@@ -140,7 +140,13 @@ export default function ApoyosReviewTab() {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
           <KpiCard label="Por revisar" value={String(stats.counts.draft)} />
-          <KpiCard label="Publicados abiertos" value={String(stats.published_by_window.abierta ?? 0)} />
+          {/* Everything published and not closed is on the site; most programs
+              never publish a closing date, so "abierta" alone would read 0. */}
+          <KpiCard
+            label="En la tienda (vigentes)"
+            value={String(stats.counts.published - (stats.published_by_window.cerrada ?? 0))}
+            sub={`${stats.published_by_window.abierta ?? 0} con fecha de cierre`}
+          />
           <KpiCard label="Cierran en 30 días" value={String(stats.closing_soon.length)} />
           <KpiCard
             label="Gasto IA del mes"
