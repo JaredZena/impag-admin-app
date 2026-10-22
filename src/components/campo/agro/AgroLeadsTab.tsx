@@ -8,7 +8,7 @@ import { formatCurrency } from '@/utils/currencyUtils';
 import { formatDate } from '@/utils/dateUtils';
 import LoadError from '@/components/ui/LoadError';
 import { CardSkeleton, EmptyState, errorText } from '../shared/Primitives';
-import { LEAD_STATUS_META, LeadStatusBadge, VerdictBadge } from './AgroStatusBadges';
+import { GeneratingBadge, LEAD_STATUS_META, LeadStatusBadge, VerdictBadge } from './AgroStatusBadges';
 
 const PAGE_SIZE = 50;
 
@@ -227,7 +227,10 @@ export default function AgroLeadsTab() {
                       )}
                     </td>
                     <td className="py-2.5 px-3">
-                      <LeadStatusBadge status={item.lead_status} />
+                      <div className="flex flex-col items-start gap-1">
+                        <LeadStatusBadge status={item.lead_status} />
+                        {item.generating && <GeneratingBadge step={item.generating} compact />}
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 text-sm text-gray-600 text-right whitespace-nowrap">
                       {formatUsd(item.cost_usd)}
@@ -267,7 +270,10 @@ function LeadCard({ item, onClick }: { item: AgroListItem; onClick: () => void }
           </p>
           <p className="text-sm text-gray-600 truncate">{item.title ?? item.idea}</p>
         </div>
-        <LeadStatusBadge status={item.lead_status} />
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <LeadStatusBadge status={item.lead_status} />
+          {item.generating && <GeneratingBadge step={item.generating} compact />}
+        </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
         <span>{formatDate(item.created_at)}</span>

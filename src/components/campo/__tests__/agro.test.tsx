@@ -48,6 +48,8 @@ const LIST_RESPONSE: AgroListResponse = {
       contact_requested_at: null,
       questions_count: 0,
       cost_usd: 0.42,
+      generating: null,
+      generating_since: null,
     },
   ],
   total: 1,

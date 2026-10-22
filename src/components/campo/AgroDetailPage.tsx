@@ -6,7 +6,7 @@ import type { AgroAdmin, LeadStatus } from '@/types/agro';
 import { STATE_LABELS, formatUsd } from '@/utils/campoTaxonomy';
 import { featureLabel } from '@/utils/aiFeatureLabels';
 import { formatCurrency } from '@/utils/currencyUtils';
-import { formatDateTime, formatRelativeTime } from '@/utils/dateUtils';
+import { formatDateTime } from '@/utils/dateUtils';
 import { useNotifications } from '@/components/ui/notification';
 import LoadError from '@/components/ui/LoadError';
 import { Card, CardSkeleton, EmptyState, errorText } from './shared/Primitives';
@@ -159,13 +159,10 @@ export default function AgroDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-bold text-gray-900">{project.title ?? project.ref}</h1>
             <AgroStatusBadge status={project.status} />
-            {project.generating && <GeneratingBadge step={project.generating} />}
+            {project.generating && <GeneratingBadge step={project.generating} since={project.generating_since} />}
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
             {project.ref} · creado {formatDateTime(project.created_at)}
-            {project.generating && project.generating_since && (
-              <> · en curso desde {formatRelativeTime(project.generating_since)}</>
-            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

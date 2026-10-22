@@ -14,6 +14,10 @@ export type AgroStatus = 'pending' | 'plan_ready' | 'products_ready' | 'done' | 
 export type LeadStatus = 'nuevo' | 'contactado' | 'en_seguimiento' | 'cotizado' | 'ganado' | 'perdido' | 'descartado';
 export type Verdict = 'viable' | 'viable-con-ajustes' | 'requiere-mas-presupuesto' | 'no-recomendado';
 export type ProductPriority = 'esencial' | 'recomendado' | 'opcional';
+// Which step is running right now (steps run in the background) — distinct
+// from `status`, which only moves once a step finishes. Shown as a
+// "Generando…" badge/chip on the detail page and the leads table.
+export type GeneratingStep = 'plan' | 'productos' | 'riego';
 export type IrrigationSystemType = 'goteo' | 'cintilla' | 'aspersion' | 'microaspersion' | 'nebulizacion' | 'otro';
 export type PumpPowerSource = 'solar' | 'cfe' | 'gasolina' | 'existente' | 'gravedad';
 export type ContactPreferred = 'whatsapp' | 'llamada' | 'correo';
@@ -235,6 +239,8 @@ export interface AgroListItem {
   contact_requested_at: string | null;
   questions_count: number;
   cost_usd: number;
+  generating: GeneratingStep | null;
+  generating_since: string | null;
 }
 
 export interface AgroApoyoRef {
@@ -273,11 +279,6 @@ export interface AgroUsageRow {
   error_code: string | null;
 }
 
-// Which step is in flight right now (a storefront tab has an open generation
-// request) — distinct from `status`, which only moves once a step finishes.
-// The detail page shows a "Generando…" badge while this is set.
-export type GeneratingStep = 'plan' | 'productos' | 'riego';
-
 export interface AgroAdmin extends AgroListItem {
   inputs: AgroInputs;
   plan: AgroPlan | null;
@@ -292,8 +293,6 @@ export interface AgroAdmin extends AgroListItem {
   error: string | null;
   model: string | null;
   generation_ms: number | null;
-  generating: GeneratingStep | null;
-  generating_since: string | null;
   public_url: string;
   whatsapp_url: string | null;
   usage: AgroUsageRow[];
