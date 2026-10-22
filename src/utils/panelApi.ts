@@ -30,6 +30,20 @@ export interface PanelData {
       series: { day: string; clicks: number }[];
     };
   };
+  tienda: {
+    last_day: string | null;
+    visits_28d: number | null;
+    visits_prev_28d: number | null;
+    whatsapp_28d: number | null;
+    whatsapp_prev_28d: number | null;
+    series: { day: string; visits: number }[];
+    web_quotes_28d: number;
+    web_quotes_prev_28d: number;
+    paid_orders_28d: number;
+    paid_total_28d: number;
+    paid_orders_all: number;
+    paid_total_all: number;
+  };
   ventas: {
     month: string;
     total: number;

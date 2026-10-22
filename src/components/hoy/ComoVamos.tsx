@@ -4,11 +4,12 @@ import { Check, ChevronDown, Star, TrendingUp } from 'lucide-react';
 import { getPanel, type PanelData, type ProfileMetric } from '@/utils/panelApi';
 import { getFinanceDashboard, type FinanceDashboard } from '@/utils/financeApi';
 
-// «Cómo vamos»: lo primero al entrar. Para todo el equipo: ventas del mes y
-// Google (reseñas, búsquedas, perfil); lo que nos deben y las cotizaciones
-// abiertas ya están abajo en HoyAcciones. Punto de equilibrio y estado de
-// resultados: dueños (hoy, todo el equipo: OWNER_EMAILS sin definir en impag-quot).
-// Números de Google: POST /jobs/google-metrics-sync (diario) en impag-quot.
+// «Cómo vamos»: lo primero al entrar. Para todo el equipo: ventas del mes,
+// Google (reseñas, búsquedas, perfil) y la tienda en línea (Umami + pedidos
+// web); lo que nos deben y las cotizaciones abiertas ya están abajo en
+// HoyAcciones. Punto de equilibrio y estado de resultados: dueños (hoy, todo
+// el equipo: OWNER_EMAILS sin definir en impag-quot).
+// Números de fuera: POST /jobs/google-metrics-sync (diario) en impag-quot.
 
 const OPEN_KEY = 'hoy-panel-open';
 const peso = (n: number) => `$${Math.round(n).toLocaleString('es-MX')}`;
@@ -117,16 +118,16 @@ const PROFILE_ROWS: { key: ProfileMetric; label: string }[] = [
   { key: 'website_clicks', label: 'Clics a la página' },
 ];
 
-/** Clics por semana (7 días que terminan en el último día con datos). */
-function weekly(series: { day: string; clicks: number }[]) {
+/** Totales por semana (7 días que terminan en el último día con datos). */
+function weekly(series: { day: string; value: number }[], unit: string) {
   const out: { key: string; value: number; title: string }[] = [];
   for (let end = series.length; end > 0 && out.length < 13; end -= 7) {
     const week = series.slice(Math.max(0, end - 7), end);
-    const value = week.reduce((a, d) => a + d.clicks, 0);
+    const value = week.reduce((a, d) => a + d.value, 0);
     out.unshift({
       key: week[week.length - 1].day,
       value,
-      title: `Semana al ${shortDate(week[week.length - 1].day)}: ${int(value)} clics`,
+      title: `Semana al ${shortDate(week[week.length - 1].day)}: ${int(value)} ${unit}`,
     });
   }
   return out;
@@ -163,7 +164,13 @@ function GoogleTiles({ g }: { g: PanelData['google'] }) {
             <Value>{int(search.clicks_28d)}</Value>
             <Delta now={search.clicks_28d} before={search.clicks_prev_28d} vs="28 días antes" />
             <Meter value={search.clicks_28d} goal={search.goal} label={`Meta ${search.goal} al ${due}`} />
-            <Bars points={weekly(search.series)} label="Clics por semana, últimas 13 semanas" />
+            <Bars
+              points={weekly(
+                search.series.map((d) => ({ day: d.day, value: d.clicks })),
+                'clics'
+              )}
+              label="Clics por semana, últimas 13 semanas"
+            />
             {search.last_day && <p className="mt-1 text-xs text-gray-400">Datos al {shortDate(search.last_day)}</p>}
           </>
         )}
@@ -200,6 +207,74 @@ function GoogleTiles({ g }: { g: PanelData['google'] }) {
         )}
       </Tile>
     </>
+  );
+}
+
+function MiniStat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs text-gray-500">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+const Big = ({ children }: { children: React.ReactNode }) => (
+  <p className="text-xl font-semibold text-gray-900">{children}</p>
+);
+
+/** todoparaelcampo.com.mx: tráfico (Umami) y lo que la tienda registró. */
+function TiendaTile({ t }: { t: PanelData['tienda'] }) {
+  const vs = '28 días antes';
+  return (
+    <Tile label="Tienda en línea · 28 días" className="sm:col-span-2 lg:col-span-6">
+      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MiniStat label="Visitas">
+          {t.visits_28d === null ? (
+            <p className="mt-1 text-sm text-gray-400">Falta conectar Umami</p>
+          ) : (
+            <>
+              <Big>{int(t.visits_28d)}</Big>
+              <Delta now={t.visits_28d} before={t.visits_prev_28d} vs={vs} />
+              <Bars
+                points={weekly(
+                  t.series.map((d) => ({ day: d.day, value: d.visits })),
+                  'visitas'
+                )}
+                label="Visitas por semana, últimas 13 semanas"
+              />
+            </>
+          )}
+        </MiniStat>
+        <MiniStat label="Clics a WhatsApp">
+          {t.whatsapp_28d === null ? (
+            <p className="mt-1 text-sm text-gray-400">Falta conectar Umami</p>
+          ) : (
+            <>
+              <Big>{int(t.whatsapp_28d)}</Big>
+              <Delta now={t.whatsapp_28d} before={t.whatsapp_prev_28d} vs={vs} />
+            </>
+          )}
+        </MiniStat>
+        <MiniStat label="Cotizaciones web">
+          <Big>{t.web_quotes_28d}</Big>
+          <Delta now={t.web_quotes_28d} before={t.web_quotes_prev_28d} vs={vs} />
+        </MiniStat>
+        <MiniStat label="Pedidos pagados">
+          <Big>
+            {t.paid_orders_28d}
+            {t.paid_orders_28d > 0 && (
+              <span className="ml-1 text-sm font-medium text-gray-500">{peso(t.paid_total_28d)}</span>
+            )}
+          </Big>
+          <p className="text-xs text-gray-500">
+            Desde el inicio: {t.paid_orders_all}
+            {t.paid_orders_all > 0 ? ` · ${peso(t.paid_total_all)}` : ''}
+          </p>
+        </MiniStat>
+      </div>
+      {t.last_day && <p className="mt-2 text-xs text-gray-400">Visitas al {shortDate(t.last_day)}</p>}
+    </Tile>
   );
 }
 
@@ -377,6 +452,8 @@ export default function ComoVamos() {
           </Tile>
 
           <GoogleTiles g={data.google} />
+
+          <TiendaTile t={data.tienda} />
 
           {data.is_owner && <OwnerTiles />}
         </div>
