@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, ClipboardCopy, MessageCircle, X } from 'lucide-react';
+import { CalendarClock, Check, ClipboardCopy, MessageCircle, X } from 'lucide-react';
+import PosponerPanel from './PosponerPanel';
 import {
   KIND_LABEL,
   OUTCOME_LABEL,
@@ -7,6 +8,7 @@ import {
   isPhone,
   logSeguimiento,
   openWhatsApp,
+  posponerSeguimiento,
   saveWaTarget,
   savedWaTarget,
   setSeguimientoOutcome,
@@ -45,6 +47,7 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [postponing, setPostponing] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [waTarget, setWaTarget] = useState<WaTarget>(savedWaTarget);
 
@@ -106,6 +109,12 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
   const alreadyBought = (card: SeguimientoCard) =>
     run(card.key, () => logSeguimiento(card, phoneFor(card), card.message, 'venta'));
 
+  const postpone = (card: SeguimientoCard, due: string, reason: string) =>
+    run(card.key, async () => {
+      await posponerSeguimiento(card, due, reason);
+      setPostponing(null);
+    });
+
   const outcome = (c: SeguimientoContact, value: SeguimientoOutcome) =>
     run(`c${c.id}`, () => setSeguimientoOutcome(c.id, value));
 
@@ -137,7 +146,7 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
       <p className="text-xs text-gray-500 mb-2">
         Cotizaciones sin respuesta, quien compró en esta temporada el año pasado y clientes que dejaron de comprar.
         El botón abre WhatsApp con el mensaje escrito; revísalo y envíalo desde Impag Local. Si ya compró, márcalo
-        con «Ya compró» sin escribirle.
+        con «Ya compró» sin escribirle. Si pidió que le escriban más adelante, «Posponer» lo regresa el día que elijas.
       </p>
       {!isPhone() && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mb-3">
@@ -182,7 +191,7 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
             const digits = digitsFor(card);
             const isBusy = busy === card.key;
             return (
-              <li key={card.key} className="py-3 flex flex-col lg:flex-row lg:items-center gap-2">
+              <li key={card.key} className="py-3 flex flex-col lg:flex-row lg:flex-wrap lg:items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-medium text-gray-900 truncate">{card.customer_name}</span>
@@ -249,6 +258,22 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
                   >
                     Ya compró
                   </button>
+                  {card.quote_ids.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      aria-expanded={postponing === card.key}
+                      onClick={() => {
+                        setConfirming(null);
+                        setPostponing(postponing === card.key ? null : card.key);
+                      }}
+                      title="Pidió que le escriban después: quitarlo hasta la fecha que elijas"
+                      className="inline-flex items-center gap-1.5 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-40"
+                    >
+                      <CalendarClock size={14} />
+                      Posponer
+                    </button>
+                  )}
                   {confirming === card.key ? (
                     <span className="inline-flex items-center gap-1 text-xs">
                       <button
@@ -275,6 +300,14 @@ export default function SeguimientoDelDia({ onChange }: { onChange: () => void }
                     </button>
                   )}
                 </div>
+                {postponing === card.key && (
+                  <PosponerPanel
+                    name={card.customer_name}
+                    busy={isBusy}
+                    onConfirm={(due, reason) => postpone(card, due, reason)}
+                    onCancel={() => setPostponing(null)}
+                  />
+                )}
               </li>
             );
           })}

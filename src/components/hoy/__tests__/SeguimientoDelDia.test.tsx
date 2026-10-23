@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SeguimientoDelDia from '../SeguimientoDelDia';
+import { addMonths, toYmd } from '@/components/quotes/nextAction';
 import { apiRequest } from '@/utils/api';
 import { openWhatsApp, waDigits, waUrl, type SeguimientoDia } from '@/utils/seguimientoApi';
 
@@ -125,4 +126,37 @@ test('without a number: type it to enable WhatsApp, or copy the message', async 
     target: { value: '618 123 4567' },
   });
   expect(screen.getAllByRole('button', { name: 'WhatsApp' })[1]).toBeEnabled();
+});
+
+test('addMonths keeps the day, or the month end when it is shorter', () => {
+  expect(toYmd(addMonths(new Date(2026, 9, 23), 2))).toBe('2026-12-23');
+  expect(toYmd(addMonths(new Date(2026, 0, 31), 1))).toBe('2026-02-28');
+  expect(toYmd(addMonths(new Date(2026, 10, 15), 2))).toBe('2027-01-15');
+});
+
+test('Posponer takes the quote off until the chosen day, only on quote cards', async () => {
+  const onChange = vi.fn();
+  render(<SeguimientoDelDia onChange={onChange} />);
+  await screen.findByText('Morales');
+  expect(screen.getAllByRole('button', { name: 'Posponer' })).toHaveLength(1); // not on the season card
+
+  fireEvent.click(screen.getByRole('button', { name: 'Posponer' }));
+  expect(screen.getByText('¿Cuándo le volvemos a escribir a Morales?')).toBeInTheDocument();
+  const confirm = () => screen.getAllByRole('button', { name: 'Posponer' })[1];
+  expect(confirm()).toBeDisabled();
+
+  fireEvent.click(screen.getByRole('button', { name: /^2 meses/ }));
+  fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: 'espera la pastura' } });
+  fireEvent.click(confirm());
+
+  await waitFor(() => expect(onChange).toHaveBeenCalled());
+  const [endpoint, opts] = mockedApiRequest.mock.calls.find(([, o]) => o?.method === 'POST') ?? [];
+  expect(endpoint).toBe('/hoy/seguimiento/posponer');
+  expect(JSON.parse(String(opts?.body))).toEqual({
+    quote_ids: [7],
+    due: toYmd(addMonths(new Date(), 2)),
+    reason: 'espera la pastura',
+  });
+  expect(openWhatsApp).not.toHaveBeenCalled();
+  expect(screen.queryByText('¿Cuándo le volvemos a escribir a Morales?')).not.toBeInTheDocument();
 });
