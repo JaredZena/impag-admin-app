@@ -5,7 +5,7 @@ import { listQuotes } from '@/utils/quotesApi';
 import type { Quote } from '@/types/quotes';
 import { useAuth } from '@/contexts/AuthContext';
 import NextActionLine from './NextActionLine';
-import { NEXT_STEP_GROUPS, endOfWeek, groupNextSteps, ownerForUser, sameOwner, shortDay, toYmd } from './nextAction';
+import { NEXT_STEP_GROUPS, endOfWeek, groupNextSteps, ownerForUser, sameOwner, shortDay } from './nextAction';
 
 // En el teléfono se ven las primeras 5; «Ver las N» abre el resto.
 const PHONE_ROWS = 5;
@@ -29,7 +29,8 @@ const saveMine = (value: boolean) => {
   }
 };
 
-// «Qué sigue»: lo que hay que hacer con cada cliente de aquí al domingo.
+// «Qué sigue»: lo que hay que hacer con cada cliente de aquí al domingo, más
+// los pasos que se guardaron sin fecha.
 export default function NextStepsSection() {
   const { user } = useAuth();
   const me = ownerForUser(user);
@@ -47,7 +48,9 @@ export default function NextStepsSection() {
     setLoading(true);
     setError(null);
     try {
-      const res = await listQuotes({ next_action_due_to: toYmd(endOfWeek(now)), order: 'next_action', limit: 50 });
+      // Todas las que tienen paso (también las sin fecha); groupNextSteps deja
+      // fuera lo que vence después del domingo. Son pocas: «Hecho» las borra.
+      const res = await listQuotes({ has_next_action: true, order: 'next_action', limit: 200 });
       if (request !== requestRef.current) return;
       setQuotes(res.data);
       setToday(now);
@@ -68,7 +71,7 @@ export default function NextStepsSection() {
     () => groupNextSteps(showMine ? quotes.filter((q) => sameOwner(q.next_action_owner, me)) : quotes, today),
     [quotes, today, showMine, me],
   );
-  const total = groups.overdue.length + groups.today.length + groups.week.length;
+  const total = Object.values(groups).flat().length;
   const mineCount = useMemo(
     () => (me ? Object.values(groupNextSteps(quotes, today)).flat().filter((q) => sameOwner(q.next_action_owner, me)).length : 0),
     [quotes, today, me],

@@ -111,8 +111,9 @@ test('«Hecho» clears the step, then asks «¿Qué sigue?» with the editor ope
   expect(api.setQuoteNextAction).toHaveBeenCalledWith(41, { next_action: null, owner: null, due: null });
   expect(await screen.findByRole('heading', { name: '¿Qué sigue?' })).toBeInTheDocument();
 
-  // Sigue el mismo responsable; texto rápido y «Viernes».
+  // Sigue el mismo responsable, con fecha a una semana ya puesta; texto rápido y «Viernes».
   expect(screen.getByRole('button', { name: 'JD' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByLabelText('Otra fecha')).toHaveValue('2026-10-12');
   await user.click(screen.getByRole('button', { name: 'Llamar al cliente' }));
   await user.click(screen.getByRole('button', { name: /Viernes/ }));
   await user.click(screen.getByRole('button', { name: 'Guardar' }));

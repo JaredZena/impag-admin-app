@@ -107,13 +107,15 @@ describe('groupNextSteps', () => {
   const q = (id: number, due: string | null, next_action: string | null = `Paso ${id}`) =>
     ({ id, next_action, next_action_due: due, next_action_owner: 'Hernán' }) as unknown as Quote;
 
-  test('overdue / today / rest of the week, by date; nothing past Sunday or without a step', () => {
+  test('overdue / today / rest of the week, by date; undated apart; nothing past Sunday or without a step', () => {
     const groups = groupNextSteps(
-      [q(1, '2026-10-09'), q(2, '2026-10-05'), q(3, '2026-10-01'), q(4, '2026-10-12'), q(5, null), q(6, '2026-10-04', null), q(7, '2026-10-06'), q(8, '2026-10-04')],
+      [q(1, '2026-10-09'), q(2, '2026-10-05'), q(3, '2026-10-01'), q(4, '2026-10-12'), q(5, null), q(6, '2026-10-04', null), q(7, '2026-10-06'), q(8, '2026-10-04'), q(9, null, '  '), q(10, null)],
       MONDAY,
     );
     expect(groups.overdue.map((x) => x.id)).toEqual([3, 8]);
     expect(groups.today.map((x) => x.id)).toEqual([2]);
     expect(groups.week.map((x) => x.id)).toEqual([7, 1]);
+    // Sin fecha: en el orden en que llegan; un paso en blanco no cuenta.
+    expect(groups.undated.map((x) => x.id)).toEqual([5, 10]);
   });
 });

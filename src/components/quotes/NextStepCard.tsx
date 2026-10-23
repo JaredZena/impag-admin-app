@@ -8,6 +8,8 @@ import {
   DUE_TONE_CLASS,
   NEXT_ACTION_MAX,
   NEXT_ACTION_OWNERS,
+  NEXT_STEP_DEFAULT_DAYS,
+  addDays,
   dueLabel,
   normalizeOwner,
   ownerForUser,
@@ -65,8 +67,8 @@ export default function NextStepCard({ quote, onChanged }: NextStepCardProps) {
       const updated = await setQuoteNextAction(quote.id, { next_action: null, owner: null, due: null });
       onChanged(updated);
       setJustDone(true);
-      // Lo más común es que el mismo responsable siga con el cliente.
-      openEditor({ text: '', owner: currentOwner ?? me, due: null });
+      // Lo más común es que el mismo responsable siga con el cliente, en una semana.
+      openEditor({ text: '', owner: currentOwner ?? me, due: toYmd(addDays(new Date(), NEXT_STEP_DEFAULT_DAYS)) });
     } catch (err) {
       setError(errorText(err));
     } finally {

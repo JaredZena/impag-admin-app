@@ -29,7 +29,7 @@ const quote = (id: number, status: Quote['status'], total: number, notes: string
   }) as unknown as Quote;
 
 // Llamadas de la lista (no la de «Qué sigue»).
-const listCalls = () => vi.mocked(listQuotes).mock.calls.filter(([p]) => !p?.next_action_due_to);
+const listCalls = () => vi.mocked(listQuotes).mock.calls.filter(([p]) => !p?.has_next_action);
 
 afterEach(() => {
   vi.useRealTimers();
@@ -50,8 +50,8 @@ beforeEach(() => {
     success: true,
     data: { by_status: { sent: { count: 1, total: 18500 }, requested: { count: 1, total: 0 }, accepted: { count: 4, total: 9 } } },
   });
-  vi.mocked(listQuotes).mockImplementation(async ({ status, search, next_action_due_to } = {}) => {
-    if (next_action_due_to) return { data: [], total: 0 };
+  vi.mocked(listQuotes).mockImplementation(async ({ status, search, has_next_action } = {}) => {
+    if (has_next_action) return { data: [], total: 0 };
     if (search) return { data: [], total: 0 };
     if (status === 'sent') return { data: [quote(2, 'sent', 18500, 'Material/Proyecto: Bomba solar 1HP')], total: 1 };
     if (status === 'requested') return { data: [quote(1, 'requested', 0)], total: 1 };
@@ -84,11 +84,11 @@ test('opens on «Abiertas», merging the open statuses, and debounces the search
   expect(screen.getByRole('button', { name: 'Buscar en todas' })).toBeInTheDocument();
 });
 
-test('«Qué sigue» groups this week\'s next steps and filters to mine', async () => {
+test('«Qué sigue» groups this week\'s next steps, undated ones too, and filters to mine', async () => {
   // Lunes 5 de octubre de 2026; la semana cierra el domingo 11.
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 9, 5, 9, 0));
-  const step = (id: number, due: string, owner: string, total = 0) => ({
+  const step = (id: number, due: string | null, owner: string, total = 0) => ({
     ...quote(id, 'sent', total),
     customer_name: `Cliente paso ${id}`,
     next_action: `Paso ${id}`,
@@ -97,16 +97,18 @@ test('«Qué sigue» groups this week\'s next steps and filters to mine', async 
   });
   const base = vi.mocked(listQuotes).getMockImplementation()!;
   vi.mocked(listQuotes).mockImplementation(async (params = {}) => {
-    if (!params.next_action_due_to) return base(params);
+    if (!params.has_next_action) return base(params);
     return {
       data: [
         step(3, '2026-10-02', 'JD', 89500),
         step(4, '2026-10-05', 'Hernán'),
         step(5, '2026-10-08', 'hernan', 12000),
-        // Fuera de la semana: el backend no debería mandarla, y si la manda no se muestra.
+        // Después del domingo: no se muestra.
         step(6, '2026-10-20', 'Hernán'),
+        // Guardada sin fecha: va en «Sin fecha», no se esconde.
+        step(7, null, 'Hernán'),
       ],
-      total: 4,
+      total: 5,
     };
   });
 
@@ -119,7 +121,7 @@ test('«Qué sigue» groups this week\'s next steps and filters to mine', async 
 
   const section = await screen.findByRole('region', { name: 'Qué sigue' });
   expect(await within(section).findByText('Atrasadas · 1')).toBeInTheDocument();
-  expect(vi.mocked(listQuotes)).toHaveBeenCalledWith({ next_action_due_to: '2026-10-11', order: 'next_action', limit: 50 });
+  expect(vi.mocked(listQuotes)).toHaveBeenCalledWith({ has_next_action: true, order: 'next_action', limit: 200 });
   expect(within(section).getByText('hasta el dom 11')).toBeInTheDocument();
   expect(within(section).getByText('Hoy · 1')).toBeInTheDocument();
   expect(within(section).getByText('Esta semana · 1')).toBeInTheDocument();
@@ -127,13 +129,16 @@ test('«Qué sigue» groups this week\'s next steps and filters to mine', async 
   expect(within(section).getByText('$89,500.00')).toBeInTheDocument();
   expect(within(section).getByRole('link', { name: /Cliente paso 5/ })).toHaveAttribute('href', '/quotes/5');
   expect(within(section).queryByText('Cliente paso 6')).not.toBeInTheDocument();
+  expect(within(section).getByText('Sin fecha · 1')).toBeInTheDocument();
+  expect(within(section).getByRole('link', { name: /Cliente paso 7/ })).toHaveAttribute('href', '/quotes/7');
 
-  const mine = within(section).getByRole('button', { name: 'Solo míos · 2' });
+  const mine = within(section).getByRole('button', { name: 'Solo míos · 3' });
   await user.click(mine);
   expect(mine).toHaveAttribute('aria-pressed', 'true');
   expect(within(section).queryByText('Cliente paso 3')).not.toBeInTheDocument();
   expect(within(section).getByText('Cliente paso 4')).toBeInTheDocument();
   expect(within(section).getByText('Cliente paso 5')).toBeInTheDocument();
+  expect(within(section).getByText('Cliente paso 7')).toBeInTheDocument();
 });
 
 test('«Qué sigue» empty state', async () => {

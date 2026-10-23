@@ -145,31 +145,39 @@ export function quickDueOptions(today: Date): { label: string; ymd: string; hint
 
 // ==================== «Qué sigue» ====================
 
-export type NextStepGroup = 'overdue' | 'today' | 'week';
+export type NextStepGroup = 'overdue' | 'today' | 'week' | 'undated';
 
 export const NEXT_STEP_GROUPS: { key: NextStepGroup; label: string; className: string }[] = [
   { key: 'overdue', label: 'Atrasadas', className: 'text-red-600' },
   { key: 'today', label: 'Hoy', className: 'text-amber-700' },
   { key: 'week', label: 'Esta semana', className: 'text-gray-500' },
+  { key: 'undated', label: 'Sin fecha', className: 'text-gray-500' },
 ];
+
+// Fecha que se propone para el siguiente paso después de «Hecho»: una semana,
+// el ritmo de seguimiento que pidió Hernán.
+export const NEXT_STEP_DEFAULT_DAYS = 7;
 
 /**
  * Cotizaciones con un siguiente paso que vence a más tardar el domingo, por
- * grupo y en orden de fecha. Se filtra aquí también por si el backend todavía
- * no entiende next_action_due_to y devuelve la lista completa.
+ * grupo y en orden de fecha, más las que tienen paso pero no fecha («Sin
+ * fecha», en el orden en que llegan): un paso escrito a mano nunca se esconde.
+ * Lo que vence después del domingo se queda fuera.
  */
 export function groupNextSteps(quotes: Quote[], today: Date): Record<NextStepGroup, Quote[]> {
   const todayYmd = toYmd(today);
   const sundayYmd = toYmd(endOfWeek(today));
-  const groups: Record<NextStepGroup, Quote[]> = { overdue: [], today: [], week: [] };
-  const dated = quotes
-    .map((q) => ({ q, due: parseYmd(q.next_action_due) }))
-    .filter((x): x is { q: Quote; due: Date } => Boolean(x.q.next_action?.trim()) && x.due !== null)
-    .map(({ q, due }) => ({ q, ymd: toYmd(due) }))
-    .filter((x) => x.ymd <= sundayYmd)
-    .sort((a, b) => a.ymd.localeCompare(b.ymd) || a.q.id - b.q.id);
-  for (const { q, ymd } of dated) {
-    groups[ymd < todayYmd ? 'overdue' : ymd === todayYmd ? 'today' : 'week'].push(q);
+  const groups: Record<NextStepGroup, Quote[]> = { overdue: [], today: [], week: [], undated: [] };
+  const withStep = quotes.filter((q) => Boolean(q.next_action?.trim()));
+  const dated: { q: Quote; ymd: string }[] = [];
+  for (const q of withStep) {
+    const due = parseYmd(q.next_action_due);
+    if (due) dated.push({ q, ymd: toYmd(due) });
+    else groups.undated.push(q);
   }
+  dated
+    .filter((x) => x.ymd <= sundayYmd)
+    .sort((a, b) => a.ymd.localeCompare(b.ymd) || a.q.id - b.q.id)
+    .forEach(({ q, ymd }) => groups[ymd < todayYmd ? 'overdue' : ymd === todayYmd ? 'today' : 'week'].push(q));
   return groups;
 }
