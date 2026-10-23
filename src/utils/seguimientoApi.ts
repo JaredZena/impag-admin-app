@@ -137,8 +137,9 @@ export const setSeguimientoOutcome = (id: number, outcome: SeguimientoOutcome) =
 
 // «Posponer»: el cliente pidió que le escribieran después. La cotización queda
 // con ese siguiente paso y vuelve a la lista el día `due` (YYYY-MM-DD).
-export const posponerSeguimiento = (card: SeguimientoCard, due: string, reason?: string) =>
+// El motivo es obligatorio: es lo que hay que retomar meses después.
+export const posponerSeguimiento = (card: SeguimientoCard, due: string, reason: string) =>
   apiRequest('/hoy/seguimiento/posponer', {
     method: 'POST',
-    body: JSON.stringify({ quote_ids: card.quote_ids, due, reason: reason?.trim() || null }),
+    body: JSON.stringify({ quote_ids: card.quote_ids, due, reason: reason.trim() }),
   }) as Promise<{ data: { quote_ids: number[]; due: string } }>;

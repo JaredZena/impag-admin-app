@@ -146,7 +146,11 @@ test('Posponer takes the quote off until the chosen day, only on quote cards', a
   expect(confirm()).toBeDisabled();
 
   fireEvent.click(screen.getByRole('button', { name: /^2 meses/ }));
-  fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: 'espera la pastura' } });
+  expect(confirm()).toBeDisabled(); // the reason is required
+  fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: '   ' } });
+  expect(confirm()).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: ' espera la pastura ' } });
+  expect(confirm()).toBeEnabled();
   fireEvent.click(confirm());
 
   await waitFor(() => expect(onChange).toHaveBeenCalled());

@@ -57,15 +57,17 @@ export default function PosponerPanel({
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         maxLength={120}
-        placeholder="Motivo (opcional): espera la pastura"
+        required
+        placeholder="Motivo: qué está esperando (ej. que le llegue la pastura)"
         aria-label="Motivo"
         className="mt-2 w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white"
       />
       <div className="flex flex-wrap items-center gap-2 mt-2">
         <button
           type="button"
-          disabled={!due || busy}
-          onClick={() => due && onConfirm(due, reason)}
+          disabled={!due || !reason.trim() || busy}
+          title={due && !reason.trim() ? 'Escribe el motivo' : undefined}
+          onClick={() => due && reason.trim() && onConfirm(due, reason)}
           className="bg-gray-900 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-40"
         >
           Posponer
