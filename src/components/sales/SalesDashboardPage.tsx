@@ -6,6 +6,7 @@ import { getPipelineSummary } from '@/utils/quotesApi';
 import type { QuotePipelineSummary } from '@/types/quotes';
 import { useNotifications } from '@/components/ui/notification';
 import CaptureSaleDialog from './CaptureSaleDialog';
+import CustomerTypesCard from './CustomerTypesCard';
 import { useOpenFromLink } from '@/hooks/useOpenFromLink';
 import LoadError from '@/components/ui/LoadError';
 import { daysAgoLabel, saleReasonLabel, ventaNumberLabel } from './salesLabels';
@@ -1696,6 +1697,11 @@ export default function SalesDashboardPage() {
               </Card>
             </div>
           )
+        )}
+
+        {/* Clientes por tipo de productor (según lo que compraron) */}
+        {stats && (
+          <CustomerTypesCard key={`types-${reloadKey}`} years={[...new Set(stats.monthly.map((m) => m.year))]} />
         )}
 
         {/* Detalle técnico */}
