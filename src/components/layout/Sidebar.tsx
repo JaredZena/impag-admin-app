@@ -29,7 +29,8 @@ import {
   Sprout,
   Landmark,
   Lightbulb,
-  Gauge
+  Gauge,
+  Store
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -72,6 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', isCollapsed, toggleCo
       icon: <Package size={20} />,
       items: [
         { path: '/product-admin', label: 'Precios de venta', icon: <Tag size={20} /> },
+        { path: '/tienda', label: 'Tienda en línea', icon: <Store size={20} /> },
         { path: '/stock', label: 'Stock', icon: <ClipboardList size={20} /> },
         { path: '/supplier-products', label: 'Costos de proveedor', icon: <Package size={20} /> },
         { path: '/suppliers', label: 'Proveedores', icon: <Users size={20} /> },

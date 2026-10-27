@@ -51,6 +51,7 @@ const ApoyoEditorPage = lazy(() => import('./components/campo/ApoyoEditorPage'))
 const AgroPage = lazy(() => import('./components/campo/AgroPage'));
 const AgroDetailPage = lazy(() => import('./components/campo/AgroDetailPage'));
 const AIUsagePage = lazy(() => import('./components/campo/AIUsagePage'));
+const StoreVisibilityPage = lazy(() => import('./components/store/StoreVisibilityPage'));
 
 const AppContent: React.FC = () => {
   const { sessionExpired, forceReauthenticate, clearSessionExpired, reauthenticate } = useAuth();
@@ -105,6 +106,7 @@ const AppContent: React.FC = () => {
         <Suspense fallback={<div className="py-16 text-center text-sm text-gray-500">Cargando…</div>}>
         <Routes>
           <Route path="/product-admin" element={<ProductManagementPage />} />
+          <Route path="/tienda" element={<StoreVisibilityPage />} />
           <Route path="/product-admin/new" element={<ProductFormPage />} />
           <Route path="/product-admin/edit/:productId" element={<ProductFormPage />} />
           <Route path="/product-admin/:productId" element={<ProductDetailPage />} />
