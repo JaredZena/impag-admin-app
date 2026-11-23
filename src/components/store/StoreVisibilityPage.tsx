@@ -1,7 +1,9 @@
 // «Tienda en línea»: every page of todoparaelcampo.com.mx with its
 // «Mostrar en la tienda» switch. Switching saves at once (impag-quot
 // storefront_page_visibility); the store changes on the next «Publicar en
-// tienda» (or the daily 7 am publish). See src/utils/storeVisibility.ts.
+// tienda» (or the daily 7 am publish). «Ligar producto» picks the product that
+// prices each page the same way (storefront_page_link). See
+// src/utils/storeVisibility.ts.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -11,13 +13,18 @@ import LoadError from '@/components/ui/LoadError';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useNotifications } from '@/components/ui/notification';
 import PublishStorefrontButton from '@/components/product/PublishStorefrontButton';
+import LinkProductDialog from '@/components/store/LinkProductDialog';
 import { STORE_BASE_URL } from '@/hooks/useStoreLinks';
 import {
+  fetchLinkRows,
   fetchStorePages,
   fetchVisibilityRows,
   filterPages,
   mergeVisibility,
+  saveLink,
   saveVisibility,
+  type LinkRow,
+  type ProductOption,
   type StorePage,
   type StorePageState,
   type StorePageView,
@@ -28,13 +35,14 @@ import {
 const STATE_LABEL: Record<StorePageState, { text: string; className: string }> = {
   online: { text: 'Se vende en línea', className: 'bg-green-100 text-green-800' },
   price: { text: 'Precio publicado', className: 'bg-teal-50 text-teal-800' },
-  ask: { text: 'Precio por confirmar', className: 'bg-gray-100 text-gray-700' },
+  ask: { text: 'Precio a cotizar', className: 'bg-gray-100 text-gray-700' },
 };
 
 const FILTERS: { key: VisibilityFilter; label: string }[] = [
   { key: 'all', label: 'Todas' },
   { key: 'shown', label: 'En la tienda' },
   { key: 'hidden', label: 'Ocultas' },
+  { key: 'unlinked', label: 'Sin ligar' },
   { key: 'pending', label: 'Por publicar' },
 ];
 
@@ -48,6 +56,8 @@ const StoreVisibilityPage: React.FC = () => {
   const { addNotification } = useNotifications();
   const [pages, setPages] = useState<StorePage[] | null>(null);
   const [rows, setRows] = useState<VisibilityRow[]>([]);
+  const [links, setLinks] = useState<LinkRow[]>([]);
+  const [linking, setLinking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -57,9 +67,10 @@ const StoreVisibilityPage: React.FC = () => {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [p, r] = await Promise.all([fetchStorePages(), fetchVisibilityRows()]);
+      const [p, r, l] = await Promise.all([fetchStorePages(), fetchVisibilityRows(), fetchLinkRows()]);
       setPages(p);
       setRows(r);
+      setLinks(l);
     } catch (err) {
       setError((err instanceof Error && err.message) || 'No se pudo cargar la tienda.');
     }
@@ -69,7 +80,8 @@ const StoreVisibilityPage: React.FC = () => {
     load();
   }, [load]);
 
-  const views = useMemo(() => mergeVisibility(pages ?? [], rows), [pages, rows]);
+  const views = useMemo(() => mergeVisibility(pages ?? [], rows, links), [pages, rows, links]);
+  const linkingPage = useMemo(() => views.find((v) => v.handle === linking) ?? null, [views, linking]);
   const visible = useMemo(() => filterPages(views, query, filter, category), [views, query, filter, category]);
   const categories = useMemo(() => {
     const seen = new Map<string, string>();
@@ -81,6 +93,7 @@ const StoreVisibilityPage: React.FC = () => {
       all: views.length,
       shown: views.filter((v) => v.shown).length,
       hidden: views.filter((v) => !v.shown).length,
+      unlinked: views.filter((v) => v.productId === null).length,
       pending: views.filter((v) => v.pending).length,
     }),
     [views],
@@ -113,6 +126,35 @@ const StoreVisibilityPage: React.FC = () => {
     }
   };
 
+  const link = async (page: StorePageView, product: ProductOption | null) => {
+    setSaving((s) => new Set(s).add(page.handle));
+    try {
+      const saved = await saveLink(page.handle, product ? product.id : null);
+      setLinks((current) => [...current.filter((l) => l.handle !== saved.handle), saved]);
+      setLinking(null);
+      addNotification({
+        type: 'success',
+        title: product ? 'Producto ligado' : 'Producto quitado',
+        message: product
+          ? `«${page.title}» toma el precio de «${product.name}» al pulsar «Publicar en tienda».`
+          : `«${page.title}» queda «a cotizar» al pulsar «Publicar en tienda».`,
+        duration: 6000,
+      });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'No se guardó el cambio',
+        message: (err instanceof Error && err.message) || 'Intenta de nuevo.',
+      });
+    } finally {
+      setSaving((s) => {
+        const next = new Set(s);
+        next.delete(page.handle);
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
       <div className="container mx-auto max-w-5xl px-3 sm:px-4 md:px-6 pt-20 pb-8">
@@ -122,8 +164,9 @@ const StoreVisibilityPage: React.FC = () => {
               Tienda en línea
             </h1>
             <p className="text-sm sm:text-base text-gray-600">
-              Prende o apaga cada página de todoparaelcampo.com.mx. Una página apagada sale de la tienda, del buscador y
-              de Google; los cambios se ven al pulsar «Publicar en tienda».
+              Prende o apaga cada página de todoparaelcampo.com.mx y liga cada una al producto que le da su precio. Una
+              página apagada sale de la tienda, del buscador y de Google; los cambios se ven al pulsar «Publicar en
+              tienda».
             </p>
           </div>
           <PublishStorefrontButton />
@@ -184,16 +227,41 @@ const StoreVisibilityPage: React.FC = () => {
         ) : (
           <Card className="divide-y divide-gray-100 border-0 shadow-sm rounded-xl overflow-hidden">
             {visible.map((p) => (
-              <PageRow key={p.handle} page={p} saving={saving.has(p.handle)} onToggle={() => toggle(p)} />
+              <PageRow
+                key={p.handle}
+                page={p}
+                saving={saving.has(p.handle)}
+                onToggle={() => toggle(p)}
+                onLink={() => setLinking(p.handle)}
+              />
             ))}
           </Card>
         )}
       </div>
+      {linkingPage && (
+        <LinkProductDialog
+          page={linkingPage}
+          saving={saving.has(linkingPage.handle)}
+          onPick={(product) => link(linkingPage, product)}
+          onUnlink={() => link(linkingPage, null)}
+          onClose={() => setLinking(null)}
+        />
+      )}
     </div>
   );
 };
 
-function PageRow({ page, saving, onToggle }: { page: StorePageView; saving: boolean; onToggle: () => void }) {
+function PageRow({
+  page,
+  saving,
+  onToggle,
+  onLink,
+}: {
+  page: StorePageView;
+  saving: boolean;
+  onToggle: () => void;
+  onLink: () => void;
+}) {
   const state = STATE_LABEL[page.state];
   const changed = page.row?.updated_by ? `${page.row.updated_by.split('@')[0]} · ${formatDate(page.row.updated_at)}` : '';
   return (
@@ -206,12 +274,25 @@ function PageRow({ page, saving, onToggle }: { page: StorePageView; saving: bool
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
           <span>{page.category}</span>
           <span className={`rounded px-1.5 py-0.5 ${state.className}`}>{state.text}</span>
-          {page.backend_id ? (
-            <Link to={`/product-admin/${page.backend_id}`} className="text-emerald-700 underline">
-              Producto #{page.backend_id}
-            </Link>
+          {page.productId ? (
+            <>
+              <Link to={`/product-admin/${page.productId}`} className="text-emerald-700 underline">
+                Producto #{page.productId}
+              </Link>
+              <button type="button" onClick={onLink} disabled={saving} className="border-0 bg-transparent p-0 text-xs font-normal text-emerald-700 underline disabled:opacity-50">
+                Cambiar
+              </button>
+            </>
           ) : (
-            <span title="Sin producto en el sistema: su precio no se cotiza solo">Sin ligar al sistema</span>
+            <button
+              type="button"
+              onClick={onLink}
+              disabled={saving}
+              title="Sin producto en el sistema: el precio que cambies en Productos no llega a esta página"
+              className="rounded border-0 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+            >
+              Sin ligar · Ligar producto
+            </button>
           )}
           {!page.hidden && (
             <a href={`${STORE_BASE_URL}/producto/${page.handle}`} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline">
@@ -220,9 +301,16 @@ function PageRow({ page, saving, onToggle }: { page: StorePageView; saving: bool
           )}
           {changed && <span>{changed}</span>}
         </div>
-        {page.pending && (
+        {page.shownPending && (
           <p className="mt-1 text-xs font-medium text-amber-700">
             {page.shown ? 'Vuelve a la tienda al publicar' : 'Sale de la tienda al publicar'}
+          </p>
+        )}
+        {page.linkPending && (
+          <p className="mt-1 text-xs font-medium text-amber-700">
+            {page.productId
+              ? `Toma el precio de «${page.linkRow?.product_name ?? `Producto #${page.productId}`}» al publicar`
+              : 'Queda sin producto al publicar'}
           </p>
         )}
       </div>

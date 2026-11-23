@@ -6,6 +6,10 @@
 // - GET /storefront/pages/visibility (impag-quot): what the team switched,
 //   which reaches the store on the next «Publicar en tienda».
 // A page whose switch differs from the published state is "pending".
+//
+// «Ligar producto» works the same way: GET /storefront/pages/links holds the
+// product the team picked for a page (or "none"), store-pages.json's
+// backend_id is the link the last publish used.
 
 import { STORE_BASE_URL } from '@/hooks/useStoreLinks';
 import { apiRequest, ApiError } from '@/utils/api';
@@ -32,12 +36,28 @@ export interface VisibilityRow {
   updated_at: string | null;
 }
 
+/** A link picked in the admin; product_id null = the page has no product. */
+export interface LinkRow {
+  handle: string;
+  product_id: number | null;
+  product_name: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
 export interface StorePageView extends StorePage {
   /** The switch: true = on the store (after the next publish). */
   shown: boolean;
   /** The switch differs from what the store shows today. */
+  shownPending: boolean;
+  /** The product that prices the page after the next publish (null = none). */
+  productId: number | null;
+  /** The picked product differs from the one the store uses today. */
+  linkPending: boolean;
+  /** Either of the above: something waits for «Publicar en tienda». */
   pending: boolean;
   row: VisibilityRow | null;
+  linkRow: LinkRow | null;
 }
 
 const STATES: readonly StorePageState[] = ['online', 'price', 'ask'];
@@ -66,16 +86,25 @@ export function parseStorePages(data: unknown): StorePage[] {
   }));
 }
 
-export function mergeVisibility(pages: readonly StorePage[], rows: readonly VisibilityRow[]): StorePageView[] {
+export function mergeVisibility(
+  pages: readonly StorePage[],
+  rows: readonly VisibilityRow[],
+  links: readonly LinkRow[] = [],
+): StorePageView[] {
   const byHandle = new Map(rows.map((r) => [r.handle, r]));
+  const linkByHandle = new Map(links.map((l) => [l.handle, l]));
   return pages.map((p) => {
     const row = byHandle.get(p.handle) ?? null;
+    const linkRow = linkByHandle.get(p.handle) ?? null;
     const shown = row ? !row.hidden : !p.hidden;
-    return { ...p, shown, pending: shown === p.hidden, row };
+    const shownPending = shown === p.hidden;
+    const productId = linkRow ? linkRow.product_id : p.backend_id;
+    const linkPending = productId !== p.backend_id;
+    return { ...p, shown, shownPending, productId, linkPending, pending: shownPending || linkPending, row, linkRow };
   });
 }
 
-export type VisibilityFilter = 'all' | 'shown' | 'hidden' | 'pending';
+export type VisibilityFilter = 'all' | 'shown' | 'hidden' | 'unlinked' | 'pending';
 
 /** Accent- and case-insensitive search over title and handle, plus the filter chips. */
 export function filterPages(
@@ -90,6 +119,7 @@ export function filterPages(
     if (category && p.category_slug !== category) return false;
     if (filter === 'shown' && !p.shown) return false;
     if (filter === 'hidden' && p.shown) return false;
+    if (filter === 'unlinked' && p.productId !== null) return false;
     if (filter === 'pending' && !p.pending) return false;
     const text = fold(`${p.title} ${p.handle}`);
     return words.every((w) => text.includes(w));
@@ -117,4 +147,55 @@ export const saveVisibility = async (handle: string, hidden: boolean, note?: str
     if (err instanceof ApiError && err.status === 422) throw new Error('No se pudo guardar: la página no es válida.');
     throw err instanceof Error ? err : new Error('No se pudo guardar.');
   }
+};
+
+export const fetchLinkRows = async (): Promise<LinkRow[]> => {
+  const data = await apiRequest('/storefront/pages/links');
+  return Array.isArray(data?.links) ? (data.links as LinkRow[]) : [];
+};
+
+export const saveLink = async (handle: string, productId: number | null): Promise<LinkRow> => {
+  try {
+    return await apiRequest('/storefront/pages/link', {
+      method: 'PUT',
+      body: JSON.stringify({ handle, product_id: productId }),
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) throw new Error('Ese producto ya no está activo en el sistema.');
+    if (err instanceof ApiError && err.status === 422) throw new Error('No se pudo guardar: la página no es válida.');
+    throw err instanceof Error ? err : new Error('No se pudo guardar.');
+  }
+};
+
+/** A product the picker offers (GET /products?name=…, the same fuzzy search as Productos). */
+export interface ProductOption {
+  id: number;
+  name: string;
+  sku: string | null;
+  unit: string | null;
+  price: number | null;
+  calculated_price: number | null;
+}
+
+/** Why a linked page would still say «Precio a cotizar» after publishing, or null when it shows the price. */
+export function priceBlocker(p: ProductOption): string | null {
+  const price = p.price ?? 0;
+  const cost = p.calculated_price ?? 0;
+  if (price <= 0) return 'Sin precio: seguirá «a cotizar»';
+  if (cost <= 0) return 'Sin costo de proveedor: seguirá «a cotizar»';
+  if (price < cost * 0.98) return 'Precio abajo del costo + margen: seguirá «a cotizar»';
+  return null;
+}
+
+/** First words of a store title, without the marketing tail ("– Para Invernaderos"), to start the search. */
+export function searchSeed(title: string): string {
+  const head = title.split(/\s[–—|-]\s|\(/)[0];
+  return head.split(/\s+/).filter(Boolean).slice(0, 5).join(' ');
+}
+
+export const searchProducts = async (q: string, signal?: AbortSignal): Promise<ProductOption[]> => {
+  const params = new URLSearchParams({ name: q, is_active: 'true', limit: '12' });
+  const data = await apiRequest(`/products?${params.toString()}`, { signal });
+  const rows = Array.isArray(data?.data) ? (data.data as ProductOption[]) : [];
+  return rows.filter((r) => Number.isInteger(r.id) && typeof r.name === 'string');
 };
