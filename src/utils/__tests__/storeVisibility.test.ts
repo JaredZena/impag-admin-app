@@ -17,6 +17,7 @@ const page = (handle: string, extra: Partial<StorePage> = {}): StorePage => ({
   backend_id: null,
   state: 'ask',
   hidden: false,
+  admin_page: false,
   ...extra,
 });
 

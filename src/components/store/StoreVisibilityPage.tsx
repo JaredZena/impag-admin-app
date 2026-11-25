@@ -2,11 +2,12 @@
 // «Mostrar en la tienda» switch. Switching saves at once (impag-quot
 // storefront_page_visibility); the store changes on the next «Publicar en
 // tienda» (or the daily 7 am publish). «Ligar producto» picks the product that
-// prices each page the same way (storefront_page_link). See
-// src/utils/storeVisibility.ts.
+// prices each page the same way (storefront_page_link), and «Nueva página»
+// makes a page from a product (storefront_new_page). See
+// src/utils/storeVisibility.ts and src/utils/storeNewPage.ts.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import LoadError from '@/components/ui/LoadError';
@@ -14,7 +15,9 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useNotifications } from '@/components/ui/notification';
 import PublishStorefrontButton from '@/components/product/PublishStorefrontButton';
 import LinkProductDialog from '@/components/store/LinkProductDialog';
+import NewPageDialog from '@/components/store/NewPageDialog';
 import { STORE_BASE_URL } from '@/hooks/useStoreLinks';
+import { createNewPage, deleteNewPage, fetchNewPageRows, type NewPageRow } from '@/utils/storeNewPage';
 import {
   fetchLinkRows,
   fetchStorePages,
@@ -63,14 +66,27 @@ const StoreVisibilityPage: React.FC = () => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<VisibilityFilter>('all');
   const [category, setCategory] = useState('');
+  const [newRows, setNewRows] = useState<NewPageRow[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const nuevaParam = Number(searchParams.get('nueva'));
+  const [creating, setCreating] = useState<{ productId: number | null } | null>(() =>
+    searchParams.has('nueva') ? { productId: Number.isInteger(nuevaParam) && nuevaParam > 0 ? nuevaParam : null } : null,
+  );
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [p, r, l] = await Promise.all([fetchStorePages(), fetchVisibilityRows(), fetchLinkRows()]);
+      const [p, r, l, n] = await Promise.all([
+        fetchStorePages(),
+        fetchVisibilityRows(),
+        fetchLinkRows(),
+        // A failed list of new pages must not hide the store's pages.
+        fetchNewPageRows().catch(() => [] as NewPageRow[]),
+      ]);
       setPages(p);
       setRows(r);
       setLinks(l);
+      setNewRows(n);
     } catch (err) {
       setError((err instanceof Error && err.message) || 'No se pudo cargar la tienda.');
     }
@@ -81,6 +97,14 @@ const StoreVisibilityPage: React.FC = () => {
   }, [load]);
 
   const views = useMemo(() => mergeVisibility(pages ?? [], rows, links), [pages, rows, links]);
+  const newRowByHandle = useMemo(() => new Map(newRows.map((r) => [r.handle, r])), [newRows]);
+  // Rows the store doesn't have yet: they appear on the next publish.
+  const waitingNew = useMemo(() => {
+    const live = new Set((pages ?? []).map((p) => p.handle));
+    return newRows.filter((r) => !live.has(r.handle));
+  }, [pages, newRows]);
+  // Admin-made pages whose row was deleted: they leave on the next publish.
+  const leaving = useMemo(() => views.filter((v) => v.admin_page && !newRowByHandle.has(v.handle)), [views, newRowByHandle]);
   const linkingPage = useMemo(() => views.find((v) => v.handle === linking) ?? null, [views, linking]);
   const visible = useMemo(() => filterPages(views, query, filter, category), [views, query, filter, category]);
   const categories = useMemo(() => {
@@ -98,6 +122,78 @@ const StoreVisibilityPage: React.FC = () => {
     }),
     [views],
   );
+  const waitingTotal = counts.pending + waitingNew.length + leaving.length;
+  const categoryName = useMemo(() => new Map(categories), [categories]);
+
+  const closeCreate = () => {
+    setCreating(null);
+    if (searchParams.has('nueva')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('nueva');
+      setSearchParams(next, { replace: true });
+    }
+  };
+
+  const created = (row: NewPageRow, title: string) => {
+    setNewRows((current) => [row, ...current.filter((r) => r.handle !== row.handle)]);
+    closeCreate();
+    addNotification({
+      type: 'success',
+      title: 'Página creada',
+      message: `«${title}» sale en la tienda al pulsar «Publicar en tienda».`,
+      duration: 7000,
+    });
+  };
+
+  const removeNew = async (handle: string, title: string, published: boolean) => {
+    setSaving((s) => new Set(s).add(handle));
+    try {
+      await deleteNewPage(handle);
+      setNewRows((current) => current.filter((r) => r.handle !== handle));
+      addNotification({
+        type: 'success',
+        title: published ? 'Página por quitar' : 'Página cancelada',
+        message: published
+          ? `«${title}» sale de la tienda al pulsar «Publicar en tienda».`
+          : `«${title}» ya no se va a crear.`,
+        duration: 6000,
+      });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'No se guardó el cambio',
+        message: (err instanceof Error && err.message) || 'Intenta de nuevo.',
+      });
+    } finally {
+      setSaving((s) => {
+        const next = new Set(s);
+        next.delete(handle);
+        return next;
+      });
+    }
+  };
+
+  // Undo «Borrar página» before publishing: the same page, product and category again.
+  const keepAdminPage = async (page: StorePageView) => {
+    if (page.backend_id === null) return;
+    setSaving((s) => new Set(s).add(page.handle));
+    try {
+      const row = await createNewPage(page.handle, page.backend_id, page.category_slug);
+      setNewRows((current) => [row, ...current.filter((r) => r.handle !== row.handle)]);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'No se guardó el cambio',
+        message: (err instanceof Error && err.message) || 'Intenta de nuevo.',
+      });
+    } finally {
+      setSaving((s) => {
+        const next = new Set(s);
+        next.delete(page.handle);
+        return next;
+      });
+    }
+  };
 
   const toggle = async (page: StorePageView) => {
     const hidden = page.shown;
@@ -164,18 +260,65 @@ const StoreVisibilityPage: React.FC = () => {
               Tienda en línea
             </h1>
             <p className="text-sm sm:text-base text-gray-600">
-              Prende o apaga cada página de todoparaelcampo.com.mx y liga cada una al producto que le da su precio. Una
-              página apagada sale de la tienda, del buscador y de Google; los cambios se ven al pulsar «Publicar en
-              tienda».
+              Prende o apaga cada página de todoparaelcampo.com.mx, liga cada una al producto que le da su precio o crea
+              una página nueva desde un producto. Una página apagada sale de la tienda, del buscador y de Google; los
+              cambios se ven al pulsar «Publicar en tienda».
             </p>
           </div>
-          <PublishStorefrontButton />
+          <div className="flex flex-wrap items-start gap-2">
+            <button
+              type="button"
+              onClick={() => setCreating({ productId: null })}
+              disabled={pages === null}
+              className="rounded-md border-0 bg-white px-3 py-2 text-sm font-medium text-emerald-700 shadow-sm ring-1 ring-emerald-200 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              + Nueva página
+            </button>
+            <PublishStorefrontButton />
+          </div>
         </div>
 
-        {counts.pending > 0 && (
+        {waitingTotal > 0 && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {counts.pending === 1 ? '1 cambio espera' : `${counts.pending} cambios esperan`} a que pulses «Publicar en tienda».
+            {waitingTotal === 1 ? '1 cambio espera' : `${waitingTotal} cambios esperan`} a que pulses «Publicar en tienda».
           </div>
+        )}
+
+        {waitingNew.length > 0 && (
+          <Card className="mb-4 border-0 shadow-sm rounded-xl overflow-hidden">
+            <p className="border-b border-gray-100 px-3 sm:px-4 py-2 text-sm font-medium text-gray-800">
+              Páginas nuevas por publicar
+            </p>
+            <div className="divide-y divide-gray-100">
+              {waitingNew.map((r) => (
+                <div key={r.handle} className="flex items-center gap-3 px-3 sm:px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-gray-900">{r.title ?? r.product_name ?? `Producto #${r.product_id}`}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                      <span>{categoryName.get(r.category_slug) ?? r.category_slug}</span>
+                      <Link to={`/product-admin/${r.product_id}`} className="text-emerald-700 underline">
+                        Producto #{r.product_id}
+                      </Link>
+                      {r.created_by && (
+                        <span>
+                          {r.created_by.split('@')[0]} · {formatDate(r.created_at)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-amber-700">Se crea al publicar</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeNew(r.handle, r.title ?? r.product_name ?? r.handle, false)}
+                    disabled={saving.has(r.handle)}
+                    className="border-0 bg-transparent p-0 text-sm font-normal text-red-700 underline disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </Card>
         )}
 
         <Card className="p-3 sm:p-4 mb-4 shadow-sm border-0 rounded-xl">
@@ -233,11 +376,24 @@ const StoreVisibilityPage: React.FC = () => {
                 saving={saving.has(p.handle)}
                 onToggle={() => toggle(p)}
                 onLink={() => setLinking(p.handle)}
+                adminRow={newRowByHandle.get(p.handle) ?? null}
+                onRemove={() => removeNew(p.handle, p.title, true)}
+                onKeep={() => keepAdminPage(p)}
               />
             ))}
           </Card>
         )}
       </div>
+      {creating && pages && (
+        <NewPageDialog
+          pages={pages}
+          rows={newRows}
+          categories={categories}
+          initialProductId={creating.productId}
+          onCreated={created}
+          onClose={closeCreate}
+        />
+      )}
       {linkingPage && (
         <LinkProductDialog
           page={linkingPage}
@@ -256,13 +412,21 @@ function PageRow({
   saving,
   onToggle,
   onLink,
+  adminRow,
+  onRemove,
+  onKeep,
 }: {
   page: StorePageView;
   saving: boolean;
   onToggle: () => void;
   onLink: () => void;
+  adminRow: NewPageRow | null;
+  onRemove: () => void;
+  onKeep: () => void;
 }) {
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const state = STATE_LABEL[page.state];
+  const leaving = page.admin_page && !adminRow;
   const changed = page.row?.updated_by ? `${page.row.updated_by.split('@')[0]} · ${formatDate(page.row.updated_at)}` : '';
   return (
     <div className={`flex items-center gap-3 px-3 sm:px-4 py-3 ${page.shown ? 'bg-white' : 'bg-gray-50'}`}>
@@ -300,7 +464,55 @@ function PageRow({
             </a>
           )}
           {changed && <span>{changed}</span>}
+          {page.admin_page && !leaving && (
+            confirmRemove ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="text-red-700">¿Borrar la página?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmRemove(false);
+                    onRemove();
+                  }}
+                  disabled={saving}
+                  className="border-0 bg-transparent p-0 text-xs font-medium text-red-700 underline disabled:opacity-50"
+                >
+                  Sí, borrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmRemove(false)}
+                  className="border-0 bg-transparent p-0 text-xs font-normal text-gray-600 underline"
+                >
+                  No
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmRemove(true)}
+                disabled={saving}
+                title="Creada aquí con «Nueva página»: se puede borrar"
+                className="border-0 bg-transparent p-0 text-xs font-normal text-red-700 underline disabled:opacity-50"
+              >
+                Borrar página
+              </button>
+            )
+          )}
         </div>
+        {leaving && (
+          <p className="mt-1 text-xs font-medium text-amber-700">
+            Se borra de la tienda al publicar ·{' '}
+            <button
+              type="button"
+              onClick={onKeep}
+              disabled={saving || page.backend_id === null}
+              className="border-0 bg-transparent p-0 text-xs font-medium text-emerald-700 underline disabled:opacity-50"
+            >
+              Deshacer
+            </button>
+          </p>
+        )}
         {page.shownPending && (
           <p className="mt-1 text-xs font-medium text-amber-700">
             {page.shown ? 'Vuelve a la tienda al publicar' : 'Sale de la tienda al publicar'}

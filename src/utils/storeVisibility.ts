@@ -26,6 +26,8 @@ export interface StorePage {
   backend_id: number | null;
   state: StorePageState;
   hidden: boolean;
+  /** Made in the admin with «Nueva página» (taken off when its row is deleted). */
+  admin_page: boolean;
 }
 
 export interface VisibilityRow {
@@ -83,6 +85,7 @@ export function parseStorePages(data: unknown): StorePage[] {
     category_slug: typeof p.category_slug === 'string' ? p.category_slug : '',
     image: typeof p.image === 'string' ? p.image : null,
     backend_id: Number.isInteger(p.backend_id) ? p.backend_id : null,
+    admin_page: p.admin_page === true,
   }));
 }
 
@@ -175,6 +178,11 @@ export interface ProductOption {
   unit: string | null;
   price: number | null;
   calculated_price: number | null;
+  /** «Nombre en la tienda»; null = the page uses the product name. */
+  storefront_title?: string | null;
+  images_count?: number;
+  primary_image_url?: string | null;
+  is_active?: boolean;
 }
 
 /** Why a linked page would still say «Precio a cotizar» after publishing, or null when it shows the price. */

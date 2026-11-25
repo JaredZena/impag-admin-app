@@ -7,6 +7,7 @@ import SuppliersTable, { Supplier } from './SuppliersTable';
 import AddSupplierModal from './AddSupplierModal';
 import ProductImagesSection, { ProductImage } from './ProductImagesSection';
 import StoreDescriptionSection from './StoreDescriptionSection';
+import StorePageCta from './StorePageCta';
 import { apiRequest } from '@/utils/api';
 import { formatReadableDate } from '@/utils/dateUtils';
 import { formatCurrency } from '@/utils/currencyUtils';
@@ -790,6 +791,9 @@ const ProductDetailPage: React.FC = () => {
                 </div>
               </Card>
             )}
+
+            {/* No page on todoparaelcampo.com.mx yet: «Crear página en la tienda» */}
+            <StorePageCta key={`cta-${productId}`} productId={productId!} />
 
             {/* Description rows on todoparaelcampo.com.mx (linked products only) */}
             <StoreDescriptionSection
