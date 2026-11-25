@@ -33,6 +33,7 @@ const UNIT_LABELS: Record<string, string> = {
   ROLLO: 'rollo',
   PAQUETE: 'paquete',
   KIT: 'kit',
+  CAJA: 'caja',
 };
 
 // Customer-facing unit ("precio por pieza") from the ProductUnit enum value.

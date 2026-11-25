@@ -10,6 +10,7 @@ import StoreDescriptionSection from './StoreDescriptionSection';
 import { apiRequest } from '@/utils/api';
 import { formatReadableDate } from '@/utils/dateUtils';
 import { formatCurrency } from '@/utils/currencyUtils';
+import { PRODUCT_UNITS, productUnitLabel } from '@/utils/productUnits';
 
 interface Product {
   id: number;
@@ -651,13 +652,17 @@ const ProductDetailPage: React.FC = () => {
                 <div className="space-y-1">
                   <label className="text-xs sm:text-sm font-medium text-gray-500">Unidad</label>
                   {isEditing ? (
-                    <Input
-                      value={editedProduct.unit}
+                    <select
+                      value={editedProduct.unit || 'PIEZA'}
                       onChange={(e) => handleInputChange('unit', e.target.value)}
-                      className="border-gray-300 focus:border-green-500 focus:ring-green-500 text-sm"
-                    />
+                      className="w-full px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none text-xs sm:text-sm bg-white text-gray-900"
+                    >
+                      {PRODUCT_UNITS.map((u) => (
+                        <option key={u.value} value={u.value}>{u.label}</option>
+                      ))}
+                    </select>
                   ) : (
-                    <p className="text-xs sm:text-sm text-gray-900">{product.unit}</p>
+                    <p className="text-xs sm:text-sm text-gray-900">{productUnitLabel(product.unit)}</p>
                   )}
                 </div>
                 <div className="space-y-1">

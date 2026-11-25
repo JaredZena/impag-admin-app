@@ -449,6 +449,7 @@ const SupplierProductFormPage: React.FC = () => {
                     <option value="METRO">Metro</option>
                     <option value="CAJA">Caja</option>
                     <option value="PAQUETE">Paquete</option>
+                    <option value="KIT">Kit</option>
                     <option value="ROLLO">Rollo</option>
                   </select>
                 </div>

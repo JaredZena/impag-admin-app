@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/utils/api';
+import { PRODUCT_UNITS } from '@/utils/productUnits';
 
 interface ProductFormData {
   name: string;
@@ -390,10 +391,9 @@ const ProductFormPage: React.FC = () => {
                   onChange={(e) => handleInputChange('unit', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none bg-white"
                 >
-                  <option value="PIEZA">PIEZA</option>
-                  <option value="KG">KG</option>
-                  <option value="METRO">METRO</option>
-                  <option value="ROLLO">ROLLO</option>
+                  {PRODUCT_UNITS.map((u) => (
+                    <option key={u.value} value={u.value}>{u.label}</option>
+                  ))}
                 </select>
               </div>
 
