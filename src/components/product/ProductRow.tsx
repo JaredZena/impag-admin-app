@@ -27,6 +27,8 @@ export interface ProductRowProps {
   categoryOptions?: { value: string; label: string }[];
   currency?: string;
   isCalculatedPrice?: boolean;
+  calculatedPrice?: number | null;
+  defaultMargin?: number | null;
   storefrontTitle?: string | null;
   iva?: boolean | null;
   onlineSale?: OnlineSale | null;
@@ -50,6 +52,8 @@ const ProductRow: React.FC<ProductRowProps> = ({
   categoryOptions = [],
   currency,
   isCalculatedPrice,
+  calculatedPrice,
+  defaultMargin,
   storefrontTitle,
   iva,
   onlineSale = null,
@@ -301,6 +305,8 @@ const ProductRow: React.FC<ProductRowProps> = ({
             productId={id}
             productUnit={unit}
             price={price}
+            floor={calculatedPrice}
+            margin={defaultMargin}
             iva={iva}
             currency={currency}
             onlineSale={onlineSale}

@@ -22,6 +22,8 @@ interface OnlineSaleControlProps {
   productId: string | number;
   productUnit?: string;
   price?: number | null;
+  floor?: number | null;
+  margin?: number | null;
   iva?: boolean | null;
   currency?: string;
   onlineSale: OnlineSale | null;
@@ -66,6 +68,8 @@ const OnlineSaleControl: React.FC<OnlineSaleControlProps> = ({
   productId,
   productUnit,
   price,
+  floor,
+  margin,
   iva,
   currency,
   onlineSale,
@@ -94,7 +98,7 @@ const OnlineSaleControl: React.FC<OnlineSaleControlProps> = ({
   if (statuses === null) return null;
 
   const desired = isOnlineSaleDesired(onlineSale, statuses);
-  const badge = deriveSaleBadge(onlineSale, statuses);
+  const badge = deriveSaleBadge(onlineSale, statuses, { price, floor, margin });
   const storeUrl = `${STORE_BASE_URL}/producto/${storeHandle}`;
   const storePrice = estimateStorePrice(price, iva, currency);
 

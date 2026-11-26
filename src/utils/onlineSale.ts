@@ -107,9 +107,40 @@ export interface SaleBadge {
   label: string;
 }
 
+// The row's numbers behind "not_verified": the store only verifies a price at
+// or above calculated_price (min supplier cost ÷ (1 − Margen por defecto)),
+// with the same 2% slack as the storefront sync.
+export interface SalePricing {
+  price?: number | null;
+  floor?: number | null;
+  margin?: number | null;
+}
+
+const FLOOR_SLACK = 0.98;
+
+const money = (n: number): string =>
+  n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 });
+
+// Says which number to change instead of "revisa costo y margen", which left
+// Hernán re-checking products that still had a price under cost + margin.
+export const notVerifiedLabel = (pricing?: SalePricing | null): string => {
+  const price = pricing?.price ?? null;
+  const floor = pricing?.floor ?? null;
+  if (floor == null || !(floor > 0)) {
+    return 'el precio no tiene costo de proveedor ligado; liga un costo para que se verifique';
+  }
+  if (price != null && price > 0 && price < floor * FLOOR_SLACK) {
+    const margin = pricing?.margin;
+    const pct = margin != null && margin > 0 && margin < 1 ? ` + ${Math.round(margin * 100)}% de margen` : ' + margen';
+    return `el precio ${money(price)} está abajo del mínimo ${money(floor)} (costo${pct}); sube el precio o baja el Margen por defecto`;
+  }
+  return 'el precio ya pasa el mínimo; pulsa Publicar (si sigue igual después de publicar, avísale a Jared)';
+};
+
 export const deriveSaleBadge = (
   onlineSale: OnlineSale | null | undefined,
   statuses: SaleStatusEntry[] | null | undefined,
+  pricing?: SalePricing | null,
 ): SaleBadge => {
   const buyable = isBuyableOnStore(statuses);
   const desired = isOnlineSaleDesired(onlineSale, statuses);
@@ -129,7 +160,9 @@ export const deriveSaleBadge = (
   if (blocking.length === 0) return { kind: 'pending', label: 'Pendiente: pulsa Publicar' };
   return {
     kind: 'blocked',
-    label: `No se puede vender: ${blocking.map(saleReasonLabel).join('; ')}`,
+    label: `No se puede vender: ${blocking
+      .map((r) => (r === 'not_verified' && pricing ? notVerifiedLabel(pricing) : saleReasonLabel(r)))
+      .join('; ')}`,
   };
 };
 

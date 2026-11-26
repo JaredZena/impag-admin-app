@@ -103,6 +103,8 @@ const ProductManagementPage: React.FC = () => {
         // Use the currency from the API response (for calculated prices) or default to MXN
         currency: p.currency || 'MXN',
         isCalculatedPrice: !!p.is_calculated_price,
+        calculatedPrice: p.calculated_price ?? null,
+        defaultMargin: p.default_margin ?? null,
         storefrontTitle: p.storefront_title ?? null,
         iva: p.iva ?? null,
         onlineSale: p.online_sale ?? null,

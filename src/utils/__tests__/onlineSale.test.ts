@@ -5,6 +5,7 @@ import {
   deriveSaleBadge,
   estimateStorePrice,
   isOnlineSaleDesired,
+  notVerifiedLabel,
   saleReasonLabel,
   unitLabelFromProductUnit,
   validateOnlineSaleInput,
@@ -184,5 +185,40 @@ describe('estimateStorePrice', () => {
     expect(estimateStorePrice(0, true)).toBeNull();
     expect(estimateStorePrice(100, true, 'USD')).toBeNull();
     expect(estimateStorePrice(100, null)).toBeNull();
+  });
+});
+
+describe('notVerifiedLabel', () => {
+  test('price under cost + margin names both numbers and what to change', () => {
+    // #962 malacate on 11-26: $2,500 vs floor $2,924.27 at 25%
+    expect(notVerifiedLabel({ price: 2500, floor: 2924.27, margin: 0.25 })).toBe(
+      'el precio $2,500.00 está abajo del mínimo $2,924.27 (costo + 25% de margen); sube el precio o baja el Margen por defecto',
+    );
+  });
+
+  test('no margin known still gives the minimum', () => {
+    expect(notVerifiedLabel({ price: 100, floor: 200, margin: null })).toContain('mínimo $200.00 (costo + margen)');
+  });
+
+  test('no cost linked -> link a cost', () => {
+    expect(notVerifiedLabel({ price: 5689.66, floor: null, margin: 0.25 })).toBe(
+      'el precio no tiene costo de proveedor ligado; liga un costo para que se verifique',
+    );
+    expect(notVerifiedLabel({ price: 10, floor: 0 })).toContain('costo de proveedor ligado');
+  });
+
+  test('price already at the floor (within 2%) -> publish', () => {
+    expect(notVerifiedLabel({ price: 2900, floor: 2924.27, margin: 0.25 })).toContain('pulsa Publicar');
+    expect(notVerifiedLabel({ price: 3000, floor: 2924.27, margin: 0.25 })).toContain('pulsa Publicar');
+  });
+
+  test('badge uses it only when the row passes pricing', () => {
+    const blocked = [status(false, ['not_verified', 'iva_unknown'])];
+    expect(deriveSaleBadge(config(), blocked, { price: 2500, floor: 2924.27, margin: 0.25 }).label).toBe(
+      'No se puede vender: el precio $2,500.00 está abajo del mínimo $2,924.27 (costo + 25% de margen); sube el precio o baja el Margen por defecto; falta indicar si lleva IVA',
+    );
+    expect(deriveSaleBadge(config(), blocked).label).toBe(
+      'No se puede vender: el precio no está verificado (revisa costo y margen); falta indicar si lleva IVA',
+    );
   });
 });
